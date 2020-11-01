@@ -17,7 +17,7 @@ class Lecture:
     def __init__(self, full_name: str, short: str, url: str, check):
         self.name = full_name
         self.url = url
-        self.html_path = f'{short}.html'
+        self.html_path = f'websites/{short}.html'
         open(self.html_path, 'a').close() # creates file if not existing
         self.check_fn = check
 

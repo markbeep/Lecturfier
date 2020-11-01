@@ -52,7 +52,7 @@ class Statistics(commands.Cog):
             "Fri": [8, 12]
         }
 
-        self.statistics_filepath = "Data/statistics.json"
+        self.statistics_filepath = "data/statistics.json"
         with open(self.statistics_filepath, "r") as f:
             self.statistics = json.load(f)
 

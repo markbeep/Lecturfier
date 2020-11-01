@@ -26,8 +26,8 @@ class Player(commands.Cog):
         self.ta_request = {}
         self.TIME_TO_WAIT = 20 * 3600  # hours to wait between reps
         self.blocked_users = [767034445093273620, 739915006396596354, 766978544156409867, 766972914867634187, 766943366217990164, 769542250635460649]
-        self.quotes_filepath = "Data/quotes.json"
-        self.reputation_filepath = "Data/reputation.json"
+        self.quotes_filepath = "data/quotes.json"
+        self.reputation_filepath = "data/reputation.json"
 
         with open(self.quotes_filepath, "r") as f:
             self.quotes = json.load(f)

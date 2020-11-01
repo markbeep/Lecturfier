@@ -18,7 +18,7 @@ bot.remove_command("help")
 
 file_creator.createFiles()
 
-with open("Data/schedule.json", "r") as f:
+with open("data/schedule.json", "r") as f:
     schedule = json.load(f)
 
 channel_list = {"lecture": 756391202546384927, "test": 402563165247766528}
