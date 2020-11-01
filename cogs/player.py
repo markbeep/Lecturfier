@@ -14,11 +14,6 @@ import traceback
 import os
 import string
 
-with open("quotes.json", "r") as f:
-    quotes = json.load(f)
-
-with open("reputation.json", "r") as f:
-    reputation = json.load(f)
 
 class Player(commands.Cog):
     def __init__(self, bot):
@@ -27,12 +22,19 @@ class Player(commands.Cog):
         self.clap_counter = 0
         self.time = 0
         self.simplified = ""
-        self.quotes = quotes
-        self.reputation = reputation
         self.newcomers = {}
         self.ta_request = {}
         self.TIME_TO_WAIT = 20 * 3600  # hours to wait between reps
         self.blocked_users = [767034445093273620, 739915006396596354, 766978544156409867, 766972914867634187, 766943366217990164, 769542250635460649]
+        self.quotes_filepath = "Data/quotes.json"
+        self.reputation_filepath = "Data/reputation.json"
+
+        with open(self.quotes_filepath, "r") as f:
+            self.quotes = json.load(f)
+
+        with open(self.reputation_filepath, "r") as f:
+            self.reputation = json.load(f)
+
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -159,7 +161,7 @@ class Player(commands.Cog):
 
         # SAVE FILE
         try:
-            with open("reputation.json", "w") as f:
+            with open(self.reputation_filepath, "w") as f:
                 json.dump(self.reputation, f, indent=2)
             print("SAVED REPUTATION")
         except Exception:
@@ -476,7 +478,7 @@ $statistics""")
 
                                     # SAVE FILE
                                     try:
-                                        with open("quotes.json", "w") as f:
+                                        with open(self.quotes_filepath, "w") as f:
                                             json.dump(self.quotes, f, indent=2)
                                         print("SAVED QUOTES")
                                     except Exception:
@@ -499,7 +501,7 @@ $statistics""")
 
                             # SAVE FILE
                             try:
-                                with open("quotes.json", "w") as f:
+                                with open(self.quotes_filepath, "w") as f:
                                     json.dump(self.quotes, f, indent=2)
                                 print("SAVED QUOTES")
                             except Exception:

@@ -9,14 +9,10 @@ from emoji import demojize
 import traceback
 
 
-with open("statistics.json", "r") as f:
-    statistics = json.load(f)
-
 class Statistics(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.script_start = 0
-        self.statistics = statistics
         self.checks = [
             "messages_sent",            # DONE
             "messages_deleted",         # DONE
@@ -56,6 +52,10 @@ class Statistics(commands.Cog):
             "Fri": [8, 12]
         }
 
+        self.statistics_filepath = "Data/statistics.json"
+        with open(self.statistics_filepath, "r") as f:
+            self.statistics = json.load(f)
+
         # self.spam_channel_times = ["Tue:11:45", "Fri:09:45", "Fri:09:45", "Wed:13:45", "Wed:11:45", "Fri:11:45", "Thu:16:45"]
         self.time_of_msg = time.time()
         self.waiting = False
@@ -77,7 +77,7 @@ class Statistics(commands.Cog):
             if self.time_counter >= 5:
                 self.time_counter = 0
                 try:
-                    with open("statistics.json", "w") as f:
+                    with open(self.statistics_filepath, "w") as f:
                         json.dump(self.statistics, f, indent=2)
                     print("SAVED STATISTICS")
                 except Exception:

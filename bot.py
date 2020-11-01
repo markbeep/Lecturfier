@@ -5,43 +5,21 @@ from datetime import datetime
 from pytz import timezone
 import time
 from lecture_scraper.scrape import scraper
-import random
+import os
 import json
 import traceback
 import pprint
+import file_creator
 
 
 bot = commands.Bot(command_prefix="$", description='Lecture Notifier')
 
 bot.remove_command("help")
 
-schedule = {
-    'eprog': {
-        "Tue:10:00": "https://ethz.zoom.us/j/91613399654",
-        "Fri:08:00": "https://ethz.zoom.us/j/91613399654",
-        "url": "https://www.lst.inf.ethz.ch/education/einfuehrung-in-die-programmierung-i--252-0027-.html"
-    },
-    'diskmat': {
-        "Tue:12:00": "https://zoom.us/j/99832431597",
-        "Wed:12:00": "https://zoom.us/j/99832431597",
-        "url": "https://crypto.ethz.ch/teaching/DM20/"
-    },
-    'linalg': {
-        "Wed:10:00": "https://video.ethz.ch/live/lectures/zentrum/hg/hg-f-1.html",
-        "Fri:10:00": "https://video.ethz.ch/live/lectures/zentrum/hg/hg-e-7.html",
-        "url": "https://igl.ethz.ch/teaching/linear-algebra/la2020/"
-    },
-    'and': {
-        "Thu:14:00": "https://video.ethz.ch/live/lectures/zentrum/ml/ml-d-28.html",
-        "url": "https://www.cadmo.ethz.ch/education/lectures/HS20/DA/index.html"
-    },
-    'test': {
-        "test": "Just a TEST MESSAGE",
-        "url": "This is the url to the website"
-    }
-}
+file_creator.createFiles()
 
-
+with open("Data/schedule.json", "r") as f:
+    schedule = json.load(f)
 
 channel_list = {"lecture": 756391202546384927, "test": 402563165247766528}
 
