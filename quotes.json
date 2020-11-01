@@ -1,15 +1,14 @@
 {
   "guild_id": {
-    "user1": [
+    "user1":
       [
         "08/10/2020",
         "This is a filler quote"
       ],
-      "user2": [
+      "user2":
       [
         "08/10/2020",
         "u mum ge"
       ]
-    }
   }
 }
