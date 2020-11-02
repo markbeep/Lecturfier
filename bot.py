@@ -5,12 +5,11 @@ from datetime import datetime
 from pytz import timezone
 import time
 from lecture_scraper.scrape import scraper
-import os
 import json
 import traceback
 import pprint
 import file_creator
-
+from cogs.log import log
 
 bot = commands.Bot(command_prefix="$", description='Lecture Notifier')
 
@@ -24,7 +23,7 @@ with open("data/schedule.json", "r") as f:
 channel_list = {"lecture": 756391202546384927, "test": 402563165247766528}
 
 ####################################################
-#GLOBAL VARIABLES
+# GLOBAL VARIABLES
 
 
                                                                                     # DEFAULT:
@@ -44,7 +43,6 @@ async def background_loop():
             cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
             if test_livestream_message:
                 cur_time = "test"
-            print(cur_time)
             if int(datetime.now(timezone("Europe/Zurich")).strftime("%M")) % 10 == 0:  # Only check updates every 10 minutes
                 await check_updates(channel, cur_time, lecture_updater_version)
             if cur_time in all_times(schedule):
@@ -54,6 +52,7 @@ async def background_loop():
         except Exception:
             user = bot.get_user(205704051856244736)
             await user.send(f"Error in background loop: {traceback.format_exc()}")
+            log(f"Error in background loop bot.py: {traceback.format_exc()}", "Error in background loop bot.py")
             await asyncio.sleep(10)
 
 @bot.command()
@@ -69,7 +68,7 @@ async def edit(ctx, id: int = None, link = None):
         room = get_room(link)
         message = await ctx.channel.fetch_message(id)
         title = message.embeds[0].title
-        embed = discord.Embed(title=f"{name} is starting soon!",
+        embed = discord.Embed(title=f"{title} is starting soon!",
                               description=f"**Lecture is in {room}**\n[**>> Click here to view the livestream <<**]({link})\n---------------------\n",
                               timestamp=datetime.fromtimestamp(time.time()), color=discord.Color.light_grey())
         embed.set_footer(text="(Edited)")
@@ -83,8 +82,6 @@ async def check_updates(channel, cur_time, version):
     scraped_info = scraper()
     changes = scraped_info[0]
     lecture_urls = scraped_info[1]
-    print(f"########{cur_time}")
-    print(pprint.pprint(changes))
     send_ping = False
     for lesson in changes.keys():
         try:
@@ -119,7 +116,7 @@ async def check_updates(channel, cur_time, version):
                             await user.send(embed=embed)
 
                     elif correct_changes["event"] == "edit":
-                        print("--------Something got edited--------")
+                        log(f"{lesson} was changed", f"{lesson} was changed")
                         title = f"There has been an edit on __{lesson}__"
                         description = f"""**OLD**:
     {format_exercise(correct_changes["content"]["old"])}
@@ -132,7 +129,7 @@ async def check_updates(channel, cur_time, version):
                         send_ping = True
 
                     elif correct_changes["event"] == "new":
-                        print("--------There's something new--------")
+                        log(f"{lesson} got an new update", f"{lesson} got an new update")
                         title = f"Something new was added on __{lesson}__"
                         description = f"""**NEW**:\n{format_exercise(correct_changes["content"])}"""
                         embed = discord.Embed(title=title, description=description, timestamp=datetime.utcfromtimestamp(time.time()), color=color)
@@ -169,7 +166,10 @@ def check_link(key, data):
 
 async def send_livestream(cur_time: str, channel, version):
     color = discord.Color.lighter_grey()
-    print("--------------Sending Embed Message")
+    log("Sending Embed Message for livestream.", "Livestream embed")
+    link = ""
+    name = ""
+    website_url = ""
     if cur_time in schedule['eprog']:  # Eprog
         link = schedule['eprog'][cur_time]
         website_url = schedule['eprog']['url']
@@ -223,10 +223,10 @@ def get_room(link):
 
 @bot.event
 async def on_ready():
-    print("Logged in as:")
-    print(f"Name: {bot.user.name}")
-    print(f"ID: {bot.user.id}")
-    print(f"Version: {discord.__version__}")
+    log("Logged in as:", "Logged in as:")
+    log(f"Name: {bot.user.name}", f"Name: {bot.user.name}")
+    log(f"ID: {bot.user.id}", f"ID: {bot.user.id}")
+    log(f"Version: {discord.__version__}", f"Version: {discord.__version__}")
     await bot.change_presence(activity=discord.Activity(name='lectures!', type=discord.ActivityType.watching))
     print("-------------")
 
@@ -245,9 +245,9 @@ startup_extensions = ["player", "statistics", "minesweeper", "hangman"]
 for extension in startup_extensions:
     try:
         loaded_cog = bot.load_extension("cogs." + extension)
-        print("Loaded extension \"{}\".".format(extension))
+        log("Loaded extension \"{}\".".format(extension), "Loaded extension \"{}\".".format(extension))
     except Exception as e:
-        print("---Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)))
+        log("Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)), "---Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)))
 print("-------------------")
 
 bot.loop.create_task(background_loop())
