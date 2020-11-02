@@ -234,12 +234,7 @@ async def on_ready():
 async def on_message(message):
     await bot.process_commands(message)
 
-
-with open("../LECTURFIER.json", "r") as f:
-    settings = json.load(f)
-
-
-startup_extensions = ["player", "statistics", "minesweeper", "hangman"]
+startup_extensions = ["player", "statistics", "minesweeper", "hangman", "quote"]
 
 for extension in startup_extensions:
     try:
@@ -249,6 +244,11 @@ for extension in startup_extensions:
         log("Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)), "EXTENSION")
 print("-------------------")
 
+with open("../LECTURFIER.json", "r") as f:
+    settings = json.load(f)
+if len(settings["token"] == 0):
+    log("NO TOKEN IN LECTURFIER.json! Stopping bot.", "TOKEN")
+    exit()
 bot.loop.create_task(background_loop())
 bot.run(settings["token"])
 
