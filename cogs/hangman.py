@@ -87,10 +87,10 @@ class Hangman(commands.Cog):
     async def hangman(self, ctx, inputted_word=None, unused_letters=None, language="e"):
         if inputted_word is not None and unused_letters is not None:
             if language.startswith('g'):
-                file_name = 'data/german.txt'
+                file_name = './data/german.txt'
                 print('Selected German.')
             else:
-                file_name = 'data/english.txt'
+                file_name = './data/english.txt'
                 print('Selected English.')
 
             if unused_letters == 0:
