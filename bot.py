@@ -7,9 +7,8 @@ import time
 from lecture_scraper.scrape import scraper
 import json
 import traceback
-import pprint
-import file_creator
-from cogs.log import log
+from helper import file_creator
+from helper.log import log
 
 bot = commands.Bot(command_prefix="$", description='Lecture Notifier')
 
