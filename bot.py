@@ -246,7 +246,7 @@ print("-------------------")
 
 with open("../LECTURFIER.json", "r") as f:
     settings = json.load(f)
-if len(settings["token"] == 0):
+if len(settings["token"]) == 0:
     log("NO TOKEN IN LECTURFIER.json! Stopping bot.", "TOKEN")
     exit()
 bot.loop.create_task(background_loop())
