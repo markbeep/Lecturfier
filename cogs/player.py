@@ -9,7 +9,6 @@ from sympy.solvers import solve
 from sympy import symbols, simplify
 import multiprocessing
 import json
-from pytz import timezone
 import traceback
 import os
 from helper.log import log
@@ -27,11 +26,7 @@ class Player(commands.Cog):
         self.TIME_TO_WAIT = 20 * 3600  # hours to wait between reps
         with open("./data/ignored_users.json") as f:
             self.ignored_users = json.load(f)
-        self.quotes_filepath = "./data/quotes.json"
         self.reputation_filepath = "./data/reputation.json"
-
-        with open(self.quotes_filepath, "r") as f:
-            self.quotes = json.load(f)
 
         with open(self.reputation_filepath, "r") as f:
             self.reputation = json.load(f)
@@ -55,23 +50,16 @@ class Player(commands.Cog):
                 self.clap_counter = 0
                 await message.channel.send("👏\n👏\n👏")
 
-        # To get a quote you can just type `-name`
-        if message.content.startswith("-"):
-            name = "NONE"
-            try:
-                random.seed(time.time())
-                name = message.content.replace("-", "").lower()
-                rand_quote = random.choice(self.quotes[str(message.guild.id)][name])
-                await self.send_quote(message.channel, rand_quote[1], rand_quote[0], name)
-            except IndexError:
-                log(f"Did not find quote from user: {name}", "QUOTE")
-            except KeyError:
-                log(f"Name does not exist in database: {name}", "QUOTE")
+        # Reps a user
         if message.content.startswith("+rep"):
             await self.rep(message)
 
     async def rep(self, message):
-
+        """
+        Used to add positive reputation to a user
+        :param message: The message content including the +rep
+        :return: None
+        """
         if message.author.id in self.ignored_users:
             await message.channel.send(f"{message.author.mention} this discord account is blocked from using +rep.")
             return

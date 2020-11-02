@@ -29,6 +29,21 @@ class Quote(commands.Cog):
         with open(self.quotes_filepath, "r") as f:
             self.quotes = json.load(f)
 
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        # To get a quote you can just type `-name`
+        if message.content.startswith("-"):
+            name = "NONE"
+            try:
+                random.seed(time.time())
+                name = message.content.replace("-", "").lower()
+                rand_quote = random.choice(self.quotes[str(message.guild.id)][name])
+                await send_quote(message.channel, rand_quote[1], rand_quote[0], name)
+            except IndexError:
+                log(f"Did not find quote from user: {name}", "QUOTE")
+            except KeyError:
+                log(f"Name does not exist in database: {name}", "QUOTE")
+
     @commands.command()
     async def quote(self, ctx, name=None, *quote):
         """
