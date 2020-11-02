@@ -54,6 +54,7 @@ class Player(commands.Cog):
         if message.content.startswith("+rep"):
             await self.rep(message)
 
+    # TODO: Transfer +rep system to its own cog
     async def rep(self, message):
         """
         Used to add positive reputation to a user
@@ -258,6 +259,7 @@ class Player(commands.Cog):
                 await asyncio.sleep(0.75)
             await msg.edit(content=("Loading: DONE\n" + "100% | " + await self.loading_bar(10, 10, False)))
 
+    # TODO: Make a proper working help page
     @commands.command(aliases=["halp", "h", "halpp", "helpp"])
     async def help(self, ctx):
         await ctx.author.send("👌")
