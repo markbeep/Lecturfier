@@ -7,9 +7,11 @@ def log(text, keyword=None):
     """
     Logs a specific entry to a file.
     :param text: The text to log into a file
-    :param keyword: An optional parameter which will get displayed in the console
+    :param keyword: An optional parameter which helps with sorting the log
     :return: None
     """
+    if keyword is not None:
+        text = f"{keyword} | {text}"
     date = datetime.now(timezone("Europe/Zurich")).strftime("%Y-%m-%d")
     time = datetime.now(timezone("Europe/Zurich")).strftime("%H:%M:%S")
     if not os.path.exists(f"logs/{date}.log"):
@@ -21,5 +23,4 @@ def log(text, keyword=None):
             existing_log = f.read()
         with open(f"logs/{date}.log", "w") as f:
             f.write(f"{existing_log}\n[{time}] -- {text}")
-    if keyword is not None:
-        print(f"Logged ({keyword})")
+    print(f"Logged: {text}")

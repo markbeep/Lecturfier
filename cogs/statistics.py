@@ -7,6 +7,7 @@ import asyncio
 import json
 from emoji import demojize
 import traceback
+from helper.log import log
 
 
 class Statistics(commands.Cog):
@@ -26,7 +27,7 @@ class Statistics(commands.Cog):
             "files_sent",               # DONE
             "gifs_sent",                # DONE
             "reactions_received",       # DONE
-            "commands_used"
+            "commands_used"             # Only Lecturfier till now
 
         ]
         self.checks_full_name = {
@@ -52,21 +53,18 @@ class Statistics(commands.Cog):
             "Fri": [8, 12]
         }
 
-        self.statistics_filepath = "data/statistics.json"
+        self.statistics_filepath = "./data/statistics.json"
         with open(self.statistics_filepath, "r") as f:
             self.statistics = json.load(f)
+        with open("./data/ignored_channels.json") as f:
+            self.ignore_channels = json.load(f)
 
         # self.spam_channel_times = ["Tue:11:45", "Fri:09:45", "Fri:09:45", "Wed:13:45", "Wed:11:45", "Fri:11:45", "Thu:16:45"]
         self.time_of_msg = time.time()
         self.waiting = False
         self.time_counter = 0  # So statistics dont get saved every few seconds, and instead only every 2 mins
         self.notice_message = 0  # The message that notifies others about joining the spam channel
-
         self.recent_message = []
-
-        self.all_commands = ["hangman", "hm", "loading", "help", "h", "info", "calc", "say", "ping", "pong", "spam_till_youre_dead", "reboot", "minesweeper", "ms", "statistics", "stats"]
-
-        self.ignore_channels = [768600365602963496]
 
         bot.loop.create_task(self.background_loop())
 
@@ -79,7 +77,7 @@ class Statistics(commands.Cog):
                 try:
                     with open(self.statistics_filepath, "w") as f:
                         json.dump(self.statistics, f, indent=2)
-                    print("SAVED STATISTICS")
+                    log("SAVED STATISTICS", "STATISTICS")
                 except Exception:
                     user = self.bot.get_user(205704051856244736)
                     await user.send(f"Saving STATISTICS file failed:\n{traceback.format_exc()}")
@@ -107,10 +105,8 @@ class Statistics(commands.Cog):
             return
         try:
             if message.author.id in self.recent_message:
-                print("m- Sending messages too quickly")
                 return
             if message.channel.id in self.ignore_channels:
-                print("m- Channel is in ignore list")
                 return
             self.recent_message.append(message.author.id)
 
@@ -118,10 +114,8 @@ class Statistics(commands.Cog):
 
             msg = demojize(message.content)
 
-            if message.content.startswith("$"):
-                msg = message.content.replace("$", "")
-                if msg.split(" ")[0] in self.all_commands:
-                    self.statistics[str(message.guild.id)]["commands_used"][str(message.author.id)] += 1
+            if message.content.startswith("$") or message.content.startswith("\\") or message.content.startswith(";"):
+                self.statistics[str(message.guild.id)]["commands_used"][str(message.author.id)] += 1
 
             self.statistics[str(message.guild.id)]["messages_sent"][str(message.author.id)] += 1
             self.statistics[str(message.guild.id)]["chars_sent"][str(message.author.id)] += len(msg)
@@ -211,7 +205,6 @@ class Statistics(commands.Cog):
 
             # Reactions on own message
             if reaction.message.author.id == user.id:
-                print("Author the same as reaction giver.")
                 return
             await self.user_checkup(message=reaction.message)
             self.statistics[str(reaction.message.guild.id)]["reactions_received"][str(reaction.message.author.id)] += 1
@@ -232,7 +225,6 @@ class Statistics(commands.Cog):
 
             # Reactions on own message
             if reaction.message.author.id == user.id:
-                print("Author the same as reaction remover.")
                 return
             await self.user_checkup(message=reaction.message)
             self.statistics[str(reaction.message.guild.id)]["reactions_received"][str(reaction.message.author.id)] -= 1

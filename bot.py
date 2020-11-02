@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime
 from pytz import timezone
 import time
-from lecture_scraper.scrape import scraper
+from helper.lecture_scraper.scrape import scraper
 import json
 import traceback
 from helper import file_creator
@@ -16,7 +16,7 @@ bot.remove_command("help")
 
 file_creator.createFiles()
 
-with open("data/schedule.json", "r") as f:
+with open("./data/schedule.json", "r") as f:
     schedule = json.load(f)
 
 channel_list = {"lecture": 756391202546384927, "test": 402563165247766528}
@@ -51,7 +51,7 @@ async def background_loop():
         except Exception:
             user = bot.get_user(205704051856244736)
             await user.send(f"Error in background loop: {traceback.format_exc()}")
-            log(f"Error in background loop bot.py: {traceback.format_exc()}", "Error in background loop bot.py")
+            log(f"Error in background loop bot.py: {traceback.format_exc()}", "BACKGROUND")
             await asyncio.sleep(10)
 
 @bot.command()
@@ -115,7 +115,7 @@ async def check_updates(channel, cur_time, version):
                             await user.send(embed=embed)
 
                     elif correct_changes["event"] == "edit":
-                        log(f"{lesson} was changed", f"{lesson} was changed")
+                        log(f"{lesson} was changed", "LESSON")
                         title = f"There has been an edit on __{lesson}__"
                         description = f"""**OLD**:
     {format_exercise(correct_changes["content"]["old"])}
@@ -128,7 +128,7 @@ async def check_updates(channel, cur_time, version):
                         send_ping = True
 
                     elif correct_changes["event"] == "new":
-                        log(f"{lesson} got an new update", f"{lesson} got an new update")
+                        log(f"{lesson} got an new update", "LESSON")
                         title = f"Something new was added on __{lesson}__"
                         description = f"""**NEW**:\n{format_exercise(correct_changes["content"])}"""
                         embed = discord.Embed(title=title, description=description, timestamp=datetime.utcfromtimestamp(time.time()), color=color)
@@ -165,7 +165,7 @@ def check_link(key, data):
 
 async def send_livestream(cur_time: str, channel, version):
     color = discord.Color.lighter_grey()
-    log("Sending Embed Message for livestream.", "Livestream embed")
+    log("Sending Embed Message for livestream.", "LIVESTREAM")
     link = ""
     name = ""
     website_url = ""
@@ -222,10 +222,10 @@ def get_room(link):
 
 @bot.event
 async def on_ready():
-    log("Logged in as:", "Logged in as:")
-    log(f"Name: {bot.user.name}", f"Name: {bot.user.name}")
-    log(f"ID: {bot.user.id}", f"ID: {bot.user.id}")
-    log(f"Version: {discord.__version__}", f"Version: {discord.__version__}")
+    log("Logged in as:", "LOGIN")
+    log(f"Name: {bot.user.name}", "LOGIN")
+    log(f"ID: {bot.user.id}", "LOGIN")
+    log(f"Version: {discord.__version__}", "LOGIN")
     await bot.change_presence(activity=discord.Activity(name='lectures!', type=discord.ActivityType.watching))
     print("-------------")
 
@@ -244,9 +244,9 @@ startup_extensions = ["player", "statistics", "minesweeper", "hangman"]
 for extension in startup_extensions:
     try:
         loaded_cog = bot.load_extension("cogs." + extension)
-        log("Loaded extension \"{}\".".format(extension), "Loaded extension \"{}\".".format(extension))
+        log("Loaded extension \"{}\".".format(extension), "EXTENSION")
     except Exception as e:
-        log("Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)), "---Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)))
+        log("Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)), "EXTENSION")
 print("-------------------")
 
 bot.loop.create_task(background_loop())

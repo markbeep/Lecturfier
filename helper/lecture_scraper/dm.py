@@ -1,4 +1,4 @@
-from lecture_scraper.helpers import find_edit_events, new_event, edit_event, other_event, check_wrapper, get_wrapper
+from helper.lecture_scraper.helpers import other_event, check_wrapper
 from bs4 import BeautifulSoup as bs
 from urllib.parse import urljoin
 

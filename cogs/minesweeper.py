@@ -12,13 +12,10 @@ class Minesweeper(commands.Cog):
     async def bomb_placer(self, size:int, mines:int):
         mine_field = []
         if mines > size**2 - 1:
-            print("More mines than spaces in the field")
             mines = size**2 - 1
         if size < 1:
-            print("Size less than 1")
             size = 1
         if mines < 1:
-            print("Less than 1 mine")
             mines = 1
 
         for i in range(size):

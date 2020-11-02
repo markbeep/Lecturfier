@@ -12,7 +12,7 @@ import json
 from pytz import timezone
 import traceback
 import os
-import string
+from helper.log import log
 
 
 class Player(commands.Cog):
@@ -25,9 +25,10 @@ class Player(commands.Cog):
         self.newcomers = {}
         self.ta_request = {}
         self.TIME_TO_WAIT = 20 * 3600  # hours to wait between reps
-        self.blocked_users = [767034445093273620, 739915006396596354, 766978544156409867, 766972914867634187, 766943366217990164, 769542250635460649]
-        self.quotes_filepath = "data/quotes.json"
-        self.reputation_filepath = "data/reputation.json"
+        with open("./data/ignored_users.json") as f:
+            self.ignored_users = json.load(f)
+        self.quotes_filepath = "./data/quotes.json"
+        self.reputation_filepath = "./data/reputation.json"
 
         with open(self.quotes_filepath, "r") as f:
             self.quotes = json.load(f)
@@ -56,21 +57,22 @@ class Player(commands.Cog):
 
         # To get a quote you can just type `-name`
         if message.content.startswith("-"):
+            name = "NONE"
             try:
                 random.seed(time.time())
                 name = message.content.replace("-", "").lower()
                 rand_quote = random.choice(self.quotes[str(message.guild.id)][name])
                 await self.send_quote(message.channel, rand_quote[1], rand_quote[0], name)
             except IndexError:
-                print("Didn't find that user to send a quote from")
+                log(f"Did not find quote from user: {name}", "QUOTE")
             except KeyError:
-                print("User doesn't exist")
+                log(f"Name does not exist in database: {name}", "QUOTE")
         if message.content.startswith("+rep"):
             await self.rep(message)
 
     async def rep(self, message):
 
-        if message.author.id in self.blocked_users:
+        if message.author.id in self.ignored_users:
             await message.channel.send(f"{message.author.mention} this discord account is blocked from using +rep.")
             return
 
@@ -165,8 +167,8 @@ class Player(commands.Cog):
                 json.dump(self.reputation, f, indent=2)
             print("SAVED REPUTATION")
         except Exception:
-            user = self.bot.get_user(205704051856244736)
-            await user.send(f"Saving REPUTATION file failed:\n{traceback.format_exc()}")
+            log(f"Saving REPUTATION file failed:\n{traceback.format_exc()}", "REPUTATION")
+            await self.bot.owner.send(f"Saving REPUTATION file failed:\n{traceback.format_exc()}")
         return True
 
     async def rep_checkup(self, guild_id, name):
@@ -482,8 +484,7 @@ $statistics""")
                                             json.dump(self.quotes, f, indent=2)
                                         print("SAVED QUOTES")
                                     except Exception:
-                                        user = self.bot.get_user(205704051856244736)
-                                        await user.send(f"Saving QUOTES file failed:\n{traceback.format_exc()}")
+                                        await self.bot.owner.send(f"Saving QUOTES file failed:\n{traceback.format_exc()}")
 
                                     await ctx.send(f"Deleted quote with index {index}.")
                                 except IndexError:
@@ -505,8 +506,8 @@ $statistics""")
                                     json.dump(self.quotes, f, indent=2)
                                 print("SAVED QUOTES")
                             except Exception:
-                                user = self.bot.get_user(205704051856244736)
-                                await user.send(f"Saving QUOTES file failed:\n{traceback.format_exc()}")
+                                log(f"Saving QUOTES file failed:\n{traceback.format_exc()}", "QUOTES")
+                                await self.bot.owner.send(f"Saving QUOTES file failed:\n{traceback.format_exc()}")
 
                             await ctx.send(f"Added quote for {name}")
                     except IndexError:

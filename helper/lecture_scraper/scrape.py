@@ -1,10 +1,9 @@
 import requests
 from bs4 import BeautifulSoup as bs
-import json
-from lecture_scraper.dm import dm_check
-from lecture_scraper.ep import ep_check
-from lecture_scraper.ad import ad_check
-from lecture_scraper.la import la_check
+from helper.lecture_scraper.dm import dm_check
+from helper.lecture_scraper.ep import ep_check
+from helper.lecture_scraper.ad import ad_check
+from helper.lecture_scraper.la import la_check
 
 class Lecture:
     """Lecture Scraper
