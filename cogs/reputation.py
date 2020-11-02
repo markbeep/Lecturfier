@@ -21,6 +21,8 @@ class Reputation(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
+        if message.author.bot:
+            return
         # Reps a user
         if message.content.startswith("+rep"):
             await self.rep(message)

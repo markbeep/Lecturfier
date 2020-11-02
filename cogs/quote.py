@@ -31,6 +31,8 @@ class Quote(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
+        if message.author.bot:
+            return
         # To get a quote you can just type `-name`
         if message.content.startswith("-"):
             name = "NONE"

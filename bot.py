@@ -26,10 +26,10 @@ channel_list = {"lecture": 756391202546384927, "test": 402563165247766528}
 
 
                                                                                     # DEFAULT:
-channel_to_post = channel_list["test"]  # "lecture" or "test"                    # "lecture"
+channel_to_post = channel_list["lecture"]  # "lecture" or "test"                    # "lecture"
 test_livestream_message = False  # set True to send test time                       # False
-send_message_to_finn = False  # set True to send messages to Finn                    # True
-lecture_updater_version = "v2.0"  # The version of the lecture updates sender       # v0.5
+send_message_to_finn = True  # set True to send messages to Finn                    # True
+lecture_updater_version = "v2.1"  # The version of the lecture updates sender       # v0.5
 
 
 ####################################################

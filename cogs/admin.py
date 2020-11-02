@@ -12,6 +12,8 @@ class Admin(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
+        if member.bot:
+            return
         channel = self.bot.get_channel(747794480517873685)
         await self.send_welcome_message(channel, member)
 
