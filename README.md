@@ -9,6 +9,6 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
   - Stores quotes
   - and much much more
 
-# TODO
+## TODO:
   - [ ] Make a proper working help page
-  - [ ] Transfer +rep system to its own cog
+  - [x] Transfer +rep system to its own cog

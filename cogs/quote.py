@@ -44,7 +44,7 @@ class Quote(commands.Cog):
             except KeyError:
                 log(f"Name does not exist in database: {name}", "QUOTE")
 
-    @commands.command()
+    @commands.command(aliases=["q", "quotes"])
     async def quote(self, ctx, name=None, *quote):
         """
         Adds a quote or calls a quote for the user mentioned
@@ -82,7 +82,7 @@ class Quote(commands.Cog):
                         # Checks if the quote is a quote index
                         index = int(quote)
                         await send_quote(ctx, self.quotes[guild_id][name][index][1],
-                                              self.quotes[guild_id][name][index][0], name, index)
+                                         self.quotes[guild_id][name][index][0], name, index)
 
                     except ValueError:
                         # Is the quote a command or a new quote to add
@@ -134,7 +134,8 @@ class Quote(commands.Cog):
                                             json.dump(self.quotes, f, indent=2)
                                         log("SAVED QUOTES", "QUOTES")
                                     except Exception:
-                                        await self.bot.owner.send(f"Saving QUOTES file failed:\n{traceback.format_exc()}")
+                                        await self.bot.owner.send(
+                                            f"Saving QUOTES file failed:\n{traceback.format_exc()}")
 
                                     await ctx.send(f"Deleted quote with index {index}.")
                                 except IndexError:
@@ -146,7 +147,7 @@ class Quote(commands.Cog):
 
                             if len(quote) > 300 and not await self.bot.is_owner(ctx.author):
                                 await ctx.send(
-                                    "This quote exceeds the max length of 300 chars. DM Mark if you want the quote added.")
+                                    "This quote exceeds the max_length length of 300 chars. DM Mark if you want the quote added.")
                                 return
 
                             self.quotes[guild_id][name].append([date, quote])
@@ -155,6 +156,7 @@ class Quote(commands.Cog):
                             try:
                                 with open(self.quotes_filepath, "w") as f:
                                     json.dump(self.quotes, f, indent=2)
+                                log(f"Added quote for {name}", "QUOTES")
                                 log("SAVED QUOTES", "QUOTES")
                             except Exception:
                                 log(f"Saving QUOTES file failed:\n{traceback.format_exc()}", "QUOTES")
@@ -188,7 +190,6 @@ class Quote(commands.Cog):
                     await ctx.send("There are no quotes on this server yet.")
                     break
 
-
     async def user_checkup(self, guild_id, name):
         # If the guild doesnt exist in quotes yet
         if str(guild_id) not in self.quotes:
@@ -197,6 +198,7 @@ class Quote(commands.Cog):
         # If the user doesnt exist in quotes yet
         if str(name) not in self.quotes[str(guild_id)]:
             self.quotes[str(guild_id)][name] = []
+
 
 def setup(bot):
     bot.add_cog(Quote(bot))

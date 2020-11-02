@@ -29,7 +29,7 @@ channel_list = {"lecture": 756391202546384927, "test": 402563165247766528}
 channel_to_post = channel_list["test"]  # "lecture" or "test"                    # "lecture"
 test_livestream_message = False  # set True to send test time                       # False
 send_message_to_finn = False  # set True to send messages to Finn                    # True
-lecture_updater_version = "v1.9"  # The version of the lecture updates sender       # v0.5
+lecture_updater_version = "v2.0"  # The version of the lecture updates sender       # v0.5
 
 
 ####################################################
@@ -234,7 +234,7 @@ async def on_ready():
 async def on_message(message):
     await bot.process_commands(message)
 
-startup_extensions = ["player", "statistics", "minesweeper", "hangman", "quote"]
+startup_extensions = ["player", "statistics", "minesweeper", "hangman", "quote", "help", "reputation", "admin", "owner"]
 
 for extension in startup_extensions:
     try:

@@ -1,3 +1,4 @@
+import asyncio
 import discord
 from discord.ext import commands
 import random
@@ -7,6 +8,7 @@ import re
 class Hangman(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.sending = False
 
     async def open_file(self, file_name):
         with open(file_name, "r") as f:
@@ -85,42 +87,52 @@ class Hangman(commands.Cog):
 
     @commands.command(aliases=["hm"])
     async def hangman(self, ctx, inputted_word=None, unused_letters=None, language="e"):
-        if inputted_word is not None and unused_letters is not None:
-            if language.startswith('g'):
-                file_name = './data/german.txt'
-                print('Selected German.')
-            else:
-                file_name = './data/english.txt'
-                print('Selected English.')
-
-            if unused_letters == 0:
-                unused_letters = ""
-
-            word_file = await self.open_file(file_name)
-
-            # Sets up the variables
-            things = await self.word_guesser(word_file, inputted_word, unused_letters)
-            alphabet = things['alphabet']
-            fitting_words = things['fitting_words']
-            total = things['total']
-
-            text = ''
-            # Creates the word list with
-            for key in sorted(alphabet, key=alphabet.get, reverse=True):
-                if alphabet[key] == 0:
-                    continue
+        if inputted_word is not None and unused_letters is not None and not self.sending:
+            async with ctx.typing():
+                self.sending = True
+                inputted_word = inputted_word.lower()
+                if language.startswith('g'):
+                    file_name = './data/german.txt'
+                    print('Selected German.')
                 else:
-                    text += f'{key} : {round(alphabet[key]/total * 100, 2)}% | '
+                    file_name = './data/english.txt'
+                    print('Selected English.')
 
-            # Only print all the words if there're less than 20 words
-            message = ""
-            if len(fitting_words) == 0:
-                await ctx.send('No matching words.')
-            elif len(fitting_words) <= 20:
-                message += f"\nWords:\n{'|'.join(fitting_words)}\n"
-            message += f'--- {len(fitting_words)} words ---\n\n'
-            message += text
-            await ctx.send(message)
+                if unused_letters == 0:
+                    unused_letters = ""
+
+                word_file = await self.open_file(file_name)
+
+                # Sets up the variables
+                things = await self.word_guesser(word_file, inputted_word, unused_letters)
+                alphabet = things['alphabet']
+                fitting_words = things['fitting_words']
+                total = things['total']
+
+                text = ''
+                # Creates the word list with
+                for key in sorted(alphabet, key=alphabet.get, reverse=True):
+                    if alphabet[key] == 0:
+                        continue
+                    else:
+                        text += f'{key} : {round(alphabet[key]/total * 100, 2)}% | '
+
+                # Only print all the words if there're less than 20 words
+                message = ""
+                if len(fitting_words) == 0:
+                    message += 'No matching words.\n'
+                elif len(fitting_words) <= 20:
+                    message += f"\nWords:\n{'|'.join(fitting_words)}\n"
+                message += f'--- {len(fitting_words)} words ---\n\n'
+                message += text
+                self.sending = False
+                await ctx.send(message)
+        elif self.sending:
+            msg = await ctx.send("❗❗ Already working on a hangman. Hold on ❗❗")
+            await asyncio.sleep(7)
+            await msg.delete()
+        else:
+            await ctx.send("No input given. Check `$help hangman` to see how this command is used.")
 
 def setup(bot):
     bot.add_cog(Hangman(bot))
