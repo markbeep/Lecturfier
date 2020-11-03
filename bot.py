@@ -234,7 +234,16 @@ async def on_ready():
 async def on_message(message):
     await bot.process_commands(message)
 
-startup_extensions = ["player", "statistics", "minesweeper", "hangman", "quote", "help", "reputation", "admin", "owner"]
+startup_extensions = ["player",
+                      "statistics",
+                      "minesweeper",
+                      "hangman",
+                      "quote",
+                      "help",
+                      "reputation",
+                      "admin",
+                      "owner",
+                      "voice_xp"]
 
 for extension in startup_extensions:
     try:
