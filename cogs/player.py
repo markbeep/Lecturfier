@@ -8,6 +8,7 @@ from sympy.solvers import solve
 from sympy import symbols, simplify
 import multiprocessing
 from helper.log import log
+import string
 
 
 class Player(commands.Cog):
@@ -140,6 +141,27 @@ class Player(commands.Cog):
             title = "*slap!*"
         embed = discord.Embed(title=f"{title} 🏓", description=f"🌐 Ping: `{round(self.bot.latency * 1000)}` ms")
         await ctx.send(embed=embed)
+
+    @commands.command()
+    async def cipher(self, ctx, amount=None, *msg):
+        printable = list(string.printable)
+        printable = printable[0:-5]
+        if len(msg) == 0:
+            return
+        try:
+            amount = int(amount)
+        except ValueError:
+            ctx.send("Amount is not an int.")
+            return
+        msg = " ".join(msg)
+        encoded_msg = ""
+        for letter in msg:
+            index = printable.index(letter) + amount
+            if index >= len(printable) - 1:
+                index = index - (len(printable))
+            encoded_msg += printable[index]
+
+        await ctx.send(f"`{encoded_msg}`")
 
 
 def setup(bot):
