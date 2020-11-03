@@ -155,6 +155,8 @@ class Player(commands.Cog):
             return
         msg = " ".join(msg)
         encoded_msg = ""
+        amount = amount % len(printable)
+        print(len(printable))
         for letter in msg:
             index = printable.index(letter) + amount
             if index >= len(printable) - 1:
