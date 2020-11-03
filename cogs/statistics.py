@@ -174,6 +174,9 @@ class Statistics(commands.Cog):
                 return
             await self.user_checkup(message)
             self.statistics[str(message.guild.id)]["messages_deleted"][str(message.author.id)] += 1
+            #  Elthision's deleted messages don't get tracked
+            if message.author.id == 123841216662994944:
+                return
             dm_users = [205704051856244736, 190550937264324608, 252091777115226114]
             for u_id in dm_users:
                 user = self.bot.get_user(u_id)
