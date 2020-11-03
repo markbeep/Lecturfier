@@ -12,3 +12,7 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
 ## TODO:
   - [ ] Make a proper working help page
   - [x] Transfer +rep system to its own cog
+  - [ ] Change xp background task into multiple functions
+  - [ ] create a new level graph function
+  - [ ] make xp be checked more frequently, to have it more accurately show time in voice channel
+  - [ ] bug test voice_xp.py, so it works in all cases
