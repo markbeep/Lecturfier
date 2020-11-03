@@ -30,7 +30,8 @@ class Help(commands.Cog):
             embed.add_field(
                 name="Useful Command(s)",
                 value="`hangman` > Too lazy to solve hangman puzzles? Use this.\n"
-                      "`solve` > Solves an equation. Deprecated, as it causes the bot to crash :)",
+                      "`solve` > Solves an equation. Deprecated, as it causes the bot to crash :)\n"
+                      "`cipher` > Cipher a word or sentence into some unread-able gibberish.",
                 inline=False)
             embed.add_field(
                 name="Fun Command(s)",
