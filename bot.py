@@ -29,10 +29,21 @@ channel_list = {"lecture": 756391202546384927, "test": 402563165247766528}
 channel_to_post = channel_list["test"]  # "lecture" or "test"                    # "lecture"
 test_livestream_message = False  # set True to send test time                       # False
 send_message_to_finn = False  # set True to send messages to Finn                    # True
-lecture_updater_version = "v2.1"  # The version of the lecture updates sender       # v0.5
+lecture_updater_version = "v2.2"  # The version of the lecture updates sender       # v0.5
 
 
 ####################################################
+
+startup_extensions = ["player",
+                      "statistics",
+                      "minesweeper",
+                      "hangman",
+                      "quote",
+                      "help",
+                      "reputation",
+                      "admin",
+                      "owner",
+                      "voice_xp"]
 
 async def background_loop():
     await bot.wait_until_ready()
@@ -75,6 +86,28 @@ async def edit(ctx, id: int = None, link = None):
     except Exception:
         user = bot.get_user(205704051856244736)
         await user.send(f"No lesson error: {traceback.format_exc()}")
+
+
+@bot.command()
+async def reload(ctx, cog=None):
+    if await bot.is_owner(ctx.author):
+        if cog is None:
+            cog_list = '\n'.join(startup_extensions)
+            await ctx.send(f"Following cogs exist:\n"
+                           f"{cog_list}")
+        elif cog in startup_extensions:
+            bot.reload_extension("cogs." + cog)
+            await ctx.send(f"DONE - Reloaded `{cog}`")
+        elif cog == "all":
+            await ctx.send("Reloading all cogs")
+            log("Reloading all cogs", "COGS")
+            for cog in startup_extensions:
+                bot.reload_extension("cogs." + cog)
+                await ctx.send(f"Reloaded `{cog}`")
+            await ctx.send("DONE - Reloaded all cogs")
+        else:
+            await ctx.send(f"Cog does not exist.")
+
 
 async def check_updates(channel, cur_time, version):
     start = time.time()
@@ -233,17 +266,6 @@ async def on_ready():
 @bot.event
 async def on_message(message):
     await bot.process_commands(message)
-
-startup_extensions = ["player",
-                      "statistics",
-                      "minesweeper",
-                      "hangman",
-                      "quote",
-                      "help",
-                      "reputation",
-                      "admin",
-                      "owner",
-                      "voice_xp"]
 
 for extension in startup_extensions:
     try:
