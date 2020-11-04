@@ -159,7 +159,11 @@ async def check_updates(channel, cur_time, version):
                         embed = discord.Embed(title=title, description=description, timestamp=datetime.utcfromtimestamp(time.time()), color=color)
                         embed.set_footer(text=f"{version} | This message took {round(time.time()-start, 2)} seconds to send")
                         await channel.send(embed=embed)
-                        send_ping = True
+                        if send_ping:
+                            await channel.send("<@&759615935496847412>", embed=embed)
+                        else:
+                            await channel.send(embed=embed)
+                        send_ping = False
 
                     elif correct_changes["event"] == "new":
                         log(f"{lesson} got an new update", "LESSON")
