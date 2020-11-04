@@ -115,7 +115,7 @@ async def check_updates(channel, cur_time, version):
     scraped_info = scraper()
     changes = scraped_info[0]
     lecture_urls = scraped_info[1]
-    send_ping = False
+    send_ping = True
     for lesson in changes.keys():
         try:
             if len(changes[lesson]) > 0:
@@ -167,11 +167,11 @@ async def check_updates(channel, cur_time, version):
                         description = f"""**NEW**:\n{format_exercise(correct_changes["content"])}"""
                         embed = discord.Embed(title=title, description=description, timestamp=datetime.utcfromtimestamp(time.time()), color=color)
                         embed.set_footer(text=f"{version} | This message took {round(time.time()-start, 2)} seconds to send")
-                        if not send_ping:
+                        if send_ping:
                             await channel.send("<@&759615935496847412>", embed=embed)
                         else:
                             await channel.send(embed=embed)
-                        send_ping = True
+                        send_ping = False
         except Exception:
             user = bot.get_user(205704051856244736)
             await user.send(f"Lesson{lesson}\nError: {traceback.format_exc()}")
