@@ -45,6 +45,7 @@ startup_extensions = ["player",
                       "owner",
                       "voice_xp"]
 
+# TODO: Move the background loop in bot.py to admin.py
 async def background_loop():
     await bot.wait_until_ready()
     while not bot.is_closed():
@@ -171,10 +172,10 @@ async def check_updates(channel, cur_time, version):
                         else:
                             await channel.send(embed=embed)
                         send_ping = True
-
         except Exception:
             user = bot.get_user(205704051856244736)
             await user.send(f"Lesson{lesson}\nError: {traceback.format_exc()}")
+
 
 def format_exercise(version, edited_keys=None):
     topics = {"name": "Name", "date": "Date", "abgabe_date": "Submission Date", "links": "Link"}
@@ -186,6 +187,7 @@ def format_exercise(version, edited_keys=None):
             formatted_text += f"{topics[key]}: {check_link(key, version[key])}\n"
     return formatted_text
 
+
 def check_link(key, data):
     if key == "links":
         text = ""
@@ -194,7 +196,6 @@ def check_link(key, data):
         return text
     else:
         return data
-
 
 
 async def send_livestream(cur_time: str, channel, version):
