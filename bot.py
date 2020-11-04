@@ -26,10 +26,10 @@ channel_list = {"lecture": 756391202546384927, "test": 402563165247766528}
 
 
                                                                                     # DEFAULT:
-channel_to_post = channel_list["test"]  # "lecture" or "test"                    # "lecture"
+channel_to_post = channel_list["lecture"]  # "lecture" or "test"                    # "lecture"
 test_livestream_message = False  # set True to send test time                       # False
-send_message_to_finn = False  # set True to send messages to Finn                    # True
-lecture_updater_version = "v2.2"  # The version of the lecture updates sender       # v0.5
+send_message_to_finn = True  # set True to send messages to Finn                    # True
+lecture_updater_version = "v2.3"  # The version of the lecture updates sender       # v0.5
 
 
 ####################################################
@@ -166,14 +166,15 @@ async def check_updates(channel, cur_time, version):
                         description = f"""**NEW**:\n{format_exercise(correct_changes["content"])}"""
                         embed = discord.Embed(title=title, description=description, timestamp=datetime.utcfromtimestamp(time.time()), color=color)
                         embed.set_footer(text=f"{version} | This message took {round(time.time()-start, 2)} seconds to send")
-                        await channel.send(embed=embed)
+                        if not send_ping:
+                            await channel.send("<@&759615935496847412>", embed=embed)
+                        else:
+                            await channel.send(embed=embed)
                         send_ping = True
 
         except Exception:
             user = bot.get_user(205704051856244736)
             await user.send(f"Lesson{lesson}\nError: {traceback.format_exc()}")
-    if send_ping:
-        await channel.send("<@&759615935496847412>")
 
 def format_exercise(version, edited_keys=None):
     topics = {"name": "Name", "date": "Date", "abgabe_date": "Submission Date", "links": "Link"}
