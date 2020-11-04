@@ -9,6 +9,7 @@ from sympy import symbols, simplify
 import multiprocessing
 from helper.log import log
 import string
+import hashlib
 
 
 class Player(commands.Cog):
@@ -175,6 +176,26 @@ class Player(commands.Cog):
             encoded_msg += printable[index]
 
         await ctx.send(f"```{encoded_msg}```")
+
+    @commands.command()
+    async def hash(self, ctx, algo=None, *msg):
+        if algo is None:
+            return
+        try:
+            joined_msg = " ".join(msg)
+            msg = joined_msg.encode('UTF-8')
+            h = hashlib.new(algo)
+            h.update(msg)
+            output = h.hexdigest()
+            embed = discord.Embed(
+                title=f"**Hashed message using {algo.lower()}**",
+                colour=0x000000
+            )
+            embed.add_field(name="Input:", value=f"{joined_msg}", inline=False)
+            embed.add_field(name="Output:", value=f"`{output}`", inline=False)
+            await ctx.send(embed=embed)
+        except ValueError:
+            await ctx.send("Invalid hash type. Most OpenSSL algorithms are supported. Usage: `$hash <hash algo> <msg>`")
 
 
 def setup(bot):
