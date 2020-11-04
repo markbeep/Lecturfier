@@ -40,6 +40,9 @@ class VoiceXp(commands.Cog):
     async def background_loop(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
+            await self.check_users()
+
+    async def check_users(self):
             print("Starting background loop")
             with open(self.levels_filepath, "r") as f:
                 det = json.load(f)

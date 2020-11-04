@@ -156,14 +156,13 @@ class Player(commands.Cog):
         msg = " ".join(msg)
         encoded_msg = ""
         amount = amount % len(printable)
-        print(len(printable))
         for letter in msg:
             index = printable.index(letter) + amount
             if index >= len(printable) - 1:
                 index = index - (len(printable))
             encoded_msg += printable[index]
 
-        await ctx.send(f"`{encoded_msg}`")
+        await ctx.send(f"```{encoded_msg}```")
 
 
 def setup(bot):
