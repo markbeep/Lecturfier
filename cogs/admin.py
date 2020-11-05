@@ -93,7 +93,7 @@ class Admin(commands.Cog):
 
     @commands.command()
     @commands.has_permissions(administrator=True)
-    async def welcome(self, ctx):
+    async def test_welcome(self, ctx):
         await self.send_welcome_message(ctx, ctx.author)
 
     async def send_welcome_message(self, channel, user):

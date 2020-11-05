@@ -23,6 +23,10 @@ class Statistics(commands.Cog):
             "spoilers",                 # DONE
             "emojis",                   # DONE
             "msgs_during_lecture",      # DONE
+            "msgs_during_ep",           # DONE
+            "msgs_during_dm",           # DONE
+            "msgs_during_la",           # DONE
+            "msgs_during_ad",           # DONE
             "reactions_added",          # DONE
             "files_sent",               # DONE
             "gifs_sent",                # DONE
@@ -38,19 +42,37 @@ class Statistics(commands.Cog):
             "words_sent": "Words sent",
             "spoilers": "Spoilers sent",
             "emojis": "Emojis used",
-            "msgs_during_lecture": "Messages sent during lectures",
-            "reactions_added": "Reactions added",
             "files_sent": "Files sent",
             "gifs_sent": "GIFs sent",
             "reactions_received": "Reactions received",
-            "commands_used": "Bot Commands used"
-
+            "commands_used": "Bot usage",
+            "msgs_during_lecture": "Messages / lectures",
+            "msgs_during_ep": "Messages / EProg",
+            "msgs_during_dm": "Messages / DiscMat",
+            "msgs_during_la": "Messages / LinAlg",
+            "msgs_during_ad": "Messages / AnD",
+            "reactions_added": "Reactions added"
         }
         self.lesson_times = {
-            "Tue": [10, 14],
-            "Wed": [10, 14],
-            "Thu": [14, 17],
-            "Fri": [8, 12]
+            "ep":
+                {
+                    "Tue": [10, 12],
+                    "Fri": [8, 10]
+                 },
+            "dm":
+                {
+                    "Tue": [12, 14],
+                    "Wed": [12, 14]
+                },
+            "la":
+                {
+                    "Wed": [10, 12],
+                    "Fri": [10, 12]
+                },
+            "ad":
+                {
+                    "Thu": [14, 15]
+                }
         }
 
         self.statistics_filepath = "./data/statistics.json"
@@ -60,7 +82,7 @@ class Statistics(commands.Cog):
             self.ignore_channels = json.load(f)
 
         # self.spam_channel_times = ["Tue:11:45", "Fri:09:45", "Fri:09:45", "Wed:13:45", "Wed:11:45", "Fri:11:45", "Thu:16:45"]
-        self.time_of_msg = time.time()
+        #self.time_of_msg = time.time()
         self.waiting = False
         self.time_counter = 0  # So statistics dont get saved every few seconds, and instead only every 2 mins
         self.notice_message = 0  # The message that notifies others about joining the spam channel
@@ -120,23 +142,30 @@ class Statistics(commands.Cog):
             self.statistics[str(message.guild.id)]["messages_sent"][str(message.author.id)] += 1
             self.statistics[str(message.guild.id)]["chars_sent"][str(message.author.id)] += len(msg)
             self.statistics[str(message.guild.id)]["words_sent"][str(message.author.id)] += len(msg.split(" "))
+
+            # Amount of emojis in a message
             emoji_amt = msg.count(":") // 2
             if emoji_amt > 5:
                 emoji_amt = 5
             self.statistics[str(message.guild.id)]["emojis"][str(message.author.id)] += emoji_amt
+
+            # Amount of spoilers in a message
             spoiler_amt = msg.count("||") // 2
             if spoiler_amt > 5:
                 spoiler_amt = 5
             self.statistics[str(message.guild.id)]["spoilers"][str(message.author.id)] += spoiler_amt
+
             self.statistics[str(message.guild.id)]["gifs_sent"][str(message.author.id)] += msg.count("giphy") + msg.count("tenor") + msg.count(".gif")
 
             if len(message.attachments) > 0:
                 self.statistics[str(message.guild.id)]["files_sent"][str(message.author.id)] += len(message.attachments)
 
             cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H").split(":")
-            if cur_time[0] in self.lesson_times:
-                if self.lesson_times[cur_time[0]][0] <= int(cur_time[1]) <= self.lesson_times[cur_time[0]][1]:
-                    self.statistics[str(message.guild.id)]["msgs_during_lecture"][str(message.author.id)] += 1
+
+            for key in self.lesson_times.keys():
+                if cur_time[0] in self.lesson_times[key]:
+                    if self.lesson_times[key][cur_time[0]][0] <= int(cur_time[1]) <= self.lesson_times[key][cur_time[0]][1]:
+                        self.statistics[str(message.guild.id)]["msgs_during_lecture"][str(message.author.id)] += 1
 
             await asyncio.sleep(2)
             self.recent_message.pop(self.recent_message.index(message.author.id))
