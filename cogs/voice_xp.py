@@ -7,11 +7,11 @@ import asyncio
 
 
 def xpfier(n):
-    return round((n/0.007)**2)
+    return round((n/0.0002725)**1.15)
 
 
 def levefier(xp):
-    return math.floor(0.007*math.sqrt(xp))
+    return math.floor(xp**(1/1.15) * 0.0002725)
 
 
 def number_split(num):
