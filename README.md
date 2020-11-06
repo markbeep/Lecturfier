@@ -22,7 +22,7 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
   - [ ] MOD - Edit command to check what an edited message was changed from and to
   - [ ] MOD - Past nicknames command
 
-## DONE
+## UPDATE LOG
   - [x] (06.11.2020) - LEVELS - Change xp background task into multiple functions 
   - [x] (06.11.2020) - LEVELS - make xp be checked more frequently, to have it more accurately show time in voice channel 
   - [x] (05.11.2020) - LEVELS - create a new level graph function 
