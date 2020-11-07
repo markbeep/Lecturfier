@@ -5,6 +5,8 @@ from discord.ext import commands
 import random
 import asyncio
 from helper.log import log
+from datetime import datetime
+from pytz import timezone
 
 
 def xpfier(n):
@@ -26,7 +28,6 @@ def number_split(num):
     return number
 
 
-# TODO: check for bugs
 class VoiceXp(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -34,30 +35,50 @@ class VoiceXp(commands.Cog):
         self.levels_filepath = "./data/levels.json"
         with open(self.levels_filepath) as f:
             self.levels = json.load(f)
+        with open("./data/ignored_channels.json") as f:
+            self.ignore_channels = json.load(f)
+        self.lesson_times = {
+            "Tue": [10, 14],
+            "Wed": [10, 14],
+            "Thu": [14, 17],
+            "Fri": [8, 12]
+        }
+        self.recent_message = []
 
-        bot.loop.create_task(self.background_loop())
+        self.bot.loop.create_task(self.background_save_levels())
 
     @commands.Cog.listener()
     async def on_message(self, message):
+        if message.author.bot:
+            return
+        if message.channel.id in self.ignore_channels:
+            return
+        if message.author.id in self.recent_message:  # If the user recently sent a message
+            print("SENDING MESSAGES TOO QUICK")
+            return
+        self.recent_message.append(message.author.id)  # Puts the user into the recently sent messages list
         # add xp to user
         try:
             if str(message.guild.id) in self.levels and self.levels[str(message.guild.id)]["on"]:
                 await self.add_xp(message.guild.id, message.author, 3, 5)
         except AttributeError:
             pass
+        await asyncio.sleep(5)
+        self.recent_message.pop(self.recent_message.index(message.author.id))
 
-    async def background_loop(self):
+    async def background_save_levels(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             await self.give_users_xp(9, 12)
             await asyncio.sleep(10)
 
-            if self.counter == 5:
+            if self.counter == 6:
                 self.counter = 0
                 with open(self.levels_filepath, "w") as f:
                     json.dump(self.levels, f, indent=2)
                 log("SAVED LEVELS", "XP")
-            self.counter += 1
+            else:
+                self.counter += 1
 
     async def give_users_xp(self, amount_min, amount_max):
         """
@@ -66,6 +87,9 @@ class VoiceXp(commands.Cog):
         :param amount_max: maximum random xp to give
         :return: None
         """
+        cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H").split(":")
+        day = cur_time[0]
+        hour = int(cur_time[1])
         for guild_id in self.levels.keys():
             # Goes through every guild in the levels.json file
             if not self.levels[str(guild_id)]["on"]:
@@ -81,13 +105,12 @@ class VoiceXp(commands.Cog):
                 # Goes through every voice channel on that specific server
                 for u in v_ch.members:
                     # Goes through every member in that voice channel
+                    # If the user is afk, a bot or muted
                     if u.voice.afk or u.bot or u.voice.self_mute or u.voice.self_deaf:
-                        log(f"User is afk or muted: {u.name}", "XP")
-                        pass
+                        if day in self.lesson_times and self.lesson_times[day][0] <= hour <= self.lesson_times[day][1]:
+                            await self.add_xp(guild_id, u, int(amount_min/2), int(amount_max/2))
                     else:
                         await self.add_xp(guild_id, u, amount_min, amount_max)
-
-        await asyncio.sleep(10)
 
     async def add_xp(self, guild_id, user, amount_min, amount_max):
         try:
@@ -151,7 +174,7 @@ class VoiceXp(commands.Cog):
                             cont += "<:invisible:413030446327267328>"
                         member = member.display_name
                         # 60 xp
-                        cont += f"**{i}.** __{member}__: **Level {levefier(profile[1])}** (*{number_split(profile[1])} xp | {round(profile[1] / 6000)} hours*)\n\n"
+                        cont += f"**{i}.** __{member}__: **Level {levefier(profile[1])}** (*{number_split(profile[1])} xp | {round(profile[1] / 3600, 1)} hours*)\n\n"
                         i += 1
                         if i >= 11:
                             break
