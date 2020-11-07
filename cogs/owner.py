@@ -1,8 +1,10 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import os
 import random
 import asyncio
+from cogs import statistics, voice_xp
+import bot
 
 
 class Owner(commands.Cog):
@@ -19,6 +21,24 @@ class Owner(commands.Cog):
             return "<:red_box:764901465872662528>"*bars  # Red square
         else:
             return "<:green_box:764901465948684289>"*bars  # Green square
+
+    @commands.command()
+    async def loops(self, ctx):
+        if await self.bot.is_owner(ctx.author):
+            all_loops = {
+                "Lecture Updates Loop": bot.background_loop,
+                "Save Statistics Loop": statistics.Statistics.background_save_statistics,
+                "Save Levels Loop": voice_xp.VoiceXp.background_save_levels
+            }
+            print(tasks)
+            """
+            for name in all_loops.keys():
+                if all_loops[name].is_running():
+                    msg += f"\n{name}: <:checkmark:769279808244809798>"
+                else:
+                    msg += f"\n{name}: <:xmark:769279807916998728>"
+            """
+            await ctx.send("I give up this shit doesnt work")
 
     @commands.command()
     async def loading(self, ctx):

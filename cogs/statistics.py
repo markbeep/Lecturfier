@@ -71,7 +71,7 @@ class Statistics(commands.Cog):
                 },
             "ad":
                 {
-                    "Thu": [14, 15]
+                    "Thu": [14, 17]
                 }
         }
 
@@ -88,9 +88,9 @@ class Statistics(commands.Cog):
         self.notice_message = 0  # The message that notifies others about joining the spam channel
         self.recent_message = []
 
-        bot.loop.create_task(self.background_loop())
+        self.bot.loop.create_task(self.background_save_statistics())
 
-    async def background_loop(self):
+    async def background_save_statistics(self):
         sent_file = False
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
@@ -111,7 +111,6 @@ class Statistics(commands.Cog):
                 sent_file = False
 
             #  await self.spam_channel()
-
             await asyncio.sleep(20)
             self.time_counter += 1
 
@@ -165,9 +164,10 @@ class Statistics(commands.Cog):
             for key in self.lesson_times.keys():
                 if cur_time[0] in self.lesson_times[key]:
                     if self.lesson_times[key][cur_time[0]][0] <= int(cur_time[1]) <= self.lesson_times[key][cur_time[0]][1]:
+                        self.statistics[str(message.guild.id)][f"msgs_during_{key}"][str(message.author.id)] += 1
                         self.statistics[str(message.guild.id)]["msgs_during_lecture"][str(message.author.id)] += 1
 
-            await asyncio.sleep(2)
+            await asyncio.sleep(5)
             self.recent_message.pop(self.recent_message.index(message.author.id))
         except AttributeError:
             user = self.bot.get_user(205704051856244736)
@@ -203,14 +203,6 @@ class Statistics(commands.Cog):
                 return
             await self.user_checkup(message)
             self.statistics[str(message.guild.id)]["messages_deleted"][str(message.author.id)] += 1
-            #  Elthision's deleted messages don't get tracked
-            if message.author.id == 123841216662994944:
-                return
-            dm_users = [205704051856244736, 190550937264324608, 252091777115226114]
-            for u_id in dm_users:
-                user = self.bot.get_user(u_id)
-                embed = discord.Embed(title=f"Deleted Message from {message.author}", description=message.content)
-                await user.send(embed=embed)
         except AttributeError:
             user = self.bot.get_user(205704051856244736)
             await user.send("AttributeError for message delete")
@@ -232,6 +224,9 @@ class Statistics(commands.Cog):
             # Reactions added
             if user.bot or reaction.message.author.bot:
                 return
+            if reaction.message.channel.id in self.ignore_channels:
+                return
+
             await self.user_checkup(reaction=reaction, user=user)
             self.statistics[str(reaction.message.guild.id)]["reactions_added"][str(user.id)] += 1
 

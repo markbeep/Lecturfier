@@ -8,7 +8,7 @@ def createFiles():
     :return: None
     """
     keyword = "FILE"
-    file_list = ["quotes", "reputation", "statistics", "ignored_users", "ignored_channels", "levels"]
+    file_list = ["quotes", "reputation", "statistics", "ignored_users", "ignored_channels", "levels", "covid_guesses"]
     website_list = ["ad", "dm", "ep", "la"]
     stop = False
 
