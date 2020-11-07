@@ -8,6 +8,7 @@ import json
 from emoji import demojize
 import traceback
 from helper.log import log
+from helper.git_backup import gitpush
 
 
 class Statistics(commands.Cog):
@@ -105,8 +106,9 @@ class Statistics(commands.Cog):
                     await user.send(f"Saving STATISTICS file failed:\n{traceback.format_exc()}")
             if not sent_file and datetime.now().hour % 2 == 0:
                 sent_file = True
+                gitpush("./data")
                 user = self.bot.get_user(205704051856244736)
-                await user.send("Statistics loop is working")
+                await user.send("Updated GIT")
             if datetime.now().hour % 2 != 0:
                 sent_file = False
 

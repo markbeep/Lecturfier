@@ -12,8 +12,7 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
 ## TODO:
   - [ ] HELP - Make a proper working help page
   - [ ] HELP - Make the help page have different pages that can be gone through with reactions
-  - [ ] LEVELS - bug test voice_xp.py, so it works in all cases
-  - [ ] LEVELS - xp during lectures in lecture voice channel
+  - [ ] !!!!!!!!!! LEVELS - FIND OUT WHY THE FILES RESETTED TO HALF A DAY EARLIER !!!!!!!!!!
   - [ ] DATA - Have files auto backup to git (?)
   - [ ] CLEANUP - Move the background loop in bot.py to admin.py
   - [ ] PERMS - Add a wrapper around commands to easily enable/disable commands per server
