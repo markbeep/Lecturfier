@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-import datetime
+from datetime import datetime
 import psutil
 import time
 import random
@@ -10,6 +10,8 @@ import multiprocessing
 from helper.log import log
 import string
 import hashlib
+import json
+from pytz import timezone
 
 
 class Player(commands.Cog):
@@ -18,6 +20,11 @@ class Player(commands.Cog):
         self.script_start = 0
         self.clap_counter = 0
         self.time = 0
+        self.covid_guesses = {}
+        self.confirmed_cases = 0
+        self.confirm_msg = None  # Confirmed message
+        with open("./data/covid_guesses.json") as f:
+            self.covid_points = json.load(f)
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -37,6 +44,102 @@ class Player(commands.Cog):
                 self.clap_counter = 0
                 await message.channel.send("👏\n👏\n👏")
 
+    @commands.Cog.listener()
+    async def on_reaction_add(self, reaction, member):
+        if member.bot:
+            return
+        if member.guild_permissions.kick_members:
+            if str(reaction) == "<:checkmark:769279808244809798>" and reaction.message.guild.id == 747752542741725244:
+                await self.confirm_msg.delete()
+                self.confirm_msg = None
+                await reaction.message.channel.send(
+                    f"**CASES HAVE BEEN CONFIRMED:** `{self.confirmed_cases}`\n"
+                    f"Sending point distribution...\n"
+                    f"---------------------")
+                points_list = await self.point_distribute(reaction.message.guild)
+                msg = "\n".join(points_list)
+                await reaction.message.channel.send(f"**__POINTS GOTTEN FOR TODAY'S GUESS:__**\n{msg}")
+            elif str(reaction) == "<:xmark:769279807916998728>":
+                await self.confirm_msg.delete()
+                self.confirm_msg = None
+                self.confirmed_cases = 0
+                await reaction.message.channel.send("Confirmed cases amount was stated as being wrong and was therefore deleted.")
+
+    async def point_distribute(self, guild):
+        points = []
+        # if the server key is not in the file yet
+        if str(guild.id) not in self.covid_points:
+            self.covid_points[str(guild.id)] = {}
+
+        sorted_keys = sorted(self.covid_guesses.items(), key=lambda x: x[1], reverse=True)
+        rank = 1
+        for u in sorted_keys:
+            user_id = u[0]
+            member = guild.get_member(int(user_id))
+            difference = abs(self.confirmed_cases - self.covid_guesses[user_id])
+            points_gotten = float(self.confirmed_cases - difference) / self.confirmed_cases * 1000
+            points.append(f"**{rank}:** {member.display_name} guessed {self.covid_guesses[user_id]}: {int(round(points_gotten))} points")
+            rank += 1
+
+            # if the user has no key entry in the covid_guesses.json yet
+            if user_id not in self.covid_points[str(guild.id)]:
+                self.covid_points[str(guild.id)][user_id] = round(points_gotten, 1)
+            else:
+                self.covid_points[str(guild.id)][user_id] += round(points_gotten, 1)
+            log(f"Added covid guess points to user: {str(member)}", "COVID")
+
+        with open("./data/covid_guesses.json", "w") as f:
+            json.dump(self.covid_points, f)
+        log("Saved covid_guesses.json", "COVID")
+
+        self.covid_guesses = {}
+        self.confirmed_cases = 0
+        return points
+
+    @commands.command(aliases=["g"])
+    async def guess(self, ctx, number=None, confirmed_number=None):
+        total_points = 0
+        if str(ctx.message.guild.id) in self.covid_points and str(ctx.message.author.id) in self.covid_points[str(ctx.message.guild.id)]:
+            total_points = self.covid_points[str(ctx.message.guild.id)][str(ctx.message.author.id)]
+        # Send last guess from user
+        # Should only be possible in the morning
+        hour = int(datetime.now(timezone("Europe/Zurich")).strftime("%H"))
+        if 0 < hour < 12 or number is not None and number.lower() == "confirm":
+            if number is None:
+                if str(ctx.message.author.id) in self.covid_guesses:
+                    await ctx.send(f"{ctx.message.author.mention}, "
+                                   f"your final guess is `{self.covid_guesses[str(ctx.message.author.id)]}`.\n"
+                                   f"Your total points: {int(round(total_points))}")
+                else:
+                    await ctx.send(f"{ctx.message.author.mention}, you don't have a guess yet.\n"
+                                   f"Your total points: {int(round(total_points))}")
+            else:
+                try:
+                    if number.lower() == "confirm" and ctx.author.guild_permissions.kick_members:
+                        # if the number of cases gets confirmed
+
+                        if confirmed_number is None:
+                            raise ValueError
+                        self.confirmed_cases = int(confirmed_number)
+                        if self.confirm_msg is not None:
+                            # Deletes the previous confirm message if there are multiple
+                            await self.confirm_msg.delete()
+                            self.confirm_msg = None
+                        self.confirm_msg = await ctx.send(f"Confirmed cases: {self.confirmed_cases}\nA mod or higher, press the <:checkmark:769279808244809798> to verify.")
+                        await self.confirm_msg.add_reaction("<:checkmark:769279808244809798>")
+                        await self.confirm_msg.add_reaction("<:xmark:769279807916998728>")
+                    else:
+                        number = int(number)
+                        if number < 0:
+                            raise ValueError
+                        self.covid_guesses[str(ctx.message.author.id)] = number
+                        await ctx.send(f"{ctx.message.author.mention}, your new guess is: `{number}`")
+                except ValueError:
+                    await ctx.send(f"{ctx.message.author.mention}, no proper positive integer given.")
+        else:
+            await ctx.send("You can only guess in the morning till 12:00.\n"
+                           f"Your total points: {int(round(total_points))}")
+
     @commands.command(aliases=["uptime"])
     async def info(self, ctx):
         """
@@ -53,7 +156,7 @@ class Player(commands.Cog):
     **CPU: **`{round(cpu)}%` | **RAM: **`{round(ram.percent)}%`
     **Discord.py Rewrite Version:** `{discord.__version__}`"""
             embed = discord.Embed(title="Bot Information:", description=cont, color=0xD7D7D7,
-                                  timestamp=datetime.datetime.now())
+                                  timestamp=datetime.now())
             embed.set_footer(text=f"Called by {ctx.author.display_name}")
             embed.set_thumbnail(url=self.bot.user.avatar_url)
             embed.set_author(name=self.bot.user.display_name, icon_url=self.bot.user.avatar_url)
@@ -128,7 +231,7 @@ class Player(commands.Cog):
         except NotImplementedError:
             await ctx.send("You've bested me. Don't have an algorithm to solve that yet.")
 
-    @commands.command(aliases=["pong"])
+    @commands.command(aliases=["pong", "ding"])
     async def ping(self, ctx):
         """
         Check the ping of the bot
@@ -222,6 +325,6 @@ def time_up(t):
 
 
 def seconds_elapsed():
-    now = datetime.datetime.now()
+    now = datetime.now()
     current_timestamp = time.mktime(now.timetuple())
     return current_timestamp - psutil.boot_time()
