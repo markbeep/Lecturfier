@@ -11,7 +11,11 @@ class Help(commands.Cog):
     @commands.group(aliases=["halp", "commands", "h", "c"])
     async def help(self, ctx):
         if ctx.invoked_subcommand is None:
-            embed = discord.Embed(title="Commands List", description="Use `$help <command>` to get help about a specific command.\n`< >` are required parameters, `[ ]` are optional parameters.", color=0xF4C06A, timestamp=datetime.datetime.now(timezone("Europe/Zurich")))
+            embed = discord.Embed(
+                title="Commands List",
+                description="Use `$help <command>` to get help about a specific command.\n"
+                            "`< >` are required parameters, `[ ]` are optional parameters.",
+                color=0xF4C06A, timestamp=datetime.datetime.now(timezone("Europe/Zurich")))
             embed.set_footer(text=f"Called by {ctx.author.display_name}", icon_url=ctx.author.avatar_url)
             embed.set_thumbnail(url=self.bot.user.avatar_url)
             embed.set_author(name=self.bot.user.display_name, icon_url=self.bot.user.avatar_url)
