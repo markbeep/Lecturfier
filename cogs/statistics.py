@@ -79,7 +79,7 @@ class Statistics(commands.Cog):
         self.statistics_filepath = "./data/statistics.json"
         with open(self.statistics_filepath, "r") as f:
             self.statistics = json.load(f)
-        with open("./data/ignored_channels.json") as f:
+        with open("./data/ignored_channels.json", "r") as f:
             self.ignore_channels = json.load(f)
 
         # self.spam_channel_times = ["Tue:11:45", "Fri:09:45", "Fri:09:45", "Wed:13:45", "Wed:11:45", "Fri:11:45", "Thu:16:45"]
@@ -105,10 +105,16 @@ class Statistics(commands.Cog):
                     user = self.bot.get_user(205704051856244736)
                     await user.send(f"Saving STATISTICS file failed:\n{traceback.format_exc()}")
             if not sent_file and datetime.now().hour % 2 == 0:
-                sent_file = True
-                gitpush("./data")
-                user = self.bot.get_user(205704051856244736)
-                await user.send("Updated GIT")
+                # Backs the data files up to github
+                with open("./data/settings.json", "r") as f:
+                    settings = json.load(f)
+                if settings["upload to git"]:
+                    sent_file = True
+                    output = gitpush("./data")
+                    user = self.bot.get_user(205704051856244736)
+                    await user.send("Updated GIT\n"
+                                    f"Commit: `{output[0]}`\n"
+                                    f"Push: `{output[1]}`")
             if datetime.now().hour % 2 != 0:
                 sent_file = False
 

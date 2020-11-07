@@ -19,6 +19,13 @@ def createFiles():
         with open("../LECTURFIER.json", "w") as f:
             f.write('{"token":""}')
 
+    if not os.path.exists(f"./data/settings.json"):
+        log(f"Creating settings.json", keyword)
+        stop = True
+        settings_default = {"upload to git": False}
+        with open(f"./data/settings.json", "w") as f:
+            json.dump(settings_default, f, indent=2)
+
     for file in file_list:
         if not os.path.exists(f"./data/{file}.json"):
             log(f"Creating {file}.json", keyword)
