@@ -59,7 +59,6 @@ async def background_loop():
             if cur_time in all_times(schedule):
                 await send_livestream(cur_time, channel, lecture_updater_version)
             await asyncio.sleep(40)
-            await bot.change_presence(activity=discord.Activity(name=datetime.now(timezone("Europe/Zurich")).strftime("time: %H:%M"), type=discord.ActivityType.watching))
         except Exception:
             user = bot.get_user(205704051856244736)
             await user.send(f"Error in background loop: {traceback.format_exc()}")
@@ -265,7 +264,7 @@ async def on_ready():
     log(f"Name: {bot.user.name}", "LOGIN")
     log(f"ID: {bot.user.id}", "LOGIN")
     log(f"Version: {discord.__version__}", "LOGIN")
-    await bot.change_presence(activity=discord.Activity(name='lectures!', type=discord.ActivityType.watching))
+    await bot.change_presence(activity=discord.Activity(name='closely...', type=discord.ActivityType.watching))
     print("-------------")
 
 
