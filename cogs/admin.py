@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 import asyncio
 from helper.log import log
+from datetime import datetime
+from pytz import timezone
 
 
 class Admin(commands.Cog):
@@ -15,7 +17,7 @@ class Admin(commands.Cog):
         if member.bot:
             return
         channel = self.bot.get_channel(747794480517873685)
-        await self.send_welcome_message(channel, member)
+        await self.send_welcome_message(channel, member, member.guild)
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
@@ -91,12 +93,44 @@ class Admin(commands.Cog):
             await reaction.message.delete()
             self.ta_request.pop(reaction.message.id, None)
 
+    @commands.Cog.listener()
+    async def on_message_delete(self, message):
+        if message.author.bot:
+            return
+
+        # To send the deleted message
+        channel_id = 774322847812157450
+        channel = message.guild.get_channel(channel_id)
+        attachments = len(message.attachments)
+        embed = discord.Embed(
+            title=f"Deleted Message",
+            description=f"**Channel: <#{message.channel.id}>\n"
+                        f"Attachments:** `{attachments}`\n"
+                        f"----------MSG----------\n{message.content}",
+            timestamp=datetime.now(timezone("Europe/Zurich")))
+
+        attach_txt = ""
+        for i in range(len(message.attachments)):
+            attach_txt += f"File {i + 1}\n" \
+                          f"Name: {message.attachments[i].filename}\n"
+            if message.attachments[i].height is not None:
+                # Then the file is an image
+                embed.set_image(url=message.attachments[i].proxy_url)
+        if len(message.attachments) > 0:
+            embed.add_field(
+                name="Attachments",
+                value=attach_txt
+            )
+
+        embed.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
+        await channel.send(embed=embed)
+
     @commands.command()
     @commands.has_permissions(administrator=True)
     async def test_welcome(self, ctx):
-        await self.send_welcome_message(ctx, ctx.author)
+        await self.send_welcome_message(ctx, ctx.author, ctx.message.guild)
 
-    async def send_welcome_message(self, channel, user):
+    async def send_welcome_message(self, channel, user, guild):
         msg = f"Welcome {user.mention}! Head to <#769261792491995176> to read " \
               f"through the few rules we have on this server. " \
               f"Then press one of the following reactions.\n\n" \
@@ -104,8 +138,9 @@ class Admin(commands.Cog):
               f"✏   if you're a **D-INFK** student.\n" \
               f"<:bach:764174568000192552>   if you're external.\n\n" \
               f"**YOUR EMAIL ADDRESS FOR DISCORD NEEDS TO BE VERIFIED FOR YOU TO BE ABLE TO CHAT AND PARTICIPATE ON THIS SERVER**"
-        embed = discord.Embed(title="**WELCOME!**", description=msg, color=0xadd8e6)
+        embed = discord.Embed(title=f"**WELCOME!**", description=msg, color=0xadd8e6)
         embed.set_thumbnail(url=user.avatar_url)
+        embed.set_footer(text=f"You are the {len(guild.members)}. member")
         message = await channel.send(user.mention, embed=embed)
         self.newcomers[user.id] = message.id
         await message.add_reaction("🧑‍🏫")
