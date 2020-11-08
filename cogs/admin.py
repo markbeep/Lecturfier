@@ -138,8 +138,6 @@ class Admin(commands.Cog):
             if prefix is None:
                 await ctx.send("Prefix and arguments missing.")
             else:
-                if prefix == "\\":
-                    prefix = "\\\\"
                 self.all_prefix[prefix] = " ".join(args)
                 with open("./data/bot_prefix.json", "w") as f:
                     json.dump(self.all_prefix, f)
