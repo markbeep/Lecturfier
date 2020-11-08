@@ -335,34 +335,5 @@ class Statistics(commands.Cog):
             await ctx.send(embed=embed)
 
 
-    """
-    async def spam_channel(self):
-        guild_id = 747752542741725244
-        spam_channel_id = 765571174775914517
-        lecture_channel_id = 755339832917491722
-        time_to_keep_channel_open = 900  # 900 seconds for 15 minutes
-
-        role = self.bot.get_guild(guild_id).default_role
-        cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
-
-        if cur_time in self.spam_channel_times and not self.waiting:
-            self.time_of_msg = time.time()
-            self.waiting = True
-            channel = self.bot.get_channel(spam_channel_id)  # spam channel
-            lecture = self.bot.get_channel(lecture_channel_id)  # lecture discussions channel
-            await channel.send("." + "\n" * 40 + "❗❗ Let the spam begin ❗❗\n" + "<a:partypoop:412336219175780353>" * 10)
-            await channel.set_permissions(role, send_messages=True, read_messages=True)
-            self.notice_message = await lecture.send(f"❗❗ If you wanna spam, head to <#{channel.id}> ❗❗")
-
-        elif self.waiting and time.time() - self.time_of_msg > time_to_keep_channel_open:
-            self.waiting = False
-            channel = self.bot.get_channel(spam_channel_id)  # spam channel
-            await channel.set_permissions(role, send_messages=False)
-            await channel.send("." + "\n" * 40 + "Alright spamming is over. See you once the next lecture derails!")
-            await self.notice_message.delete()
-            await asyncio.sleep(10)
-            await channel.set_permissions(role, read_messages=False)
-    """
-
 def setup(bot):
     bot.add_cog(Statistics(bot))

@@ -105,7 +105,7 @@ class Admin(commands.Cog):
         channel = message.guild.get_channel(channel_id)
         attachments = len(message.attachments)
         embed = discord.Embed(
-            description=f"**User ID:** {message.author.id}"
+            description=f"**User ID:** {message.author.id}\n"
                         f"**Channel: <#{message.channel.id}>\n"
                         f"Attachments:** `{attachments}`\n"
                         f"----------MSG----------\n{message.content}",
