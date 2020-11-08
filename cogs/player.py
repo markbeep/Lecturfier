@@ -140,7 +140,7 @@ class Player(commands.Cog):
             await ctx.send("You can only guess in the morning till 12:00.\n"
                            f"Your total points: {int(round(total_points))}")
 
-    @commands.command(aliases=["uptime"])
+    @commands.command(aliases=["uptime", "source", "code"])
     async def info(self, ctx):
         """
         Get some info about the bot
@@ -151,10 +151,11 @@ class Player(commands.Cog):
             cpu = psutil.cpu_percent()
             ram = psutil.virtual_memory()
 
-            cont = f"""**Instance uptime: **`{b_time}`
-    **Computer uptime: **`{s_time}`
-    **CPU: **`{round(cpu)}%` | **RAM: **`{round(ram.percent)}%`
-    **Discord.py Rewrite Version:** `{discord.__version__}`"""
+            cont = f"**Instance uptime: **`{b_time}`\n" \
+                   f"**Computer uptime: **`{s_time}`\n" \
+                   f"**CPU: **`{round(cpu)}%` | **RAM: **`{round(ram.percent)}%`\n"\
+                   f"**Discord.py Rewrite Version:** `{discord.__version__}`\n" \
+                   f"**Bot source code:** [Click here for source code](https://github.com/markbeep/Lecturfier)"
             embed = discord.Embed(title="Bot Information:", description=cont, color=0xD7D7D7,
                                   timestamp=datetime.now())
             embed.set_footer(text=f"Called by {ctx.author.display_name}")

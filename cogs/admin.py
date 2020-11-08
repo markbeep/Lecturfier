@@ -11,7 +11,7 @@ class Admin(commands.Cog):
         self.bot = bot
         self.newcomers = {}
         self.ta_request = {}
-        with open("./data/bot_prefixes.json", "r") as f:
+        with open("./data/bot_prefix.json", "r") as f:
             self.all_prefix = json.load(f)
 
     @commands.Cog.listener()
@@ -141,17 +141,18 @@ class Admin(commands.Cog):
                 if prefix == "\\":
                     prefix = "\\\\"
                 self.all_prefix[prefix] = " ".join(args)
-                with open("./data/bot_prefixes.json", "w") as f:
+                with open("./data/bot_prefix.json", "w") as f:
                     json.dump(self.all_prefix, f)
-                await ctx.send("Updated prefix table.")
+                await ctx.send(f"Updated prefix table with prefix: {prefix}")
         elif command.lower() == "delete" or command.lower() == "del" and ctx.author.guild_permissions.kick_members:
             if prefix is None:
                 await ctx.send("Prefix to delete is missing.")
             else:
                 try:
                     self.all_prefix.pop(prefix)
-                    with open("./data/bot_prefixes.json", "w") as f:
+                    with open("./data/bot_prefix.json", "w") as f:
                         json.dump(self.all_prefix, f)
+                    await ctx.send(f"Deleted prefix: {prefix}")
                 except KeyError:
                     await ctx.send("Invalid prefix")
         else:
