@@ -93,7 +93,8 @@ class Quote(commands.Cog):
                             quote_list = ""
 
                             for i in range(len(self.quotes[guild_id][name])):
-                                quote_list += f"**{[i]}:** {self.quotes[guild_id][name][i][1]}\n"
+                                quote_to_add = self.quotes[guild_id][name][i][1].replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "")
+                                quote_list += f"\n**{[i]}:** {quote_to_add}"
 
                             # If there are no quotes for the given person;
                             if len(quote_list) == 0:
@@ -113,7 +114,7 @@ class Quote(commands.Cog):
                                     msg_length = 0
                                     msg = ""
                                 if len(line) + len(msg) < 1000:
-                                    msg += line + "\n"
+                                    msg += "\n" + line
                                 else:
                                     embed.add_field(name=f"Page {counter}", value=msg)
                                     msg_length += len(msg)
