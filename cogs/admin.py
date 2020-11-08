@@ -4,13 +4,15 @@ import asyncio
 from helper.log import log
 from datetime import datetime
 from pytz import timezone
-
+import json
 
 class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.newcomers = {}
         self.ta_request = {}
+        with open("./data/bot_prefixes.json", "r") as f:
+            self.all_prefix = json.load(f)
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -103,8 +105,8 @@ class Admin(commands.Cog):
         channel = message.guild.get_channel(channel_id)
         attachments = len(message.attachments)
         embed = discord.Embed(
-            title=f"Deleted Message",
-            description=f"**Channel: <#{message.channel.id}>\n"
+            description=f"**User ID:** {message.author.id}"
+                        f"**Channel: <#{message.channel.id}>\n"
                         f"Attachments:** `{attachments}`\n"
                         f"----------MSG----------\n{message.content}",
             timestamp=datetime.now(timezone("Europe/Zurich")))
@@ -124,6 +126,36 @@ class Admin(commands.Cog):
 
         embed.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
         await channel.send(embed=embed)
+
+    @commands.command(aliases=["prefixes"])
+    async def prefix(self, ctx, command=None, prefix=None, *args):
+        if command is None:
+            msg = "**Already in use Bot Prefixes:**"
+            for prefix in self.all_prefix.keys():
+                msg += f"\n`{prefix}`: {self.all_prefix[prefix]}"
+            await ctx.send(msg)
+        elif command.lower() == "add" and ctx.author.guild_permissions.kick_members:
+            if prefix is None:
+                await ctx.send("Prefix and arguments missing.")
+            else:
+                if prefix == "\\":
+                    prefix = "\\\\"
+                self.all_prefix[prefix] = " ".join(args)
+                with open("./data/bot_prefixes.json", "w") as f:
+                    json.dump(self.all_prefix, f)
+                await ctx.send("Updated prefix table.")
+        elif command.lower() == "delete" or command.lower() == "del" and ctx.author.guild_permissions.kick_members:
+            if prefix is None:
+                await ctx.send("Prefix to delete is missing.")
+            else:
+                try:
+                    self.all_prefix.pop(prefix)
+                    with open("./data/bot_prefixes.json", "w") as f:
+                        json.dump(self.all_prefix, f)
+                except KeyError:
+                    await ctx.send("Invalid prefix")
+        else:
+            await ctx.send("Unrecognized command.")
 
     @commands.command()
     @commands.has_permissions(administrator=True)
