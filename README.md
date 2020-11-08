@@ -13,13 +13,13 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
   - [ ] HELP - Make a proper working help page
   - [ ] HELP - Make the help page have different pages that can be gone through with reactions
   - [ ] !!!!!!!!!! LEVELS - FIND OUT WHY THE FILES RESETTED TO HALF A DAY EARLIER !!!!!!!!!!
-  - [ ] CLEANUP - Move the background loop in bot.py to admin.py
   - [ ] PERMS - Add a wrapper around commands to easily enable/disable commands per server
   - [ ] PERMS - Select what roles (maybe even user sepecific) should be able to use what command on a per server basis
   - [ ] MOD - Edit command to check what an edited message was changed from and to
   - [ ] MOD - Past nicknames command
 
 ## UPDATE LOG
+  - [x] (08.11.2020) - CLEANUP - Move the background loop in bot.py to admin.py
   - [x] (07.11.2020) - DATA - Have files auto backup to git
   - [x] (07.11.2020) - GAME - Covid guesser game that tracks daily guesses and adds points depending on how close a guess is
   - [x] (07.11.2020) - MOD - Refined delete command with last 10 deleted messages for each user (was changed to a delete log instead)
