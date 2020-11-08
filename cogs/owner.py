@@ -27,8 +27,8 @@ class Owner(commands.Cog):
         if await self.bot.is_owner(ctx.author):
             all_loops = {
                 "Lecture Updates Loop": self.bot.get_cog("Updates").heartbeat(),
-                "Save Statistics Loop": self.bot.get_cog("Statistics").heartbeat(),
-                "Save Voice Loop": self.bot.get_cog("Voice").heartbeat()
+                "Statistics file save Loop": self.bot.get_cog("Statistics").heartbeat(),
+                "Voice XP track Loop": self.bot.get_cog("Voice").heartbeat()
             }
 
             msg = ""
