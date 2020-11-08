@@ -22,9 +22,12 @@ class Updates(commands.Cog):
         self.send_message_to_finn = self.settings["send_message_to_finn"]
         self.lecture_updater_version = "v2.4"
 
-        self.updates_is_running = 0
+        self.time_heartbeat = 0
 
         self.bot.loop.create_task(self.background_loop())
+
+    def heartbeat(self):
+        return self.time_heartbeat
 
     async def background_loop(self):
         await self.bot.wait_until_ready()
@@ -32,7 +35,7 @@ class Updates(commands.Cog):
             try:
                 channel = self.bot.get_channel(self.channel_to_post)
                 cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
-                self.updates_is_running = time.time()
+                self.time_heartbeat = time.time()
                 if self.test_livestream_message:
                     cur_time = "test"
                 if int(datetime.now(timezone("Europe/Zurich")).strftime("%M")) % 10 == 0:  # Only check updates every 10 minutes

@@ -3,8 +3,8 @@ from discord.ext import commands, tasks
 import os
 import random
 import asyncio
-from cogs import statistics, voice_xp
-import bot
+from cogs import statistics, voice_xp, lecture_updates
+import time
 
 
 class Owner(commands.Cog):
@@ -26,19 +26,20 @@ class Owner(commands.Cog):
     async def loops(self, ctx):
         if await self.bot.is_owner(ctx.author):
             all_loops = {
-                "Lecture Updates Loop": bot.background_loop,
-                "Save Statistics Loop": statistics.Statistics.background_save_statistics,
-                "Save Levels Loop": voice_xp.VoiceXp.background_save_levels
+                "Lecture Updates Loop": self.bot.get_cog("Updates").heartbeat(),
+                "Save Statistics Loop": self.bot.get_cog("Statistics").heartbeat(),
+                "Save Voice Loop": self.bot.get_cog("Voice").heartbeat()
             }
-            print(tasks)
-            """
+
+            msg = ""
+            cur_time = time.time()
             for name in all_loops.keys():
-                if all_loops[name].is_running():
-                    msg += f"\n{name}: <:checkmark:769279808244809798>"
+                seconds_elapsed = cur_time - all_loops[name]
+                if seconds_elapsed <= 120:
+                    msg += f"\n**{name}:** <:checkmark:769279808244809798> | Last Heartbeat: `{int(round(seconds_elapsed))}` seconds ago"
                 else:
-                    msg += f"\n{name}: <:xmark:769279807916998728>"
-            """
-            await ctx.send("I give up this shit doesnt work")
+                    msg += f"\n**{name}:** <:xmark:769279807916998728> | Last Heartbeat: `{int(round(seconds_elapsed))}` seconds ago"
+            await ctx.send(msg)
 
     @commands.command()
     async def loading(self, ctx):

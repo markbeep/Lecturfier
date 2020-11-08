@@ -7,6 +7,7 @@ import asyncio
 from helper.log import log
 from datetime import datetime
 from pytz import timezone
+import time
 
 
 def xpfier(n):
@@ -28,7 +29,7 @@ def number_split(num):
     return number
 
 
-class VoiceXp(commands.Cog):
+class Voice(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.counter = 0
@@ -44,8 +45,12 @@ class VoiceXp(commands.Cog):
             "Fri": [8, 12]
         }
         self.recent_message = []
+        self.time_heartbeat = 0
 
         self.bot.loop.create_task(self.background_save_levels())
+
+    def heartbeat(self):
+        return self.time_heartbeat
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -69,6 +74,7 @@ class VoiceXp(commands.Cog):
     async def background_save_levels(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
+            self.time_heartbeat = time.time()
             await self.give_users_xp(9, 12)
             await asyncio.sleep(10)
 
@@ -216,4 +222,4 @@ class VoiceXp(commands.Cog):
 
 
 def setup(bot):
-    bot.add_cog(VoiceXp(bot))
+    bot.add_cog(Voice(bot))

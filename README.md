@@ -19,6 +19,7 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
   - [ ] MOD - Past nicknames command
 
 ## UPDATE LOG
+  - [x] (08.11.2020) - OWNER - A working $loops command that displays if a loop is still running
   - [x] (08.11.2020) - CLEANUP - Move the background loop in bot.py to admin.py
   - [x] (07.11.2020) - DATA - Have files auto backup to git
   - [x] (07.11.2020) - GAME - Covid guesser game that tracks daily guesses and adds points depending on how close a guess is
