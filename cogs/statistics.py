@@ -128,6 +128,18 @@ class Statistics(commands.Cog):
             self.time_counter += 1
 
     @commands.Cog.listener()
+    async def on_command(self, ctx):
+        print("yes")
+        if ctx.message.author.bot:
+            return
+        else:
+            if ctx.message.channel.id in self.ignore_channels:
+                return
+            self.recent_message.append(ctx.message.author.id)
+
+            self.statistics[str(ctx.message.guild.id)]["commands_used"][str(ctx.message.author.id)] += 1
+
+    @commands.Cog.listener()
     async def on_ready(self):
         self.script_start = time.time()
 
@@ -147,9 +159,6 @@ class Statistics(commands.Cog):
             await self.user_checkup(message)
 
             msg = demojize(message.content)
-
-            if message.content.startswith("$") or message.content.startswith("\\") or message.content.startswith(";"):
-                self.statistics[str(message.guild.id)]["commands_used"][str(message.author.id)] += 1
 
             self.statistics[str(message.guild.id)]["messages_sent"][str(message.author.id)] += 1
             self.statistics[str(message.guild.id)]["chars_sent"][str(message.author.id)] += len(msg)
