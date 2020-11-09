@@ -128,7 +128,17 @@ class Statistics(commands.Cog):
             self.time_counter += 1
 
     @commands.Cog.listener()
-    async def on_command(self, ctx):
+    async def on_command_error(self, ctx, error):
+        if "is not found" in str(error):
+            return
+        if ctx.message.author.bot:
+            return
+        else:
+            self.recent_message.append(ctx.message.author.id)
+            await ctx.message.add_reaction("<:xmark:769279807916998728>")
+
+    @commands.Cog.listener()
+    async def on_command_completion(self, ctx):
         if ctx.message.author.bot:
             return
         else:

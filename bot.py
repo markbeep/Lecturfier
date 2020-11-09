@@ -42,6 +42,8 @@ async def reload(ctx, cog=None):
             await ctx.send("DONE - Reloaded all cogs")
         else:
             await ctx.send(f"Cog does not exist.")
+    else:
+        raise discord.ext.commands.errors.NotOwner
 
 
 @bot.event

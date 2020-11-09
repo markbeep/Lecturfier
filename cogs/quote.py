@@ -125,20 +125,16 @@ class Quote(commands.Cog):
                             await ctx.send(embed=embed)
                         elif quote.lower().split(" ")[0] == "del":  # Command to delete quotes
                             if not await self.bot.is_owner(ctx.author):
-                                return
+                                raise discord.ext.commands.errors.NotOwner
                             try:
                                 index = int(quote.lower().split(" ")[1])
                                 try:
                                     self.quotes[guild_id][name].pop(index)
 
                                     # SAVE FILE
-                                    try:
-                                        with open(self.quotes_filepath, "w") as f:
-                                            json.dump(self.quotes, f, indent=2)
-                                        log("SAVED QUOTES", "QUOTES")
-                                    except Exception:
-                                        await self.bot.owner.send(
-                                            f"Saving QUOTES file failed:\n{traceback.format_exc()}")
+                                    with open(self.quotes_filepath, "w") as f:
+                                        json.dump(self.quotes, f, indent=2)
+                                    log("SAVED QUOTES", "QUOTES")
 
                                     await ctx.send(f"Deleted quote with index {index}.")
                                 except IndexError:
@@ -151,7 +147,7 @@ class Quote(commands.Cog):
                             if len(quote) > 300 and not await self.bot.is_owner(ctx.author):
                                 await ctx.send(
                                     "This quote exceeds the max_length length of 300 chars. DM Mark if you want the quote added.")
-                                return
+                                raise discord.ext.commands.errors.NotOwner
 
                             self.quotes[guild_id][name].append([date, quote])
 

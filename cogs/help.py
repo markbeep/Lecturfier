@@ -24,6 +24,8 @@ class Help(commands.Cog):
                     msg += f"-- {com}\n"
             embed = discord.Embed(title="HELP", description=msg)
             await ctx.send(embed=embed)
+        else:
+            raise discord.ext.commands.errors.NotOwner
 
     @commands.group(aliases=["halp", "commands", "h", "c"])
     async def help(self, ctx):

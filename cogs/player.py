@@ -193,7 +193,7 @@ class Player(commands.Cog):
         :return: None
         """
         if not await self.bot.is_owner(ctx.author):
-            return
+            raise discord.ext.commands.errors.NotOwner
         try:
             inp = " ".join(num1)
             cont = inp.replace(" ", "").replace("^", "**")

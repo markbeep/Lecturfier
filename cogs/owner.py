@@ -30,6 +30,8 @@ class Owner(commands.Cog):
             await ctx.send(f"```python\n"
                            f"{source_code}\n"
                            f"```")
+        else:
+            raise discord.ext.commands.errors.NotOwner
 
 
     @commands.command()
@@ -50,6 +52,8 @@ class Owner(commands.Cog):
                 else:
                     msg += f"\n**{name}:** <:xmark:769279807916998728> | Last Heartbeat: `{int(round(seconds_elapsed))}` seconds ago"
             await ctx.send(msg)
+        else:
+            raise discord.ext.commands.errors.NotOwner
 
     @commands.command()
     async def loading(self, ctx):
@@ -60,12 +64,16 @@ class Owner(commands.Cog):
                     content=("Loading:\n" + f"{random.randint(i * 10, i * 10 + 5)}% | " + await self.loading_bar(i)))
                 await asyncio.sleep(0.75)
             await msg.edit(content=("Loading: DONE\n" + "100% | " + await self.loading_bar(10, 10, False)))
+        else:
+            raise discord.ext.commands.errors.NotOwner
 
     @commands.command()
     async def reboot(self, ctx):
         if await self.bot.is_owner(ctx.author):
             await ctx.send("Rebooting...")
             os.system('reboot now')  # Only works on linux (saved me a few times)
+        else:
+            raise discord.ext.commands.errors.NotOwner
 
     @commands.command()
     async def spam_till_youre_dead(self, ctx):
@@ -78,6 +86,8 @@ class Owner(commands.Cog):
             embed.add_field(name=".\n.", value="." + "\n" * 700 + ".")
             await ctx.send(f"\"{spam}\"", embed=embed)
             await ctx.send(f"{len(spam) + len(embed)} chars")
+        else:
+            raise discord.ext.commands.errors.NotOwner
 
     @commands.command(aliases=["send", "repeatme"])
     async def say(self, ctx, *, cont):
@@ -86,6 +96,8 @@ class Owner(commands.Cog):
         """
         if await self.bot.is_owner(ctx.author):
             await ctx.send(cont)
+        else:
+            raise discord.ext.commands.errors.NotOwner
 
 
 def setup(bot):
