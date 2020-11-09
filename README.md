@@ -10,6 +10,7 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
   - and much much more
 
 ## TODO:
+  - [ ] RELIABILITY - Change reactions in #welcome to raw-reactions as well as make stats also raw (deleted_messages as well as reactions added/removed)
   - [ ] HELP - Make a proper working help page
   - [ ] HELP - Make the help page have different pages that can be gone through with reactions
   - [ ] !!!!!!!!!! LEVELS - FIND OUT WHY THE FILES RESETTED TO HALF A DAY EARLIER !!!!!!!!!!
