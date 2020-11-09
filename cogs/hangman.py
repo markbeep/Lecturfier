@@ -128,11 +128,11 @@ class Hangman(commands.Cog):
                 self.sending = False
                 await ctx.send(message)
         elif self.sending:
-            msg = await ctx.send("❗❗ Already working on a hangman. Hold on ❗❗")
-            await asyncio.sleep(7)
-            await msg.delete()
+            msg = await ctx.send("❗❗ Already working on a hangman. Hold on ❗❗", delete_after=7)
+            raise discord.ext.commands.errors.BadArgument
         else:
             await ctx.send("No input given. Check `$help hangman` to see how this command is used.")
+            raise discord.ext.commands.errors.BadArgument
 
 def setup(bot):
     bot.add_cog(Hangman(bot))

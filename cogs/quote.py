@@ -60,6 +60,7 @@ class Quote(commands.Cog):
             if name == "names":
                 if guild_id not in self.quotes:
                     await ctx.send("There are no quotes on this server yet.")
+                    raise discord.ext.commands.errors.BadArgument
                 else:
                     all_names = "Everybody with a quote as of now:\n"
                     for n in self.quotes[guild_id].keys():
@@ -76,7 +77,7 @@ class Quote(commands.Cog):
                     name = str(name)
                 if "@" in name or "@" in quote:
                     await ctx.send("Quotes can't contain `@` in names (unless they are mentions) or in the quote.")
-                    return
+                    raise discord.ext.commands.errors.BadArgument
                 name = name.lower()
                 if len(quote) > 0:
                     await self.user_checkup(guild_id, name)
@@ -99,7 +100,7 @@ class Quote(commands.Cog):
                             # If there are no quotes for the given person;
                             if len(quote_list) == 0:
                                 await ctx.send(f"{name} doesn't have any quotes yet.")
-                                return
+                                raise discord.ext.commands.errors.BadArgument
 
                             embed = discord.Embed(title=f"All quotes from {name}", color=0x404648)
                             # if the quote is too long:
@@ -164,6 +165,7 @@ class Quote(commands.Cog):
                             await ctx.send(f"Added quote for {name}")
                     except IndexError:
                         await ctx.send(f"{name} doesn't have a quote with that index.")
+                        raise discord.ext.commands.errors.BadArgument
                 else:
                     try:
                         random.seed(time.time())
@@ -171,6 +173,7 @@ class Quote(commands.Cog):
                         await send_quote(ctx, rand_quote[1], rand_quote[0], name)
                     except (KeyError, IndexError):
                         await ctx.send(f"{name} doesn't have any quotes yet.")
+                        raise discord.ext.commands.errors.BadArgument
         else:  # If $quote is written on its own, send a random quote from any user
             c = 0  # Counter: So the bot doesnt loop too much in case there's no non-empty quote for some reason
             while True:
@@ -184,10 +187,10 @@ class Quote(commands.Cog):
                     c += 1
                     if c >= 10:
                         await ctx.send("No quotes found.")
-                        break
+                        raise discord.ext.commands.errors.BadArgument
                 except KeyError:
                     await ctx.send("There are no quotes on this server yet.")
-                    break
+                    raise discord.ext.commands.errors.BadArgument
 
     async def user_checkup(self, guild_id, name):
         # If the guild doesnt exist in quotes yet

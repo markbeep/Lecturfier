@@ -154,7 +154,8 @@ class Admin(commands.Cog):
                 except KeyError:
                     await ctx.send("Invalid prefix")
         else:
-            await ctx.send("Unrecognized command.")
+            await ctx.send("Unrecognized command.", delete_after=7)
+            raise discord.ext.commands.errors.BadArgument
 
     @commands.command()
     @commands.has_permissions(administrator=True)

@@ -35,7 +35,6 @@ class Reputation(commands.Cog):
         """
         if message.author.id in self.ignored_users:
             await message.channel.send(f"{message.author.mention} this discord account is blocked from using +rep.")
-            return
 
         args = message.content.split(" ")
         try:
@@ -84,19 +83,12 @@ class Reputation(commands.Cog):
                         title="Error",
                         description=f"You've repped too recently. You can rep again on {send_time}.",
                         color=discord.Color.red())
-                    msg = await message.channel.send(embed=embed)
-                    await asyncio.sleep(10)
-                    await msg.delete()
-                    await message.delete()
+                    msg = await message.channel.send(embed=embed, delete_after=10)
 
         except ValueError:
             embed = discord.Embed(title="Error", description="Only mention one user, don't mention yourself, only use printable ascii characters, and keep it under 40 characters.", color=discord.Color.red())
             embed.add_field(name="Example", value="+rep <@755781649643470868> helped with Eprog")
-            msg = await message.channel.send(embed=embed)
-
-            await asyncio.sleep(10)
-            await msg.delete()
-            await message.delete()
+            msg = await message.channel.send(embed=embed, delete_after=10)
 
     async def valid_chars_checker(self, message_content):
         valid_chars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', "ä", "ü", "ö", "Ä", "Ü", "Ö", '!', '"', '#', '$', '%', '&', "'", '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?', '@', '[', ']', '^', '_', '{', '|', '}', '~', ' ', '\t', '\n', '\r', '\x0b', '\x0c']

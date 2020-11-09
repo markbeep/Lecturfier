@@ -88,9 +88,8 @@ class Minesweeper(commands.Cog):
     async def minesweeper(self, ctx, size=10, mines=10):
         while self.sending:
             await asyncio.sleep(1)
-            msg = await ctx.send("❗❗ Already sending a mine field. Hold on ❗❗")
-            await asyncio.sleep(7)
-            await msg.delete()
+            msg = await ctx.send("❗❗ Already sending a mine field. Hold on ❗❗", delete_after=7)
+            raise discord.ext.commands.errors.BadArgument
 
         self.sending = True
         try:
@@ -99,7 +98,7 @@ class Minesweeper(commands.Cog):
             if size > 20:
                 await ctx.send("Too big of a mine field to send on discord. Keep it under 20.")
                 self.sending = False
-                return
+                raise discord.ext.commands.errors.BadArgument
 
         except ValueError:
             if size.lower() == "beginner":
@@ -114,7 +113,7 @@ class Minesweeper(commands.Cog):
             else:
                 await ctx.send("Wrong input. Use `$minesweeper <size> <mines>`")
                 self.sending = False
-                return
+                raise discord.ext.commands.errors.BadArgument
         placed_bombs = await self.bomb_placer(size=int(size), mines=int(mines))
         mine_field = placed_bombs[0]
         corrected_size = placed_bombs[1]
@@ -146,6 +145,7 @@ class Minesweeper(commands.Cog):
             self.sending = False
         except discord.errors.HTTPException:
             await ctx.send("Too big of a mine field to send on discord.")
+            raise discord.ext.commands.errors.BadArgument
 
 
 

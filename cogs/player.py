@@ -146,6 +146,7 @@ class Player(commands.Cog):
                         await ctx.send(f"{ctx.message.author.mention}, your new guess is: `{number}`")
                 except ValueError:
                     await ctx.send(f"{ctx.message.author.mention}, no proper positive integer given.")
+                    raise discord.ext.commands.errors.BadArgument
         else:
             await ctx.send("You can only guess in the morning till 12:00.\n"
                            f"Your total points: {int(round(total_points))}")
@@ -274,12 +275,13 @@ class Player(commands.Cog):
         printable = list(string.printable)
         printable = printable[0:-5]
         if len(msg) == 0:
-            return
+            await ctx.send("No message specified.")
+            raise discord.ext.commands.errors.BadArgument
         try:
             amount = int(amount)
         except ValueError:
-            ctx.send("Amount is not an int.")
-            return
+            await ctx.send("Amount is not an int.")
+            raise discord.ext.commands.errors.BadArgument
         msg = " ".join(msg)
         encoded_msg = ""
         amount = amount % len(printable)
@@ -294,7 +296,8 @@ class Player(commands.Cog):
     @commands.command()
     async def hash(self, ctx, algo=None, *msg):
         if algo is None:
-            return
+            await ctx.send("No Algorithm given. `$hash <OPENSSL algo> <msg>`")
+            raise discord.ext.commands.errors.BadArgument
         try:
             joined_msg = " ".join(msg)
             msg = joined_msg.encode('UTF-8')
@@ -310,6 +313,7 @@ class Player(commands.Cog):
             await ctx.send(embed=embed)
         except ValueError:
             await ctx.send("Invalid hash type. Most OpenSSL algorithms are supported. Usage: `$hash <hash algo> <msg>`")
+            raise discord.ext.commands.errors.BadArgument
 
 
 def setup(bot):
