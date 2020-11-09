@@ -66,9 +66,10 @@ class Reputation(commands.Cog):
                 # Add reputation to user
                 time_valid = await self.add_rep(message, member, message.author)
                 if time_valid:
+                    display_name = member.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
                     embed = discord.Embed(
                         title="Added +rep",
-                        description=f"Added +rep to {member.display_name}",
+                        description=f"Added +rep to {display_name}",
                         color=discord.Color.green())
                     if len(args) > 2:
                         embed.add_field(name="Comment:", value=f"```{' '.join(args[2:])}```")
@@ -111,7 +112,8 @@ class Reputation(commands.Cog):
             reputation_msg += f"+ {rep}\n"
         if len(reputation_msg) == 0:
             reputation_msg = "--- it's pretty empty here, go help some people out"
-        msg = f"```diff\nReputations: {member.display_name}\n__________________________\n{reputation_msg}```"
+        display_name = member.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
+        msg = f"```diff\nReputations: {display_name}\n__________________________\n{reputation_msg}```"
         await message.channel.send(msg)
 
     async def add_rep(self, message, member, author):

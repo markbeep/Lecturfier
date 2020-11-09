@@ -91,7 +91,8 @@ class Player(commands.Cog):
         for key in sorted_keys:
             user_id = key[0]
             member = guild.get_member(int(user_id))
-            msg = f"**{rank}:** {member.display_name} guessed {self.covid_guesses[user_id]}: {int(round(key[1]))} points"
+            display_name = member.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
+            msg = f"**{rank}:** {display_name} guessed {self.covid_guesses[user_id]}: {int(round(key[1]))} points"
             points.append(msg)
             rank += 1
 

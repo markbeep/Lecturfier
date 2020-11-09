@@ -115,10 +115,10 @@ class Updates(commands.Cog):
                             log(f"{lesson} was changed", "LESSON")
                             title = f"There has been an edit on __{lesson}__"
                             description = f"""**OLD**:
-        {self.format_exercise(correct_changes["content"]["old"])}
+{self.format_exercise(correct_changes["content"]["old"])}
 
-        **NEW**:
-        {self.format_exercise((correct_changes["content"]["new"]), correct_changes["content"]["keys"])}"""
+**NEW**:
+{self.format_exercise((correct_changes["content"]["new"]), correct_changes["content"]["keys"])}"""
                             embed = discord.Embed(title=title, description=description,
                                                   timestamp=datetime.utcfromtimestamp(time.time()), color=color)
                             embed.set_footer(

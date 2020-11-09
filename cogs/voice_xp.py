@@ -145,7 +145,8 @@ class Voice(commands.Cog):
             if user is None:
                 await ctx.send(f"{ctx.message.author.mention}, your current level is `{level}` with `{pre_level}` / `{aft_level}` xp.")
             else:
-                await ctx.send(f"{member.display_name}'s level is `{level}` with `{pre_level}` / `{aft_level}` xp.")
+                display_name = member.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
+                await ctx.send(f"{display_name}'s level is `{level}` with `{pre_level}` / `{aft_level}` xp.")
         except KeyError:
             await ctx.send(f"{ctx.message.author.mention}, invalid mention or user ID. Can't display rank for that user.")
 
@@ -180,8 +181,7 @@ class Voice(commands.Cog):
                             cont += "<:bronze:413030030076149776>"
                         else:
                             cont += "<:invisible:413030446327267328>"
-                        member = member.display_name
-                        member = member.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
+                        member = member.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
 
                         # 1 xp / second
                         cont += f"**{i}.** __{member}__: **Level {levefier(profile[1])}** (*{number_split(profile[1])} xp | {round(profile[1] / 3600, 1)} hours*)\n\n"
