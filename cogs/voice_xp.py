@@ -1,13 +1,15 @@
+import asyncio
 import json
 import math
+import random
+import time
+from datetime import datetime
+
 import discord
 from discord.ext import commands
-import random
-import asyncio
-from helper.log import log
-from datetime import datetime
 from pytz import timezone
-import time
+
+from helper.log import log
 
 
 def xpfier(n):
@@ -179,8 +181,9 @@ class Voice(commands.Cog):
                         else:
                             cont += "<:invisible:413030446327267328>"
                         member = member.display_name
-                        member = member.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "")
-                        # 60 xp
+                        member = member.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
+
+                        # 1 xp / second
                         cont += f"**{i}.** __{member}__: **Level {levefier(profile[1])}** (*{number_split(profile[1])} xp | {round(profile[1] / 3600, 1)} hours*)\n\n"
                         i += 1
                         if i >= 11:
