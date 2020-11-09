@@ -179,7 +179,7 @@ class Voice(commands.Cog):
                         else:
                             cont += "<:invisible:413030446327267328>"
                         member = member.display_name
-                        member = member.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "")
+                        member = member.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "")
                         # 60 xp
                         cont += f"**{i}.** __{member}__: **Level {levefier(profile[1])}** (*{number_split(profile[1])} xp | {round(profile[1] / 3600, 1)} hours*)\n\n"
                         i += 1
