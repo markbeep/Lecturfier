@@ -315,7 +315,7 @@ class Statistics(commands.Cog):
                                  reverse=True)
                 for k in sort[c]:
                     u_obj = ctx.message.guild.get_member(int(k[0]))
-                    fixed_name = u_obj.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
+                    fixed_name = u_obj.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
                     users.append([str(fixed_name), k[1]])
                     if len(users) == 3:
                         break
