@@ -1,9 +1,8 @@
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 import os
 import random
 import asyncio
-from cogs import statistics, voice_xp, lecture_updates
 import time
 
 
