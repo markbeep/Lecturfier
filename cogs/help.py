@@ -10,19 +10,20 @@ class Help(commands.Cog):
 
     @commands.command()
     async def helptest(self, ctx):
-        commands = {}
-        for cog in self.bot.cogs:
-            commands[cog] = []
-            all_commands = self.bot.get_cog(cog).get_commands()
-            for com in all_commands:
-                commands[cog].append(com)
-        msg = ""
-        for key in commands.keys():
-            msg += f"**{key}**\n"
-            for com in commands[key]:
-                msg += f"-- {com}\n"
-        embed = discord.Embed(title="HELP", description=msg)
-        await ctx.send(embed=embed)
+        if await self.bot.is_owner(ctx.author):
+            commands = {}
+            for cog in self.bot.cogs:
+                commands[cog] = []
+                all_commands = self.bot.get_cog(cog).get_commands()
+                for com in all_commands:
+                    commands[cog].append(com)
+            msg = ""
+            for key in commands.keys():
+                msg += f"**{key}**\n"
+                for com in commands[key]:
+                    msg += f"-- {com}\n"
+            embed = discord.Embed(title="HELP", description=msg)
+            await ctx.send(embed=embed)
 
     @commands.group(aliases=["halp", "commands", "h", "c"])
     async def help(self, ctx):

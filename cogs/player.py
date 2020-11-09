@@ -52,13 +52,12 @@ class Player(commands.Cog):
             if str(reaction) == "<:checkmark:769279808244809798>" and reaction.message.guild.id == 747752542741725244:
                 await self.confirm_msg.delete()
                 self.confirm_msg = None
-                await reaction.message.channel.send(
-                    f"**CASES HAVE BEEN CONFIRMED:** `{self.confirmed_cases}`\n"
-                    f"Sending point distribution...\n"
-                    f"---------------------")
+                start_msg = f"**CASES HAVE BEEN CONFIRMED:** `{self.confirmed_cases}`\n" \
+                            f"Sending point distribution...\n" \
+                            f"---------------------\n"
                 points_list = await self.point_distribute(reaction.message.guild)
                 msg = "\n".join(points_list)
-                await reaction.message.channel.send(f"**__POINTS GOTTEN FOR TODAY'S GUESS:__**\n{msg}")
+                await reaction.message.channel.send(f"{start_msg}**__POINTS GOTTEN FOR TODAY'S GUESS:__**\n{msg}")
             elif str(reaction) == "<:xmark:769279807916998728>":
                 await self.confirm_msg.delete()
                 self.confirm_msg = None
@@ -66,30 +65,38 @@ class Player(commands.Cog):
                 await reaction.message.channel.send("Confirmed cases amount was stated as being wrong and was therefore deleted.")
 
     async def point_distribute(self, guild):
-        points = []
         # if the server key is not in the file yet
         if str(guild.id) not in self.covid_points:
             self.covid_points[str(guild.id)] = {}
 
-        sorted_keys = sorted(self.covid_guesses.items(), key=lambda x: x[1], reverse=True)
-        rank = 1
-        for u in sorted_keys:
-            user_id = u[0]
-            member = guild.get_member(int(user_id))
+        sorted_keys = {}
+        points = []
+        log(f"Starting COVID points distribution", "COVID")
+        for u in self.covid_guesses:
+            user_id = u
             difference = abs(self.confirmed_cases - self.covid_guesses[user_id])
             points_gotten = float(self.confirmed_cases - difference) / self.confirmed_cases * 1000
-            points.append(f"**{rank}:** {member.display_name} guessed {self.covid_guesses[user_id]}: {int(round(points_gotten))} points")
-            rank += 1
+            if points_gotten < 0:
+                points_gotten = 0
+            sorted_keys[user_id] = points_gotten
 
             # if the user has no key entry in the covid_guesses.json yet
             if user_id not in self.covid_points[str(guild.id)]:
                 self.covid_points[str(guild.id)][user_id] = round(points_gotten, 1)
             else:
                 self.covid_points[str(guild.id)][user_id] += round(points_gotten, 1)
-            log(f"Added covid guess points to user: {str(member)}", "COVID")
+
+        sorted_keys = sorted(sorted_keys.items(), key=lambda x: x[1], reverse=True)
+        rank = 1
+        for key in sorted_keys:
+            user_id = key[0]
+            member = guild.get_member(int(user_id))
+            msg = f"**{rank}:** {member.display_name} guessed {self.covid_guesses[user_id]}: {int(round(key[1]))} points"
+            points.append(msg)
+            rank += 1
 
         with open("./data/covid_guesses.json", "w") as f:
-            json.dump(self.covid_points, f)
+            json.dump(self.covid_points, f, indent=2)
         log("Saved covid_guesses.json", "COVID")
 
         self.covid_guesses = {}
@@ -132,6 +139,8 @@ class Player(commands.Cog):
                         number = int(number)
                         if number < 0:
                             raise ValueError
+                        if number > 1000000:
+                            number = 1000000
                         self.covid_guesses[str(ctx.message.author.id)] = number
                         await ctx.send(f"{ctx.message.author.mention}, your new guess is: `{number}`")
                 except ValueError:
