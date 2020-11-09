@@ -129,14 +129,13 @@ class Statistics(commands.Cog):
 
     @commands.Cog.listener()
     async def on_command(self, ctx):
-        print("yes")
         if ctx.message.author.bot:
             return
         else:
             if ctx.message.channel.id in self.ignore_channels:
                 return
             self.recent_message.append(ctx.message.author.id)
-
+            await ctx.message.add_reaction("<:checkmark:769279808244809798>")
             self.statistics[str(ctx.message.guild.id)]["commands_used"][str(ctx.message.author.id)] += 1
 
     @commands.Cog.listener()

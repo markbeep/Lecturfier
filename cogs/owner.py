@@ -4,6 +4,7 @@ import os
 import random
 import asyncio
 import time
+import inspect
 
 
 class Owner(commands.Cog):
@@ -20,6 +21,16 @@ class Owner(commands.Cog):
             return "<:red_box:764901465872662528>"*bars  # Red square
         else:
             return "<:green_box:764901465948684289>"*bars  # Green square
+
+    @commands.command()
+    async def inspect(self, ctx):
+        if await self.bot.is_owner(ctx.author):
+            source_code = inspect.getsource(self.inspect)
+            print(source_code)
+            await ctx.send(f"```python\n"
+                           f"{source_code}\n"
+                           f"```")
+
 
     @commands.command()
     async def loops(self, ctx):
