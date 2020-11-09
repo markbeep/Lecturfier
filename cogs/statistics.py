@@ -293,8 +293,7 @@ class Statistics(commands.Cog):
         """
         if user is None:
             await self.user_checkup(message=ctx.message)
-            display_name = ctx.message.author.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
-            embed = discord.Embed(title=f"Statistics for {display_name}")
+            embed = discord.Embed(title=f"Statistics for {ctx.message.author.display_name}")
             for c in self.checks:
                 sort = sorted(self.statistics[str(ctx.message.guild.id)][c].items(), key=lambda x: x[1], reverse=True)
                 rank = 1
@@ -315,8 +314,7 @@ class Statistics(commands.Cog):
                                  reverse=True)
                 for k in sort[c]:
                     u_obj = ctx.message.guild.get_member(int(k[0]))
-                    fixed_name = u_obj.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
-                    users.append([str(fixed_name), k[1]])
+                    users.append([str(u_obj.display_name), k[1]])
                     if len(users) == 3:
                         break
                 embed.add_field(name=self.checks_full_name[c], value=f"**1.** {users[0][0]} *({users[0][1]})*\n"
@@ -331,9 +329,7 @@ class Statistics(commands.Cog):
                 await ctx.send("Invalid user. Mention the user for this to work.")
                 return
             await self.user_checkup(message=ctx.message, user=user)
-
-            display_name = user.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
-            embed = discord.Embed(title=f"Statistics for {display_name}")
+            embed = discord.Embed(title=f"Statistics for {user.display_name}")
             for c in self.checks:
                 sort = sorted(self.statistics[str(ctx.message.guild.id)][c].items(), key=lambda x: x[1], reverse=True)
                 rank = 1
