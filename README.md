@@ -17,6 +17,7 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
   - [ ] PERMS - Select what roles (maybe even user sepecific) should be able to use what command on a per server basis
   - [ ] MOD - Edit command to check what an edited message was changed from and to
   - [ ] MOD - Past nicknames command
+  - [ ] CLEAN AF - Delete commands from users and the corresponding bot command by clicking the checkmark reaction
 
 ## UPDATE LOG
   - [x] (08.11.2020) - OWNER - A working $loops command that displays if a loop is still running
