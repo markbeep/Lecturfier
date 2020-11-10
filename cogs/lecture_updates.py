@@ -32,6 +32,7 @@ class Updates(commands.Cog):
     async def background_loop(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
+            print("BACKGROUND LOOP")
             try:
                 channel = self.bot.get_channel(self.channel_to_post)
                 cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")

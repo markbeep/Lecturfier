@@ -17,7 +17,7 @@ from pytz import timezone
 class Player(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.script_start = 0
+        self.script_start = time.time()
         self.clap_counter = 0
         self.time = 0
         self.covid_guesses = {}
