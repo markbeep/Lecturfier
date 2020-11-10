@@ -13,7 +13,8 @@ import hashlib
 import json
 from pytz import timezone
 
-
+# TODO Source command that displays the source code of a command using the inspect library
+# labels: idea
 class Player(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
