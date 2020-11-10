@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from pytz import timezone
 
-
+# TODO replace the log system with a proper logging library
 def log(text, keyword=None):
     """
     Logs a specific entry to a file.
