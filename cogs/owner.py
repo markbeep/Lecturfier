@@ -7,6 +7,26 @@ import time
 import inspect
 
 
+# TODO A working $loops command that displays if a loop is still running
+# labels: OWNER
+# TODO Move the background loop in bot.py to admin.py
+# labels: Cleanup
+# TODO Have files auto backup to git
+# labels: DATA
+# TODO Covid guesser game that tracks daily guesses and adds points depending on how close a guess is
+# labels: GAME
+# TODO Refined delete command with last 10 deleted messages for each user (was changed to a delete log instead)
+# labels: changed, ADMIN
+# TODO Change xp background task into multiple functions
+# labels: LEVELS
+# TODO make xp be checked more frequently, to have it more accurately show time in voice channel
+# labels: LEVELS
+# TODO create a new level graph function
+# labels: LEVELS
+# TODO Messages per specific channel stats
+# labels: STATISTICS
+# TODO Transfer +rep system to its own cog
+# labels: REPUTATION
 class Owner(commands.Cog):
     def __init__(self, bot):
         self.bot = bot

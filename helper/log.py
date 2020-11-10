@@ -3,6 +3,7 @@ from datetime import datetime
 from pytz import timezone
 
 # TODO replace the log system with a proper logging library
+# labels: LOG
 def log(text, keyword=None):
     """
     Logs a specific entry to a file.

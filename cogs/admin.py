@@ -6,6 +6,15 @@ from datetime import datetime
 from pytz import timezone
 import json
 
+
+# TODO Add a wrapper around commands to easily enable/disable commands per server
+# labels: ADMIN
+# TODO Select what roles (maybe even user sepecific) should be able to use what command on a per server basis
+# labels: ADMIN
+# TODO Edit command to check what an edited message was changed from and to
+# labels: ADMIN
+# TODO Past nicknames command
+# labels: ADMIN
 class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -21,6 +30,8 @@ class Admin(commands.Cog):
         channel = self.bot.get_channel(747794480517873685)
         await self.send_welcome_message(channel, member, member.guild)
 
+    # TODO make on_reaction_add raw to improve reliability
+    # labels: ADMIN
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
         if user.bot:

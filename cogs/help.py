@@ -27,6 +27,10 @@ class Help(commands.Cog):
         else:
             raise discord.ext.commands.errors.NotOwner
 
+    # TODO  HELP - Make a proper working help page
+    # labels: HELP
+    # TODO Make the help page have different pages that can be gone through with reactions
+    # labels: HELP
     @commands.group(aliases=["halp", "commands", "h", "c"])
     async def help(self, ctx):
         if ctx.invoked_subcommand is None:
