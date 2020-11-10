@@ -149,7 +149,8 @@ class Player(commands.Cog):
                     await ctx.send(f"{ctx.message.author.mention}, no proper positive integer given.")
                     raise discord.ext.commands.errors.BadArgument
         else:
-            await ctx.send("You can only guess in the morning till 12:00.\n"
+            await ctx.send(f"{ctx.message.author.mention}, "
+                           "You can only guess in the morning till 12:00.\n"
                            f"Your total points: {int(round(total_points))}")
 
     @commands.command(aliases=["uptime", "source", "code"])
