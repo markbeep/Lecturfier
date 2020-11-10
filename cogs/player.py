@@ -57,6 +57,8 @@ class Player(commands.Cog):
                             f"Sending point distribution...\n" \
                             f"---------------------\n"
                 points_list = await self.point_distribute(reaction.message.guild)
+                # TODO split each 5 entries into a new embed field to better prevent the max char limit
+                # Make the display names be mentions, instead of display_name
                 msg = "\n".join(points_list)
                 await reaction.message.channel.send(f"{start_msg}**__POINTS GOTTEN FOR TODAY'S GUESS:__**\n{msg}")
             elif str(reaction) == "<:xmark:769279807916998728>":
