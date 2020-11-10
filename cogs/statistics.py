@@ -76,6 +76,9 @@ class Statistics(commands.Cog):
                     "Thu": [14, 17]
                 }
         }
+        self.bot_uptime_path = "./data/bot_uptime.json"
+        with open(self.bot_uptime_path, "r") as f:
+            self.bot_uptime = json.load(f)
 
         self.statistics_filepath = "./data/statistics.json"
         with open(self.statistics_filepath, "r") as f:
@@ -101,7 +104,7 @@ class Statistics(commands.Cog):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             self.time_heartbeat = time.time()
-            if self.time_counter >= 5:
+            if self.time_counter >= 6:  # Saves the statistics file every minute
                 self.time_counter = 0
                 try:
                     with open(self.statistics_filepath, "w") as f:
@@ -110,7 +113,9 @@ class Statistics(commands.Cog):
                 except Exception:
                     user = self.bot.get_user(205704051856244736)
                     await user.send(f"Saving STATISTICS file failed:\n{traceback.format_exc()}")
-            if not sent_file and datetime.now().hour % 2 == 0:
+            else:
+                self.time_counter += 1
+            if not sent_file and datetime.now().hour % 2 == 0:  # Backs up all files every 2 hours
                 # Backs the data files up to github
                 with open("./data/settings.json", "r") as f:
                     settings = json.load(f)
@@ -124,9 +129,26 @@ class Statistics(commands.Cog):
             if datetime.now().hour % 2 != 0:
                 sent_file = False
 
-            #  await self.spam_channel()
-            await asyncio.sleep(20)
-            self.time_counter += 1
+            await self.is_bot_running(747752542741725244)
+            await asyncio.sleep(10)
+
+    async def is_bot_running(self, guild_id):
+        guild = self.bot.get_guild(guild_id)
+        for u in guild.members:
+            if u.bot:
+                await self.add_uptime(guild_id, u.id)
+
+        await self.add_uptime(guild_id, guild.me.id)
+
+    async def add_uptime(self, guild_id, bot_id):
+        guild_id = str(guild_id)
+        bot_id = str(bot_id)
+        if guild_id not in self.bot_uptime_path:
+            self.bot_uptime[guild_id] = {}
+        if bot_id not in self.bot_uptime[guild_id][bot_id]:
+            self.bot_uptime[guild_id][bot_id] = {"day": 0, "week": 0}
+        self.bot_uptime[guild_id][bot_id]["day"] += 10
+        self.bot_uptime[guild_id][bot_id]["week"] += 10
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):

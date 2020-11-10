@@ -20,7 +20,8 @@ class Admin(commands.Cog):
         self.bot = bot
         self.newcomers = {}
         self.ta_request = {}
-        with open("./data/bot_prefix.json", "r") as f:
+        self.bot_prefix_path = "./data/bot_prefix.json"
+        with open(self.bot_prefix_path, "r") as f:
             self.all_prefix = json.load(f)
 
     @commands.Cog.listener()
@@ -150,7 +151,7 @@ class Admin(commands.Cog):
                 await ctx.send("Prefix and arguments missing.")
             else:
                 self.all_prefix[prefix] = " ".join(args)
-                with open("./data/bot_prefix.json", "w") as f:
+                with open(self.bot_prefix_path, "w") as f:
                     json.dump(self.all_prefix, f)
                 await ctx.send(f"Updated prefix table with prefix: {prefix}")
         elif command.lower() == "delete" or command.lower() == "del" and ctx.author.guild_permissions.kick_members:
@@ -159,7 +160,7 @@ class Admin(commands.Cog):
             else:
                 try:
                     self.all_prefix.pop(prefix)
-                    with open("./data/bot_prefix.json", "w") as f:
+                    with open(self.bot_prefix_path, "w") as f:
                         json.dump(self.all_prefix, f)
                     await ctx.send(f"Deleted prefix: {prefix}")
                 except KeyError:
