@@ -13,6 +13,7 @@ import hashlib
 import json
 from pytz import timezone
 
+
 # TODO Source command that displays the source code of a command using the inspect library
 # labels: idea
 class Player(commands.Cog):
@@ -53,14 +54,23 @@ class Player(commands.Cog):
             if str(reaction) == "<:checkmark:769279808244809798>" and reaction.message.guild.id == 747752542741725244:
                 await self.confirm_msg.delete()
                 self.confirm_msg = None
-                start_msg = f"**CASES HAVE BEEN CONFIRMED:** `{self.confirmed_cases}`\n" \
-                            f"Sending point distribution...\n" \
-                            f"---------------------\n"
                 points_list = await self.point_distribute(reaction.message.guild)
-                # TODO split each 5 entries into a new embed field to better prevent the max char limit
-                # Make the display names be mentions, instead of display_name
-                msg = "\n".join(points_list)
-                await reaction.message.channel.send(f"{start_msg}**__POINTS GOTTEN FOR TODAY'S GUESS:__**\n{msg}")
+                embed = discord.Embed(title="Covid Guesses",
+                                      description=f"Confirmed cases: `{self.confirmed_cases}`",
+                                      color=0xFF0000)
+                c = 0
+                msg = ""
+                for p in range(len(points_list)):
+                    msg += f"{points_list[p]}\n"
+                    c += 1
+                    if c == 5:
+                        embed.add_field(name=f"Top {p+1}", value=msg, inline=False)
+                        msg = ""
+                        c = 0
+                if c != 0:
+                    embed.add_field(name=f"Top {len(points_list)}", value=msg, inline=False)
+                await reaction.message.channel.send(embed=embed)
+                self.confirmed_cases = 0
             elif str(reaction) == "<:xmark:769279807916998728>":
                 await self.confirm_msg.delete()
                 self.confirm_msg = None
@@ -94,8 +104,7 @@ class Player(commands.Cog):
         for key in sorted_keys:
             user_id = key[0]
             member = guild.get_member(int(user_id))
-            display_name = member.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
-            msg = f"**{rank}:** {display_name} guessed {self.covid_guesses[user_id]}: {int(round(key[1]))} points"
+            msg = f"**{rank}:** {member.mention} got {int(round(key[1]))} points *(guess: {self.covid_guesses[user_id]})*"
             points.append(msg)
             rank += 1
 
@@ -104,8 +113,50 @@ class Player(commands.Cog):
         log("Saved covid_guesses.json", "COVID")
 
         self.covid_guesses = {}
-        self.confirmed_cases = 0
         return points
+
+    async def send_leaderboard(self, ctx):
+        async with ctx.typing():
+            try:
+                """
+                Creates a list with sorted dicts
+                """
+                temp = {}
+
+                for user in self.covid_points[str(ctx.message.guild.id)].keys():
+                    temp[user] = self.covid_points[str(ctx.message.guild.id)][user]
+                temp = sorted(temp.items(), key=lambda v: v[1], reverse=True)
+
+                """
+                Creates the message content
+                """
+                i = 1
+                cont = ""
+                for profile in temp:
+                    member = ctx.message.guild.get_member(int(profile[0]))
+                    if member is None:
+                        pass
+                    else:
+                        if i == 1:
+                            cont += "<:gold:413030003639582731>"
+                        elif i == 2:
+                            cont += "<:silver:413030018881552384>"
+                        elif i == 3:
+                            cont += "<:bronze:413030030076149776>"
+                        else:
+                            cont += "<:invisible:413030446327267328>"
+
+                        # 1 xp / second
+                        cont += f"**{i}.** {member.mention} | Points: {round(self.covid_points[str(ctx.message.guild.id)][str(member.id)])}\n\n"
+                        i += 1
+                        if i >= 11:
+                            break
+                embed = discord.Embed(
+                    title=f"Top 'Rona Guessers: **{ctx.message.guild.name}** <:coronavirus:767839970303410247>",
+                    description=cont, color=0x00FF00)
+            except KeyError:
+                embed = discord.Embed(title=f"Error", description="There are no covid guessing points yet", color=0xFF0000)
+        await ctx.send(embed=embed)
 
     @commands.command(aliases=["g"])
     async def guess(self, ctx, number=None, confirmed_number=None):
@@ -115,7 +166,8 @@ class Player(commands.Cog):
         # Send last guess from user
         # Should only be possible in the morning
         hour = int(datetime.now(timezone("Europe/Zurich")).strftime("%H"))
-        if 0 < hour < 12 or number is not None and number.lower() == "confirm":
+        leaderboard_aliases = ["leaderboard", "lb", "top", "best", "ranking"]
+        if 0 < hour < 12 or number is not None and number.lower() == "confirm" or number is not None and number.lower() in leaderboard_aliases:
             if number is None:
                 if str(ctx.message.author.id) in self.covid_guesses:
                     await ctx.send(f"{ctx.message.author.mention}, "
@@ -141,7 +193,10 @@ class Player(commands.Cog):
                         self.confirm_msg = await ctx.send(f"Confirmed cases: {self.confirmed_cases}\nA mod or higher, press the <:checkmark:769279808244809798> to verify.")
                         await self.confirm_msg.add_reaction("<:checkmark:769279808244809798>")
                         await self.confirm_msg.add_reaction("<:xmark:769279807916998728>")
+                    elif number.lower() in leaderboard_aliases:
+                        await self.send_leaderboard(ctx)
                     else:
+                        print(number.lower())
                         number = int(number)
                         if number < 0:
                             raise ValueError
