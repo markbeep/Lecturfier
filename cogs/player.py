@@ -120,10 +120,12 @@ class Player(commands.Cog):
                 if str(ctx.message.author.id) in self.covid_guesses:
                     await ctx.send(f"{ctx.message.author.mention}, "
                                    f"your final guess is `{self.covid_guesses[str(ctx.message.author.id)]}`.\n"
-                                   f"Your total points: {int(round(total_points))}")
+                                   f"Your total points: {int(round(total_points))}", delete_after=7)
+                    await ctx.message.delete()
                 else:
                     await ctx.send(f"{ctx.message.author.mention}, you don't have a guess yet.\n"
-                                   f"Your total points: {int(round(total_points))}")
+                                   f"Your total points: {int(round(total_points))}", delete_after=7)
+                    await ctx.message.delete()
             else:
                 try:
                     if number.lower() == "confirm" and ctx.author.guild_permissions.kick_members:
@@ -146,16 +148,19 @@ class Player(commands.Cog):
                         if number > 1000000:
                             number = 1000000
                         self.covid_guesses[str(ctx.message.author.id)] = number
-                        await ctx.send(f"{ctx.message.author.mention}, your new guess is: `{number}`")
+                        await ctx.send(f"{ctx.message.author.mention}, your new guess is: `{number}`", delete_after=7)
+                        await ctx.message.delete()
                 except ValueError:
-                    await ctx.send(f"{ctx.message.author.mention}, no proper positive integer given.")
+                    await ctx.send(f"{ctx.message.author.mention}, no proper positive integer given.", delete_after=7)
+                    await ctx.message.delete()
                     raise discord.ext.commands.errors.BadArgument
         else:
             await ctx.send(f"{ctx.message.author.mention}, "
                            "You can only guess in the morning till 12:00.\n"
-                           f"Your total points: {int(round(total_points))}")
+                           f"Your total points: {int(round(total_points))}", delete_after=7)
+            await ctx.message.delete()
 
-    @commands.command(aliases=["uptime", "source", "code"])
+    @commands.command(aliases=["source", "code"])
     async def info(self, ctx):
         """
         Get some info about the bot
