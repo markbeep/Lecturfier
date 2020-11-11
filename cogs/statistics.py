@@ -93,6 +93,7 @@ class Statistics(commands.Cog):
         self.notice_message = 0  # The message that notifies others about joining the spam channel
         self.recent_message = []
         self.time_heartbeat = 0
+        self.bot_changed_to_yesterday = {}
 
         self.bot.loop.create_task(self.background_save_statistics())
 
@@ -110,6 +111,9 @@ class Statistics(commands.Cog):
                     with open(self.statistics_filepath, "w") as f:
                         json.dump(self.statistics, f, indent=2)
                     log("SAVED STATISTICS", "STATISTICS")
+                    with open(self.bot_uptime_path, "w") as f:
+                        json.dump(self.bot_uptime, f, indent=2)
+                    log("SAVED BOT UPTIME", "UPTIME")
                 except Exception:
                     user = self.bot.get_user(205704051856244736)
                     await user.send(f"Saving STATISTICS file failed:\n{traceback.format_exc()}")
@@ -129,26 +133,78 @@ class Statistics(commands.Cog):
             if datetime.now().hour % 2 != 0:
                 sent_file = False
 
-            await self.is_bot_running(747752542741725244)
             await asyncio.sleep(10)
+            await self.is_bot_running(747752542741725244)
+
+    # TODO Polish the uptime command
+    # labels: STATISTICS
+    # Changing daily stats to the day before doesn't seem to work properly
+    # Have to add weekly stats
 
     async def is_bot_running(self, guild_id):
         guild = self.bot.get_guild(guild_id)
+        hour_min = datetime.now(timezone("Europe/Zurich")).strftime("%H:%M")
         for u in guild.members:
-            if u.bot:
-                await self.add_uptime(guild_id, u.id)
+            if u.bot and str(u.status) == "online":
+                await self.add_uptime(guild_id, u.id, hour_min)
 
-        await self.add_uptime(guild_id, guild.me.id)
-
-    async def add_uptime(self, guild_id, bot_id):
+    async def add_uptime(self, guild_id, bot_id, hour_min):
         guild_id = str(guild_id)
         bot_id = str(bot_id)
-        if guild_id not in self.bot_uptime_path:
+        if guild_id not in self.bot_uptime:
             self.bot_uptime[guild_id] = {}
-        if bot_id not in self.bot_uptime[guild_id][bot_id]:
-            self.bot_uptime[guild_id][bot_id] = {"day": 0, "week": 0}
+        if bot_id not in self.bot_uptime[guild_id]:
+            self.bot_uptime[guild_id][bot_id] = {"day": 0, "yesterday": 0, "week": 0, "total": 0, "start": time.time()}
         self.bot_uptime[guild_id][bot_id]["day"] += 10
         self.bot_uptime[guild_id][bot_id]["week"] += 10
+        self.bot_uptime[guild_id][bot_id]["total"] += 10
+        if bot_id in self.bot_changed_to_yesterday and self.bot_changed_to_yesterday[bot_id] > time.time() - 300:
+            pass
+        elif hour_min == "23:59":
+            self.bot_changed_to_yesterday[bot_id] = time.time()
+            self.bot_uptime[guild_id][bot_id]["yesterday"] = self.bot_uptime[guild_id][bot_id]["day"]
+            self.bot_uptime[guild_id][bot_id]["day"] = 0
+
+    async def get_uptime(self, guild_id, bot_id, data_range):
+        guild_id = str(guild_id)
+        bot_id = str(bot_id)
+        if guild_id not in self.bot_uptime or bot_id not in self.bot_uptime[guild_id]:
+            return 0
+        return self.bot_uptime[guild_id][bot_id][data_range]
+
+    @commands.command()
+    async def uptime(self, ctx, bot=None):
+        if bot is None:
+            await ctx.send("No bot specified.")
+        else:
+            try:
+                memberconverter = discord.ext.commands.MemberConverter()
+                user = await memberconverter.convert(ctx, bot)
+                if not user.bot:
+                    raise discord.ext.commands.errors.BadArgument
+            except discord.ext.commands.errors.BadArgument:
+                await ctx.send(f"{ctx.message.author.mention}, that is not a bot. Mention a bot for this command to work.")
+                raise discord.ext.commands.errors.BadArgument
+
+            lecturfier_start_time = time.time() - await self.get_uptime(ctx.message.guild.id, self.bot.user.id, "start")
+            lecturfier_total = round((float(await self.get_uptime(ctx.message.guild.id, self.bot.user.id, "total")) / lecturfier_start_time) * 100, 2)
+            if lecturfier_total > 100:
+                lecturfier_total = 100
+
+            bot_yesterday = round(float(await self.get_uptime(ctx.message.guild.id, user.id, "yesterday")) / 864, 2)
+            bot_week = round(float(await self.get_uptime(ctx.message.guild.id, user.id, "week")) / 6048, 2)
+            bot_start_time = time.time() - await self.get_uptime(ctx.message.guild.id, user.id, "start")
+            bot_total = round((float(await self.get_uptime(ctx.message.guild.id, user.id, "total")) / bot_start_time) * 100, 2)
+            if bot_total > 100:
+                bot_total = 100
+            embed = discord.Embed(title=f"Bot Uptime",
+                                  description=f"**{user.display_name}**\n"
+                                              f"Total: {bot_total}%\n"
+                                              f"Week: {bot_week}%\n"
+                                              f"Yesterday: {bot_yesterday}%",
+                                  color=discord.Color.blue())
+            embed.set_footer(text=f"This message is {lecturfier_total}% correct")
+            await ctx.send(embed=embed)
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
@@ -159,6 +215,7 @@ class Statistics(commands.Cog):
         else:
             self.recent_message.append(ctx.message.author.id)
             await ctx.message.add_reaction("<:xmark:769279807916998728>")
+            print(error)
 
     @commands.Cog.listener()
     async def on_command_completion(self, ctx):
@@ -190,7 +247,6 @@ class Statistics(commands.Cog):
             await self.user_checkup(message)
 
             msg = demojize(message.content)
-
             self.statistics[str(message.guild.id)]["messages_sent"][str(message.author.id)] += 1
             self.statistics[str(message.guild.id)]["chars_sent"][str(message.author.id)] += len(msg)
             self.statistics[str(message.guild.id)]["words_sent"][str(message.author.id)] += len(msg.split(" "))
@@ -359,7 +415,7 @@ class Statistics(commands.Cog):
                 user = await memberconverter.convert(ctx, user)
             except discord.ext.commands.errors.BadArgument:
                 await ctx.send("Invalid user. Mention the user for this to work.")
-                return
+                raise discord.ext.commands.errors.BadArgument
             await self.user_checkup(message=ctx.message, user=user)
             embed = discord.Embed(title=f"Statistics for {user.display_name}")
             for c in self.checks:
