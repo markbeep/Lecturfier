@@ -10,6 +10,7 @@ import traceback
 from helper.log import log
 from helper.git_backup import gitpush
 
+
 # TODO make on_message_delete and on_reaction_add raw
 # labels: STATISTICS
 class Statistics(commands.Cog):
