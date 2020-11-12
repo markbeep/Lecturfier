@@ -232,6 +232,7 @@ class Statistics(commands.Cog):
     async def on_ready(self):
         self.script_start = time.time()
 
+    # TODO Find out why stats doesnt always work
     @commands.Cog.listener()
     async def on_message(self, message):
         if "@everyone" in message.content.lower():
