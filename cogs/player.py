@@ -70,6 +70,7 @@ class Player(commands.Cog):
                 if c != 0:
                     embed.add_field(name=f"Top {len(points_list)}", value=msg, inline=False)
                 await reaction.message.channel.send(embed=embed)
+                await self.bot.change_presence(activity=discord.Activity(name=f'closely', type=discord.ActivityType.watching))
                 self.confirmed_cases = 0
             elif str(reaction) == "<:xmark:769279807916998728>":
                 await self.confirm_msg.delete()
@@ -163,6 +164,8 @@ class Player(commands.Cog):
         total_points = 0
         if str(ctx.message.guild.id) in self.covid_points and str(ctx.message.author.id) in self.covid_points[str(ctx.message.guild.id)]:
             total_points = self.covid_points[str(ctx.message.guild.id)][str(ctx.message.author.id)]
+        if str(ctx.message.guild.id) not in self.covid_points:
+            self.covid_points[ctx.message.guild.id] = {}
         # Send last guess from user
         # Should only be possible in the morning
         hour = int(datetime.now(timezone("Europe/Zurich")).strftime("%H"))
@@ -202,9 +205,14 @@ class Player(commands.Cog):
                             raise ValueError
                         if number > 1000000:
                             number = 1000000
+                        user_count = len(self.covid_guesses)
                         self.covid_guesses[str(ctx.message.author.id)] = number
                         await ctx.send(f"{ctx.message.author.mention}, your new guess is: `{number}`", delete_after=7)
                         await ctx.message.delete()
+
+                        new_user_count = len(self.covid_guesses)
+                        if new_user_count > user_count:
+                            await self.bot.change_presence(activity=discord.Activity(name=f'{new_user_count} guessers', type=discord.ActivityType.watching))
                 except ValueError:
                     await ctx.send(f"{ctx.message.author.mention}, no proper positive integer given.", delete_after=7)
                     await ctx.message.delete()
@@ -306,6 +314,15 @@ class Player(commands.Cog):
             await ctx.send("No answer. Whoops")
         except NotImplementedError:
             await ctx.send("You've bested me. Don't have an algorithm to solve that yet.")
+
+    def random_string(self, n):
+        return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
+
+    @commands.command()
+    async def token(self, ctx):
+        token = self.random_string(24) + "." + self.random_string(6) + "." + self.random_string(27)
+        embed = discord.Embed(title="Bot Token", description=f"||`{token}`||")
+        await ctx.send(embed=embed)
 
     @commands.command(aliases=["pong", "ding"])
     async def ping(self, ctx):
