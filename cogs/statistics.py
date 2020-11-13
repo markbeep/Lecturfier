@@ -145,9 +145,10 @@ class Statistics(commands.Cog):
     async def is_bot_running(self, guild_id):
         guild = self.bot.get_guild(guild_id)
         hour_min = datetime.now(timezone("Europe/Zurich")).strftime("%H:%M")
-        for u in guild.members:
-            if u.bot and str(u.status) == "online":
-                await self.add_uptime(guild_id, u.id, hour_min)
+        if guild is not None:
+            for u in guild.members:
+                if u.bot and str(u.status) == "online":
+                    await self.add_uptime(guild_id, u.id, hour_min)
 
     async def add_uptime(self, guild_id, bot_id, hour_min):
         guild_id = str(guild_id)
@@ -215,7 +216,7 @@ class Statistics(commands.Cog):
             return
         else:
             self.recent_message.append(ctx.message.author.id)
-            await ctx.message.add_reaction("<:xmark:769279807916998728>")
+            await ctx.message.add_reaction("<:xmark:776717315139698720>")
             print(error)
 
     @commands.Cog.listener()
@@ -223,7 +224,7 @@ class Statistics(commands.Cog):
         if ctx.message.author.bot:
             return
         else:
-            await ctx.message.add_reaction("<:checkmark:769279808244809798>")
+            await ctx.message.add_reaction("<:checkmark:776717335242211329>")
             if ctx.message.channel.id in self.ignore_channels:
                 return
             self.statistics[str(ctx.message.guild.id)]["commands_used"][str(ctx.message.author.id)] += 1
