@@ -68,7 +68,7 @@ for extension in startup_extensions:
         log("Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)), "EXTENSION")
 print("-------------------")
 
-with open("../LECTURFIER.json", "r") as f:
+with open("../LECTURFIERBETA.json", "r") as f:
     settings = json.load(f)
 if len(settings["token"]) == 0:
     log("NO TOKEN IN LECTURFIER.json! Stopping bot.", "TOKEN")
