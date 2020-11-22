@@ -40,7 +40,8 @@ class Owner(commands.Cog):
             all_loops = {
                 "Lecture Updates Loop": self.bot.get_cog("Updates").heartbeat(),
                 "Statistics file save Loop": self.bot.get_cog("Statistics").heartbeat(),
-                "Voice XP track Loop": self.bot.get_cog("Voice").heartbeat()
+                "Voice XP track Loop": self.bot.get_cog("Voice").heartbeat(),
+                "COVID Web Scraper": self.bot.get_cog("Player").heartbeat()
             }
 
             msg = ""

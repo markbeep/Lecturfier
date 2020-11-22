@@ -17,7 +17,7 @@ class Lecture:
         self.name = full_name
         self.url = url
         self.html_path = f'websites/{short}.html'
-        open(self.html_path, 'a').close() # creates file if not existing
+        open(self.html_path, 'a').close()  # creates file if not existing
         self.check_fn = check
 
     def scrape_for_events(self):
@@ -43,7 +43,7 @@ class Lecture:
         changes = response.content != file_html
         if changes:
             # make soups
-            # echt
+            #  echt
             online_s = bs(response.content, "html.parser")
             local_s = bs(file_html, "html.parser")
             # test
@@ -59,6 +59,7 @@ class Lecture:
         else:
             return []
 
+
 if __name__ == "__main__":
     dm_url = "https://crypto.ethz.ch/teaching/DM20/"
     ad_url = "https://www.cadmo.ethz.ch/education/lectures/HS20/DA/index.html"
@@ -72,6 +73,7 @@ if __name__ == "__main__":
     }
     for key in lectures:
         print(lectures[key].scrape_for_events())
+
 
 def scraper():
     dm_url = "https://crypto.ethz.ch/teaching/DM20/"
@@ -90,6 +92,7 @@ def scraper():
         changes[lectures[key].name] = lectures[key].scrape_for_events()
         lesson_links[lectures[key].name] = lectures[key].url
     return changes, lesson_links
+
 
 if __name__ == '__main__':
     print(scraper())

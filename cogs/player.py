@@ -12,6 +12,9 @@ import string
 import hashlib
 import json
 from pytz import timezone
+import aiohttp
+from bs4 import BeautifulSoup as bs
+import asyncio
 
 
 # TODO Source command that displays the source code of a command using the inspect library
@@ -27,6 +30,34 @@ class Player(commands.Cog):
         self.confirm_msg = None  # Confirmed message
         with open("./data/covid_guesses.json") as f:
             self.covid_points = json.load(f)
+        with open("./data/covid19.txt") as f:
+            self.cases_today = int(f.read())
+        self.time_heartbeat = 0
+
+        self.bot.loop.create_task(self.background_check_cases())
+
+    def heartbeat(self):
+        return self.time_heartbeat
+
+    async def background_check_cases(self):
+        await self.bot.wait_until_ready()
+        while not self.bot.is_closed():
+            self.time_heartbeat = time.time()
+            async with aiohttp.ClientSession() as cs:
+                async with cs.get("https://www.covid19.admin.ch/en/overview") as r:
+                    response = await r.read()
+            soup = bs(response.decode('utf-8'), "html.parser")
+            new_cases = int(soup.find_all("span", class_="bag-key-value-list__entry-value")[0].get_text())
+            if self.cases_today != new_cases:
+                self.cases_today = new_cases
+                self.confirmed_cases = new_cases
+                log("Daily cases have been updated", "COVID")
+                guild = self.bot.get_guild(747752542741725244)
+                channel = guild.get_channel(747752542741725247)
+                await self.send_message(channel, guild)
+                with open("./data/covid19.txt", "w") as f:
+                    f.write(str(new_cases))
+            await asyncio.sleep(10)
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -54,29 +85,32 @@ class Player(commands.Cog):
             if str(reaction) == "<:checkmark:769279808244809798>" and reaction.message.guild.id == 747752542741725244:
                 await self.confirm_msg.delete()
                 self.confirm_msg = None
-                points_list = await self.point_distribute(reaction.message.guild)
-                embed = discord.Embed(title="Covid Guesses",
-                                      description=f"Confirmed cases: `{self.confirmed_cases}`",
-                                      color=0xFF0000)
-                c = 0
-                msg = ""
-                for p in range(len(points_list)):
-                    msg += f"{points_list[p]}\n"
-                    c += 1
-                    if c == 5:
-                        embed.add_field(name=f"Top {p+1}", value=msg, inline=False)
-                        msg = ""
-                        c = 0
-                if c != 0:
-                    embed.add_field(name=f"Top {len(points_list)}", value=msg, inline=False)
-                await reaction.message.channel.send(embed=embed)
-                await self.bot.change_presence(activity=discord.Activity(name=f'closely', type=discord.ActivityType.watching))
-                self.confirmed_cases = 0
+                await self.send_message(reaction.message.channel, reaction.message.guild)
             elif str(reaction) == "<:xmark:769279807916998728>":
                 await self.confirm_msg.delete()
                 self.confirm_msg = None
                 self.confirmed_cases = 0
                 await reaction.message.channel.send("Confirmed cases amount was stated as being wrong and was therefore deleted.")
+
+    async def send_message(self, channel, guild):
+        points_list = await self.point_distribute(guild)
+        embed = discord.Embed(title="Covid Guesses",
+                              description=f"Confirmed cases: `{self.confirmed_cases}`",
+                              color=0xFF0000)
+        c = 0
+        msg = ""
+        for p in range(len(points_list)):
+            msg += f"{points_list[p]}\n"
+            c += 1
+            if c == 5:
+                embed.add_field(name=f"Top {p + 1}", value=msg, inline=False)
+                msg = ""
+                c = 0
+        if c != 0:
+            embed.add_field(name=f"Top {len(points_list)}", value=msg, inline=False)
+        await channel.send(embed=embed)
+        await self.bot.change_presence(activity=discord.Activity(name=f'closely', type=discord.ActivityType.watching))
+        self.confirmed_cases = 0
 
     async def point_distribute(self, guild):
         # if the server key is not in the file yet
