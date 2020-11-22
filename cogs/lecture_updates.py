@@ -124,11 +124,11 @@ class Updates(commands.Cog):
                                                   timestamp=datetime.utcfromtimestamp(time.time()), color=color)
                             embed.set_footer(
                                 text=f"{version} | This message took {round(time.time() - start, 2)} seconds to send")
-                            await channel.send(embed=embed)
                             if send_ping:
-                                await channel.send("<@&759615935496847412>", embed=embed)
+                                msg = await channel.send("<@&759615935496847412>", embed=embed)
                             else:
-                                await channel.send(embed=embed)
+                                msg = await channel.send(embed=embed)
+                            await msg.publish()
                             send_ping = False
 
                         elif correct_changes["event"] == "new":
@@ -140,9 +140,10 @@ class Updates(commands.Cog):
                             embed.set_footer(
                                 text=f"{version} | This message took {round(time.time() - start, 2)} seconds to send")
                             if send_ping:
-                                await channel.send("<@&759615935496847412>", embed=embed)
+                                msg = await channel.send("<@&759615935496847412>", embed=embed)
                             else:
-                                await channel.send(embed=embed)
+                                msg = await channel.send(embed=embed)
+                            await msg.publish()
                             send_ping = False
             except Exception:
                 user = self.bot.get_user(205704051856244736)
@@ -203,7 +204,8 @@ class Updates(commands.Cog):
                               description=f"**Lecture is in {room}**\n[**>> Click here to view the lecture <<**]({link})\n---------------------\n[*Link to Website*]({website_url})",
                               timestamp=datetime.utcfromtimestamp(time.time()), color=color)
         embed.set_footer(text=f"{version}")
-        await channel.send("<@&759615935496847412>", embed=embed)
+        msg = await channel.send("<@&759615935496847412>", embed=embed)
+        await msg.publish()
 
         await asyncio.sleep(40)  # So it doesnt send the stream twice in a minute
 
