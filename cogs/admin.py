@@ -28,8 +28,9 @@ class Admin(commands.Cog):
     async def on_member_join(self, member):
         if member.bot:
             return
-        channel = self.bot.get_channel(747794480517873685)
-        await self.send_welcome_message(channel, member, member.guild)
+        if member.guild.id == 747752542741725244:  # if the server is the main server
+            channel = self.bot.get_channel(747794480517873685)
+            await self.send_welcome_message(channel, member, member.guild)
 
     # TODO make on_reaction_add raw to improve reliability
     # labels: ADMIN
