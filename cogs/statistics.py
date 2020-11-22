@@ -80,7 +80,6 @@ class Statistics(commands.Cog):
         self.bot_uptime_path = "./data/bot_uptime.json"
         with open(self.bot_uptime_path, "r") as f:
             self.bot_uptime = json.load(f)
-
         self.statistics_filepath = "./data/statistics.json"
         with open(self.statistics_filepath, "r") as f:
             self.statistics = json.load(f)
@@ -88,7 +87,7 @@ class Statistics(commands.Cog):
             self.ignore_channels = json.load(f)
 
         # self.spam_channel_times = ["Tue:11:45", "Fri:09:45", "Fri:09:45", "Wed:13:45", "Wed:11:45", "Fri:11:45", "Thu:16:45"]
-        #self.time_of_msg = time.time()
+        # self.time_of_msg = time.time()
         self.waiting = False
         self.time_counter = 0  # So statistics dont get saved every few seconds, and instead only every 2 mins
         self.notice_message = 0  # The message that notifies others about joining the spam channel
@@ -197,7 +196,7 @@ class Statistics(commands.Cog):
                 lecturfier_total = 100
 
             bot_yesterday = round(float(await self.get_uptime(ctx.message.guild.id, user.id, "yesterday")) / 864, 2)
-            bot_week = round(float(await self.get_uptime(ctx.message.guild.id, user.id, "week")) / 6048, 2)
+            bot_week = round(float(await self.get_uptime(ctx.message.guild.id, user.id, "past_week")) / 6048, 2)
             bot_start_time = time.time() - await self.get_uptime(ctx.message.guild.id, user.id, "start")
             bot_total = round((float(await self.get_uptime(ctx.message.guild.id, user.id, "total")) / bot_start_time) * 100, 2)
             if bot_total > 100:
@@ -377,7 +376,6 @@ class Statistics(commands.Cog):
             await user.send("AttributeError for reaction remove")
 
     @commands.command(aliases=["stats"])
-    @commands.has_permissions(administrator=True)
     async def statistics(self, ctx, user=None):
         """
         Used to call a statistics page
