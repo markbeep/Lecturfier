@@ -216,7 +216,10 @@ class Statistics(commands.Cog):
             return
         else:
             self.recent_message.append(ctx.message.author.id)
-            await ctx.message.add_reaction("<:xmark:776717315139698720>")
+            try:
+                await ctx.message.add_reaction("<:xmark:776717315139698720>")
+            except discord.errors.NotFound:
+                pass
             print(error)
 
     @commands.Cog.listener()
@@ -224,7 +227,10 @@ class Statistics(commands.Cog):
         if ctx.message.author.bot:
             return
         else:
-            await ctx.message.add_reaction("<:checkmark:776717335242211329>")
+            try:
+                await ctx.message.add_reaction("<:checkmark:776717335242211329>")
+            except discord.errors.NotFound:
+                pass
             if ctx.message.channel.id in self.ignore_channels:
                 return
             self.statistics[str(ctx.message.guild.id)]["commands_used"][str(ctx.message.author.id)] += 1

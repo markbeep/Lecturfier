@@ -79,11 +79,11 @@ class Player(commands.Cog):
         if member.bot:
             return
         if member.guild_permissions.kick_members:
-            if str(reaction) == "<:checkmark:769279808244809798>" and reaction.message.guild.id == 747752542741725244:
+            if str(reaction) == "<:checkmark:776717335242211329>":
                 await self.confirm_msg.delete()
                 self.confirm_msg = None
                 await self.send_message(reaction.message.channel, reaction.message.guild)
-            elif str(reaction) == "<:xmark:769279807916998728>":
+            elif str(reaction) == "<:xmark:776717315139698720>":
                 await self.confirm_msg.delete()
                 self.confirm_msg = None
                 self.confirmed_cases = 0
@@ -127,9 +127,11 @@ class Player(commands.Cog):
 
             # if the user has no key entry in the covid_guesses.json yet
             if user_id not in self.covid_points[str(guild.id)]:
-                self.covid_points[str(guild.id)][user_id] = round(points_gotten, 1)
+                self.covid_points[str(guild.id)][user_id] = [round(points_gotten, 1), round(points_gotten, 1), 1]
             else:
-                self.covid_points[str(guild.id)][user_id] += round(points_gotten, 1)
+                self.covid_points[str(guild.id)][user_id][0] += round(points_gotten, 1)
+                self.covid_points[str(guild.id)][user_id][1] += round(points_gotten, 1)
+                self.covid_points[str(guild.id)][user_id][2] += 1
 
         sorted_keys = sorted(sorted_keys.items(), key=lambda x: x[1], reverse=True)
         rank = 1
@@ -147,16 +149,24 @@ class Player(commands.Cog):
         self.covid_guesses = {}
         return points
 
-    async def send_leaderboard(self, ctx):
+    async def send_leaderboard(self, ctx, average=False):
         async with ctx.typing():
             try:
                 """
                 Creates a list with sorted dicts
                 """
                 temp = {}
-
-                for user in self.covid_points[str(ctx.message.guild.id)].keys():
-                    temp[user] = self.covid_points[str(ctx.message.guild.id)][user]
+                if average:
+                    title = "Average"
+                    for user in self.covid_points[str(ctx.message.guild.id)].keys():
+                        if self.covid_points[str(ctx.message.guild.id)][user][2] != 0:
+                            temp[user] = round(self.covid_points[str(ctx.message.guild.id)][user][1] / self.covid_points[str(ctx.message.guild.id)][user][2])
+                        else:
+                            temp[user] = 0
+                else:
+                    title = "'rona"
+                    for user in self.covid_points[str(ctx.message.guild.id)].keys():
+                        temp[user] = self.covid_points[str(ctx.message.guild.id)][user][0]
                 temp = sorted(temp.items(), key=lambda v: v[1], reverse=True)
 
                 """
@@ -178,13 +188,20 @@ class Player(commands.Cog):
                         else:
                             cont += "<:invisible:413030446327267328>"
 
-                        # 1 xp / second
-                        cont += f"**{i}.** {member.mention} | Points: {round(self.covid_points[str(ctx.message.guild.id)][str(member.id)])}\n\n"
+                        if average:
+                            if self.covid_points[str(ctx.message.guild.id)][str(member.id)][2] != 0:
+                                avg = round(self.covid_points[str(ctx.message.guild.id)][str(member.id)][1] /
+                                            self.covid_points[str(ctx.message.guild.id)][str(member.id)][2])
+                            else:
+                                avg = 0
+                            cont += f"**{i}.** {member.mention} | Points: {avg}\n\n"
+                        else:
+                            cont += f"**{i}.** {member.mention} | Points: {round(self.covid_points[str(ctx.message.guild.id)][str(member.id)][0])}\n\n"
                         i += 1
                         if i >= 11:
                             break
                 embed = discord.Embed(
-                    title=f"Top 'Rona Guessers: **{ctx.message.guild.name}** <:coronavirus:767839970303410247>",
+                    title=f"Top {title} Guessers: **{ctx.message.guild.name}** <:coronavirus:767839970303410247>",
                     description=cont, color=0x00FF00)
             except KeyError:
                 embed = discord.Embed(title=f"Error", description="There are no covid guessing points yet", color=0xFF0000)
@@ -193,21 +210,28 @@ class Player(commands.Cog):
     @commands.command(aliases=["g"])
     async def guess(self, ctx, number=None, confirmed_number=None):
         total_points = 0
+        avg = 0
+        amt = 0
         if str(ctx.message.guild.id) in self.covid_points and str(ctx.message.author.id) in self.covid_points[str(ctx.message.guild.id)]:
-            total_points = self.covid_points[str(ctx.message.guild.id)][str(ctx.message.author.id)]
+            total_points = self.covid_points[str(ctx.message.guild.id)][str(ctx.message.author.id)][0]
+            avg = self.covid_points[str(ctx.message.guild.id)][str(ctx.message.author.id)][1]
+            amt = self.covid_points[str(ctx.message.guild.id)][str(ctx.message.author.id)][2]
         if str(ctx.message.guild.id) not in self.covid_points:
             self.covid_points[ctx.message.guild.id] = {}
         # Send last guess from user
         leaderboard_aliases = ["leaderboard", "lb", "top", "best", "ranking"]
+        average_aliases = ["avg", "average"]
         if number is None:
+            if amt != 0:
+                avg = round(avg/amt)
             if str(ctx.message.author.id) in self.covid_guesses:
                 await ctx.send(f"{ctx.message.author.mention}, "
                                f"your final guess is `{self.covid_guesses[str(ctx.message.author.id)]}`.\n"
-                               f"Your total points: {int(round(total_points))}", delete_after=7)
+                               f"Your total points: {int(round(total_points))} | Average points/guess: {avg} | Total Guesses: {amt}", delete_after=7)
                 await ctx.message.delete()
             else:
                 await ctx.send(f"{ctx.message.author.mention}, you don't have a guess yet.\n"
-                               f"Your total points: {int(round(total_points))}", delete_after=7)
+                               f"Your total points: {int(round(total_points))} | Average points/guess: {avg} | Total Guesses: {amt}", delete_after=7)
                 await ctx.message.delete()
         else:
             try:
@@ -222,12 +246,13 @@ class Player(commands.Cog):
                         await self.confirm_msg.delete()
                         self.confirm_msg = None
                     self.confirm_msg = await ctx.send(f"Confirmed cases: {self.confirmed_cases}\nA mod or higher, press the <:checkmark:769279808244809798> to verify.")
-                    await self.confirm_msg.add_reaction("<:checkmark:769279808244809798>")
-                    await self.confirm_msg.add_reaction("<:xmark:769279807916998728>")
+                    await self.confirm_msg.add_reaction("<:checkmark:776717335242211329>")
+                    await self.confirm_msg.add_reaction("<:xmark:776717315139698720>")
                 elif number.lower() in leaderboard_aliases:
                     await self.send_leaderboard(ctx)
+                elif number.lower() in average_aliases:
+                    await self.send_leaderboard(ctx, True)
                 else:
-                    print(number.lower())
                     number = int(number)
                     if number < 0:
                         raise ValueError
