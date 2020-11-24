@@ -11,7 +11,6 @@ from helper.log import log
 import string
 import hashlib
 import json
-from pytz import timezone
 import aiohttp
 from bs4 import BeautifulSoup as bs
 import asyncio
@@ -201,61 +200,53 @@ class Player(commands.Cog):
         if str(ctx.message.guild.id) not in self.covid_points:
             self.covid_points[ctx.message.guild.id] = {}
         # Send last guess from user
-        # Should only be possible in the morning
-        hour = int(datetime.now(timezone("Europe/Zurich")).strftime("%H"))
         leaderboard_aliases = ["leaderboard", "lb", "top", "best", "ranking"]
-        if 0 < hour < 12 or number is not None and number.lower() == "confirm" or number is not None and number.lower() in leaderboard_aliases:
-            if number is None:
-                if str(ctx.message.author.id) in self.covid_guesses:
-                    await ctx.send(f"{ctx.message.author.mention}, "
-                                   f"your final guess is `{self.covid_guesses[str(ctx.message.author.id)]}`.\n"
-                                   f"Your total points: {int(round(total_points))}", delete_after=7)
-                    await ctx.message.delete()
-                else:
-                    await ctx.send(f"{ctx.message.author.mention}, you don't have a guess yet.\n"
-                                   f"Your total points: {int(round(total_points))}", delete_after=7)
-                    await ctx.message.delete()
+        if number is None:
+            if str(ctx.message.author.id) in self.covid_guesses:
+                await ctx.send(f"{ctx.message.author.mention}, "
+                               f"your final guess is `{self.covid_guesses[str(ctx.message.author.id)]}`.\n"
+                               f"Your total points: {int(round(total_points))}", delete_after=7)
+                await ctx.message.delete()
             else:
-                try:
-                    if number.lower() == "confirm" and ctx.author.guild_permissions.kick_members:
-                        # if the number of cases gets confirmed
-
-                        if confirmed_number is None:
-                            raise ValueError
-                        self.confirmed_cases = int(confirmed_number)
-                        if self.confirm_msg is not None:
-                            # Deletes the previous confirm message if there are multiple
-                            await self.confirm_msg.delete()
-                            self.confirm_msg = None
-                        self.confirm_msg = await ctx.send(f"Confirmed cases: {self.confirmed_cases}\nA mod or higher, press the <:checkmark:769279808244809798> to verify.")
-                        await self.confirm_msg.add_reaction("<:checkmark:769279808244809798>")
-                        await self.confirm_msg.add_reaction("<:xmark:769279807916998728>")
-                    elif number.lower() in leaderboard_aliases:
-                        await self.send_leaderboard(ctx)
-                    else:
-                        print(number.lower())
-                        number = int(number)
-                        if number < 0:
-                            raise ValueError
-                        if number > 1000000:
-                            number = 1000000
-                        user_count = len(self.covid_guesses)
-                        self.covid_guesses[str(ctx.message.author.id)] = number
-                        await ctx.send(f"{ctx.message.author.mention}, your new guess is: `{number}`", delete_after=7)
-                        await ctx.message.delete()
-
-                        new_user_count = len(self.covid_guesses)
-                        if new_user_count > user_count:
-                            await self.bot.change_presence(activity=discord.Activity(name=f'{new_user_count} guessers', type=discord.ActivityType.watching))
-                except ValueError:
-                    await ctx.send(f"{ctx.message.author.mention}, no proper positive integer given.", delete_after=7)
-                    await ctx.message.delete()
-                    raise discord.ext.commands.errors.BadArgument
+                await ctx.send(f"{ctx.message.author.mention}, you don't have a guess yet.\n"
+                               f"Your total points: {int(round(total_points))}", delete_after=7)
+                await ctx.message.delete()
         else:
-            await ctx.send(f"{ctx.message.author.mention}, "
-                           "You can only guess in the morning till 12:00.\n"
-                           f"Your total points: {int(round(total_points))}", delete_after=7)
-            await ctx.message.delete()
+            try:
+                if number.lower() == "confirm" and ctx.author.guild_permissions.kick_members:
+                    # if the number of cases gets confirmed
+
+                    if confirmed_number is None:
+                        raise ValueError
+                    self.confirmed_cases = int(confirmed_number)
+                    if self.confirm_msg is not None:
+                        # Deletes the previous confirm message if there are multiple
+                        await self.confirm_msg.delete()
+                        self.confirm_msg = None
+                    self.confirm_msg = await ctx.send(f"Confirmed cases: {self.confirmed_cases}\nA mod or higher, press the <:checkmark:769279808244809798> to verify.")
+                    await self.confirm_msg.add_reaction("<:checkmark:769279808244809798>")
+                    await self.confirm_msg.add_reaction("<:xmark:769279807916998728>")
+                elif number.lower() in leaderboard_aliases:
+                    await self.send_leaderboard(ctx)
+                else:
+                    print(number.lower())
+                    number = int(number)
+                    if number < 0:
+                        raise ValueError
+                    if number > 1000000:
+                        number = 1000000
+                    user_count = len(self.covid_guesses)
+                    self.covid_guesses[str(ctx.message.author.id)] = number
+                    await ctx.send(f"{ctx.message.author.mention}, your new guess is: `{number}`", delete_after=7)
+                    await ctx.message.delete()
+
+                    new_user_count = len(self.covid_guesses)
+                    if new_user_count > user_count:
+                        await self.bot.change_presence(activity=discord.Activity(name=f'{new_user_count} guessers', type=discord.ActivityType.watching))
+            except ValueError:
+                await ctx.send(f"{ctx.message.author.mention}, no proper positive integer given.", delete_after=7)
+                await ctx.message.delete()
+                raise discord.ext.commands.errors.BadArgument
 
     @commands.command(aliases=["source", "code"])
     async def info(self, ctx):
