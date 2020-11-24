@@ -44,8 +44,12 @@ async def reload(ctx, cog=None):
             await ctx.send("Reloading all cogs")
             log("Reloading all cogs", "COGS")
             for cog in startup_extensions:
+                if await stop_bg_task(cog):
+                    msg = "--Stopped background task--"
+                else:
+                    msg = "--No background task to stop--"
                 bot.reload_extension("cogs." + cog)
-                await ctx.send(f"Reloaded `{cog}`")
+                await ctx.send(f"Reloaded `{cog}`\n{msg}")
             await ctx.send("DONE - Reloaded all cogs")
         else:
             await ctx.send(f"Cog does not exist.")
