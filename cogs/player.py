@@ -31,17 +31,15 @@ class Player(commands.Cog):
             self.covid_points = json.load(f)
         with open("./data/covid19.txt") as f:
             self.cases_today = int(f.read())
-        self.time_heartbeat = 0
 
-        self.bot.loop.create_task(self.background_check_cases())
+        self.task = self.bot.loop.create_task(self.background_check_cases())
 
     def heartbeat(self):
-        return self.time_heartbeat
+        return self.task
 
     async def background_check_cases(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
-            self.time_heartbeat = time.time()
             async with aiohttp.ClientSession() as cs:
                 async with cs.get("https://www.covid19.admin.ch/en/overview") as r:
                     response = await r.read()
@@ -50,12 +48,12 @@ class Player(commands.Cog):
             if self.cases_today != new_cases:
                 self.cases_today = new_cases
                 self.confirmed_cases = new_cases
+                with open("./data/covid19.txt", "w") as f:
+                    f.write(str(new_cases))
                 log("Daily cases have been updated", "COVID")
                 guild = self.bot.get_guild(747752542741725244)
                 channel = guild.get_channel(747752542741725247)
                 await self.send_message(channel, guild)
-                with open("./data/covid19.txt", "w") as f:
-                    f.write(str(new_cases))
             await asyncio.sleep(10)
 
     @commands.Cog.listener()

@@ -92,20 +92,18 @@ class Statistics(commands.Cog):
         self.time_counter = 0  # So statistics dont get saved every few seconds, and instead only every 2 mins
         self.notice_message = 0  # The message that notifies others about joining the spam channel
         self.recent_message = []
-        self.time_heartbeat = 0
         self.bot_changed_to_yesterday = {}
 
-        self.bot.loop.create_task(self.background_save_statistics())
+        self.task = self.bot.loop.create_task(self.background_save_statistics())
 
     def heartbeat(self):
-        return self.time_heartbeat
+        return self.task
 
     async def background_save_statistics(self):
         sent_file = False
         await self.bot.wait_until_ready()
         start_time = time.perf_counter()
         while not self.bot.is_closed():
-            self.time_heartbeat = time.time()
             if self.time_counter >= 6:  # Saves the statistics file every minute
                 self.time_counter = 0
                 try:

@@ -3,8 +3,11 @@ from discord.ext import commands
 import json
 from helper import file_creator
 from helper.log import log
+import asyncio
 
-bot = commands.Bot(command_prefix="$", description='Lecture Notifier')
+with open("./data/settings.json", "r") as f:
+    prefix = json.load(f)
+bot = commands.Bot(command_prefix=prefix["prefix"], description='Lecture Notifier')
 
 bot.remove_command("help")
 
@@ -31,8 +34,12 @@ async def reload(ctx, cog=None):
             await ctx.send(f"Following cogs exist:\n"
                            f"{cog_list}")
         elif cog in startup_extensions:
+            if await stop_bg_task(cog):
+                msg = "--Stopped background task--"
+            else:
+                msg = "--No background task to stop--"
             bot.reload_extension("cogs." + cog)
-            await ctx.send(f"DONE - Reloaded `{cog}`")
+            await ctx.send(f"DONE - Reloaded `{cog}`\n{msg}")
         elif cog == "all":
             await ctx.send("Reloading all cogs")
             log("Reloading all cogs", "COGS")
@@ -44,6 +51,19 @@ async def reload(ctx, cog=None):
             await ctx.send(f"Cog does not exist.")
     else:
         raise discord.ext.commands.errors.NotOwner
+
+
+async def stop_bg_task(task):
+    task = task.lower()
+    all_loops = {
+        "lecture_updates": bot.get_cog("Updates").heartbeat(),
+        "statistics": bot.get_cog("Statistics").heartbeat(),
+        "voice_xp": bot.get_cog("Voice").heartbeat(),
+        "player": bot.get_cog("Player").heartbeat()
+    }
+    if task in all_loops:
+        return all_loops[task].cancel()
+    return False
 
 
 @bot.event

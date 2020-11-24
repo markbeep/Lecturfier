@@ -47,12 +47,11 @@ class Voice(commands.Cog):
             "Fri": [8, 12]
         }
         self.recent_message = []
-        self.time_heartbeat = 0
 
-        self.bot.loop.create_task(self.background_save_levels())
+        self.task = self.bot.loop.create_task(self.background_save_levels())
 
     def heartbeat(self):
-        return self.time_heartbeat
+        return self.task
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -76,7 +75,6 @@ class Voice(commands.Cog):
     async def background_save_levels(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
-            self.time_heartbeat = time.time()
             await self.give_users_xp(9, 12)
             await asyncio.sleep(10)
 

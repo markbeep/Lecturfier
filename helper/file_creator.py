@@ -18,7 +18,8 @@ def createFiles():
         "test_livestream_message": True,
         "send_message_to_finn": False,
         "lecture": 111111111111111111111,
-        "test": 111111111111111111111
+        "test": 111111111111111111111,
+        "prefix": "$"
     }
 
     schedule_default = {
