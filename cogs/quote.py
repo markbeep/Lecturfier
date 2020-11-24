@@ -25,9 +25,37 @@ class Quote(commands.Cog):
         with open("./data/ignored_users.json") as f:
             self.ignored_users = json.load(f)
         self.quotes_filepath = "./data/quotes.json"
-
         with open(self.quotes_filepath, "r") as f:
             self.quotes = json.load(f)
+        self.aliases = {
+            "püschel": [
+                "pueschel",
+                "peuschel",
+                "pushel",
+                "puschel"
+            ],
+            "steurer": [
+                "streuer",
+                "steuer"
+            ],
+            "cannas": [
+                "ana",
+                "canas",
+                "annas",
+                "anna",
+                "canna"
+
+            ],
+            "gross": [
+                "thomas",
+                "thoma"
+            ],
+            "olga": [
+                "olge",
+                "sorkine",
+                "sarkine"
+            ]
+        }
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -79,6 +107,12 @@ class Quote(commands.Cog):
                     await ctx.send("Quotes can't contain `@` in names (unless they are mentions) or in the quote.")
                     raise discord.ext.commands.errors.BadArgument
                 name = name.lower()
+
+                # checks if the name is an alias
+                for key in self.aliases.keys():
+                    for alias in self.aliases[key]:
+                        if alias == name:
+                            name = key
                 if len(quote) > 0:
                     await self.user_checkup(guild_id, name)
                     try:
