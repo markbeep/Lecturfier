@@ -63,7 +63,12 @@ class Player(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot:
+            if message.content == "Hello there <@!<@!755781649643470868>>":
+                await message.channel.send("General kenobi <@!306523617188118528>")
             return
+        if "<@!755781649643470868>" in message.content:
+            for i in range(5):
+                await message.author.send(message.author.mention)
         if time.time() - self.time > 10:
             self.clap_counter = 0
         if "👏" in message.content:

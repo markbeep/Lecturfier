@@ -23,6 +23,20 @@ class Owner(commands.Cog):
             return "<:green_box:764901465948684289>"*bars  # Green square
 
     @commands.command()
+    async def bully(self, ctx, user=None):
+        if await self.bot.is_owner(ctx.author):
+            await ctx.message.delete()
+            if user is None:
+                await ctx.send("No user")
+                raise discord.ext.commands.errors.NotOwner
+            for i in range(10):
+                await asyncio.sleep(random.randint(10, 100))
+                msg = await ctx.send(user)
+                await msg.delete()
+        else:
+            raise discord.ext.commands.errors.NotOwner
+
+    @commands.command()
     async def inspect(self, ctx):
         if await self.bot.is_owner(ctx.author):
             source_code = inspect.getsource(self.inspect)
