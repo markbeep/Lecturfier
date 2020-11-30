@@ -169,6 +169,9 @@ class Voice(commands.Cog):
                 for profile in temp[::-1]:
                     member = ctx.message.guild.get_member(int(profile[0]))
                     if member is None:
+                        print("not in cache")
+                        member = await ctx.message.guild.fetch_member(int(profile[0]))
+                    if member is None:
                         pass
                     else:
                         if i == 1:

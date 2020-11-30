@@ -404,7 +404,7 @@ class Player(commands.Cog):
                         f"❤ HEARTBEAT: `{round(self.bot.latency * 1000)}` ms")
         await ping.edit(embed=embed)
 
-    @commands.command()
+    @commands.command(aliases=["cypher"])
     async def cipher(self, ctx, amount=None, *msg):
         printable = list(string.printable)
         printable = printable[0:-5]

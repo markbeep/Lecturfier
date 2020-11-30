@@ -83,8 +83,6 @@ class Statistics(commands.Cog):
         self.statistics_filepath = "./data/statistics.json"
         with open(self.statistics_filepath, "r") as f:
             self.statistics = json.load(f)
-        with open("./data/ignored_channels.json", "r") as f:
-            self.ignore_channels = json.load(f)
 
         # self.spam_channel_times = ["Tue:11:45", "Fri:09:45", "Fri:09:45", "Wed:13:45", "Wed:11:45", "Fri:11:45", "Thu:16:45"]
         # self.time_of_msg = time.time()
@@ -231,8 +229,6 @@ class Statistics(commands.Cog):
                 await ctx.message.add_reaction("<:checkmark:776717335242211329>")
             except discord.errors.NotFound:
                 pass
-            if ctx.message.channel.id in self.ignore_channels:
-                return
             self.statistics[str(ctx.message.guild.id)]["commands_used"][str(ctx.message.author.id)] += 1
 
     @commands.Cog.listener()
@@ -248,8 +244,6 @@ class Statistics(commands.Cog):
             return
         try:
             if message.author.id in self.recent_message:
-                return
-            if message.channel.id in self.ignore_channels:
                 return
             self.recent_message.append(message.author.id)
 
@@ -341,8 +335,6 @@ class Statistics(commands.Cog):
         try:
             # Reactions added
             if user.bot or reaction.message.author.bot:
-                return
-            if reaction.message.channel.id in self.ignore_channels:
                 return
 
             await self.user_checkup(reaction=reaction, user=user)

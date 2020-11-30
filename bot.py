@@ -7,7 +7,9 @@ import asyncio
 
 with open("./data/settings.json", "r") as f:
     prefix = json.load(f)
-bot = commands.Bot(command_prefix=prefix["prefix"], description='Lecture Notifier')
+
+intents = discord.Intents()
+bot = commands.Bot(command_prefix=prefix["prefix"], description='Lecture Notifier', intents=intents.all())
 
 bot.remove_command("help")
 
@@ -92,7 +94,7 @@ for extension in startup_extensions:
         log("Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)), "EXTENSION")
 print("-------------------")
 
-with open("../LECTURFIERBETA.json", "r") as f:
+with open("../LECTURFIER.json", "r") as f:
     settings = json.load(f)
 if len(settings["token"]) == 0:
     log("NO TOKEN IN LECTURFIER.json! Stopping bot.", "TOKEN")

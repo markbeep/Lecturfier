@@ -34,12 +34,21 @@ class Updates(commands.Cog):
             try:
                 channel = self.bot.get_channel(self.channel_to_post)
                 cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
+                day = datetime.now(timezone("Europe/Zurich")).strftime("%d")
                 if self.test_livestream_message:
                     cur_time = "test"
                 if int(datetime.now(timezone("Europe/Zurich")).strftime("%M")) % 10 == 0:  # Only check updates every 10 minutes
                     await self.check_updates(channel, cur_time, self.lecture_updater_version)
                 if cur_time in self.all_times(self.schedule):
                     await self.send_livestream(cur_time, channel, self.lecture_updater_version)
+                if "10:00" in cur_time and "Sat" not in cur_time and "Sun" not in cur_time:
+                    general = self.bot.get_channel(747752542741725247)
+                    await general.send("<@&770968106679926868> it's time to guess today's covid cases using `$g <guess>`!")
+                    await asyncio.sleep(30)
+                if "06:00" in cur_time and int(day) <= 24:
+                    advent = self.bot.get_channel(782207428271407124)
+                    await advent.send(f"<@&781901664235814914>\n**It's the {int(day)}. December.**\nAnother coding challenge has been released on <https://adventofcode.com/2020>")
+                    await asyncio.sleep(30)
                 await asyncio.sleep(40)
             except Exception:
                 user = self.bot.get_user(205704051856244736)
