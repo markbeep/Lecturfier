@@ -84,8 +84,10 @@ class Statistics(commands.Cog):
         with open(self.statistics_filepath, "r") as f:
             self.statistics = json.load(f)
 
-        # self.spam_channel_times = ["Tue:11:45", "Fri:09:45", "Fri:09:45", "Wed:13:45", "Wed:11:45", "Fri:11:45", "Thu:16:45"]
-        # self.time_of_msg = time.time()
+        self.kay_advent_path = "./data/kay_advent.json"
+        with open(self.kay_advent_path, "r") as f:
+            self.kay_advent_score = json.load(f)
+
         self.waiting = False
         self.time_counter = 0  # So statistics dont get saved every few seconds, and instead only every 2 mins
         self.notice_message = 0  # The message that notifies others about joining the spam channel
@@ -111,9 +113,17 @@ class Statistics(commands.Cog):
                     with open(self.bot_uptime_path, "w") as f:
                         json.dump(self.bot_uptime, f, indent=2)
                     log("SAVED BOT UPTIME", "UPTIME")
+
+                    ########################### THIS IS FOR KAY'S ADVENT ########################################
+
+                    with open(self.kay_advent_path, "w") as f:
+                        json.dump(self.kay_advent_score, f, indent=2)
+                    log("SAVED KAY'S ADVENT", "ADVENT")
+
+                    #############################################################################################
                 except Exception:
                     user = self.bot.get_user(205704051856244736)
-                    await user.send(f"Saving STATISTICS file failed:\n{traceback.format_exc()}")
+                    await user.send(f"Saving files failed:\n{traceback.format_exc()}")
             else:
                 self.time_counter += 1
             if not sent_file and datetime.now().hour % 2 == 0:  # Backs up all files every 2 hours
@@ -243,6 +253,18 @@ class Statistics(commands.Cog):
         if message.author.bot:
             return
         try:
+            ########################### THIS IS FOR KAY'S ADVENT ########################################
+
+            if message.content.startswith(",opendoor"):
+                day = datetime.now(timezone("Europe/Zurich")).strftime("%d")
+                if str(message.author.id) not in self.kay_advent_score:
+                    self.kay_advent_score[str(message.author.id)] = {"total": 1, day: 1}
+                else:
+                    self.kay_advent_score[str(message.author.id)][day] = 1
+                    self.kay_advent_score[str(message.author.id)]["total"] = len(self.kay_advent_score[str(message.author.id)]) - 1
+
+            #############################################################################################
+
             if message.author.id in self.recent_message:
                 return
             self.recent_message.append(message.author.id)
@@ -284,6 +306,23 @@ class Statistics(commands.Cog):
         except AttributeError:
             user = self.bot.get_user(205704051856244736)
             await user.send("AttributeError for on_message")
+
+    @commands.command(aliases=["kay"])
+    async def advent(self, ctx):
+        """
+        Sends the advent score from Kay as a json to Kay
+        :param ctx: message content
+        :return:
+        """
+        if ctx.message.author.id in [252091777115226114, 205704051856244736]:
+            user = ctx.message.author
+            try:
+                file = discord.File(self.kay_advent_path)
+                await user.send(datetime.now(), file=file)
+            except Exception as e:
+                await user.send(e)
+        else:
+            raise discord.ext.commands.MissingPermissions
 
     async def user_checkup(self, message=None, reaction=None, user=None):
         if message is not None and user is None:
