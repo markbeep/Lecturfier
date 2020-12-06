@@ -24,20 +24,26 @@ class Player(commands.Cog):
         self.script_start = time.time()
         self.clap_counter = 0
         self.time = 0
-        self.covid_guesses = {}
         self.confirmed_cases = 0
         self.confirm_msg = None  # Confirmed message
-        with open("./data/covid_guesses.json") as f:
+        with open("./data/covid_points.json") as f:
             self.covid_points = json.load(f)
         with open("./data/covid19.txt") as f:
             self.cases_today = int(f.read())
+        with open("./data/guesses.json") as f:
+            self.covid_guesses = json.load(f)
 
         self.task = self.bot.loop.create_task(self.background_check_cases())
 
     def heartbeat(self):
         return self.task
 
+    def save(self, file_path):
+        with open(file_path, "w") as f:
+            json.dump(self.covid_guesses, f, indent=2)
+
     async def background_check_cases(self):
+        counter = 0
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             async with aiohttp.ClientSession() as cs:
@@ -55,6 +61,12 @@ class Player(commands.Cog):
                 channel = guild.get_channel(747752542741725247)
                 await self.send_message(channel, guild)
             await asyncio.sleep(10)
+            if counter == 6:
+                log("Saved guesses.txt", "COVID")
+                self.save("./data/guesses.txt")
+                counter = 0
+            else:
+                counter += 1
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -130,7 +142,7 @@ class Player(commands.Cog):
                 points_gotten = 0
             sorted_keys[user_id] = points_gotten
 
-            # if the user has no key entry in the covid_guesses.json yet
+            # if the user has no key entry in the covid_points.json yet
             if user_id not in self.covid_points[str(guild.id)]:
                 self.covid_points[str(guild.id)][user_id] = [round(points_gotten, 1), round(points_gotten, 1), 1]
             else:
@@ -147,9 +159,9 @@ class Player(commands.Cog):
             points.append(msg)
             rank += 1
 
-        with open("./data/covid_guesses.json", "w") as f:
+        with open("./data/covid_points.json", "w") as f:
             json.dump(self.covid_points, f, indent=2)
-        log("Saved covid_guesses.json", "COVID")
+        log("Saved covid_points.json", "COVID")
 
         self.covid_guesses = {}
         return points

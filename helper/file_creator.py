@@ -2,13 +2,14 @@ import os
 import json
 from helper.log import log
 
+
 def createFiles():
     """
     Creates the necessary files for the bot to work
     :return: None
     """
     keyword = "FILE"
-    file_list = ["quotes", "reputation", "statistics", "ignored_users", "ignored_channels", "levels", "covid_guesses", "bot_prefix", "bot_uptime", "kay_advent"]
+    file_list = ["quotes", "reputation", "statistics", "ignored_users", "ignored_channels", "levels", "covid_points", "bot_prefix", "bot_uptime", "kay_advent", "guesses"]
     website_list = ["ad", "dm", "ep", "la"]
     stop = False
 
