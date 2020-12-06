@@ -182,6 +182,8 @@ class Statistics(commands.Cog):
         bot_id = str(bot_id)
         if guild_id not in self.bot_uptime or bot_id not in self.bot_uptime[guild_id]:
             return 0
+        if data_range not in self.bot_uptime[guild_id][bot_id]:
+            self.bot_uptime[guild_id][bot_id][data_range] = 0
         return self.bot_uptime[guild_id][bot_id][data_range]
 
     @commands.command()
