@@ -224,8 +224,14 @@ class Player(commands.Cog):
                 embed = discord.Embed(title=f"Error", description="There are no covid guessing points yet", color=0xFF0000)
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=["g"])
+    @commands.command(aliases=["g"], usage="guess [guess amount | lb | avg]")
     async def guess(self, ctx, number=None, confirmed_number=None):
+        """
+        Daily covid cases guessing game. You guess how many covid cases will be reported by the BAG and depending \
+        on how close you are, you get more points.
+        `$guess avg` to get a leaderboard with average guessing scores
+        `$guess lb` to get the total leaderboard with all points
+        """
         total_points = 0
         avg = 0
         amt = 0
@@ -288,10 +294,10 @@ class Player(commands.Cog):
                 await ctx.message.delete()
                 raise discord.ext.commands.errors.BadArgument
 
-    @commands.command(aliases=["source", "code"])
+    @commands.command(aliases=["source", "code"], usage="info")
     async def info(self, ctx):
         """
-        Get some info about the bot
+        Sends some info about the bot.
         """
         async with ctx.typing():
             b_time = time_up(time.time() - self.script_start)  # uptime of the script
@@ -311,8 +317,11 @@ class Player(commands.Cog):
             embed.set_author(name=self.bot.user.display_name, icon_url=self.bot.user.avatar_url)
         await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.command(usage="calc [equation]")
     async def calc(self, ctx):
+        """
+        Can be used to calculate numbers.
+        """
         if "iq" in ctx.message.content.lower():
             await ctx.send(f"Stop asking for your fucking IQ. Nobody cares about your {random.randint(1,10)} IQ")
             return
@@ -322,13 +331,10 @@ class Player(commands.Cog):
         eq = simplify(eq)
         return eq
 
-    @commands.command()
+    @commands.command(usage="solve <equation>")
     async def solve(self, ctx, *num1):
         """
         Solves an equation and then sends it. Deprecated, as it causes the bot to crash
-        :param ctx: message object
-        :param num1: equation to solve
-        :return: None
         """
         if not await self.bot.is_owner(ctx.author):
             raise discord.ext.commands.errors.NotOwner
@@ -383,13 +389,16 @@ class Player(commands.Cog):
     def random_string(self, n):
         return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
 
-    @commands.command()
+    @commands.command(usage="token")
     async def token(self, ctx):
+        """
+        Sends a bot token.
+        """
         token = self.random_string(24) + "." + self.random_string(6) + "." + self.random_string(27)
         embed = discord.Embed(title="Bot Token", description=f"||`{token}`||")
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=["pong", "ding"])
+    @commands.command(aliases=["pong", "ding", "pingpong"], usage="ping")
     async def ping(self, ctx):
         """
         Check the ping of the bot
@@ -416,8 +425,12 @@ class Player(commands.Cog):
                         f"❤ HEARTBEAT: `{round(self.bot.latency * 1000)}` ms")
         await ping.edit(embed=embed)
 
-    @commands.command(aliases=["cypher"])
+    @commands.command(aliases=["cypher"], usage="cipher <amount to displace> <msg>")
     async def cipher(self, ctx, amount=None, *msg):
+        """
+        This is Caesar's cipher, but instead of only using the alphabet, it uses all printable characters.
+        Negative values are allowed and can be used to decipher messages.
+        """
         printable = list(string.printable)
         printable = printable[0:-5]
         if len(msg) == 0:
@@ -439,8 +452,11 @@ class Player(commands.Cog):
 
         await ctx.send(f"```{encoded_msg}```")
 
-    @commands.command()
+    @commands.command(usage="hash <OpenSSL algo> <msg>")
     async def hash(self, ctx, algo=None, *msg):
+        """
+        Hash a message using an OpenSSL algorithm (sha256 for example).
+        """
         if algo is None:
             await ctx.send("No Algorithm given. `$hash <OPENSSL algo> <msg>`")
             raise discord.ext.commands.errors.BadArgument

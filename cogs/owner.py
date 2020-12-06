@@ -47,7 +47,6 @@ class Owner(commands.Cog):
             except KeyError:
                 raise discord.ext.commands.errors.BadArgument
 
-
     async def get_link(self, message_content):
         message_content = " " + message_content + " "
         if "http" in message_content:
@@ -104,8 +103,12 @@ class Owner(commands.Cog):
         else:
             return "<:green_box:764901465948684289>"*bars  # Green square
 
-    @commands.command()
+    @commands.command(usage="bully <user>")
     async def bully(self, ctx, user=None):
+        """
+        Bully a user by pinging that person in random intervals, then instantly deleting that message again.
+        Permissions: Owner
+        """
         if await self.bot.is_owner(ctx.author):
             await ctx.message.delete()
             if user is None:
@@ -118,8 +121,12 @@ class Owner(commands.Cog):
         else:
             raise discord.ext.commands.errors.NotOwner
 
-    @commands.command()
-    async def inspect(self, ctx):
+    @commands.command(usage="inspect <cmd>")
+    async def inspect(self, ctx, cmd=None):
+        """
+        Used to send the code of any given command. **Does not work yet.**
+        Permissions: Owner
+        """
         if await self.bot.is_owner(ctx.author):
             source_code = inspect.getsource(self.inspect)
             print(source_code)
@@ -129,9 +136,12 @@ class Owner(commands.Cog):
         else:
             raise discord.ext.commands.errors.NotOwner
 
-
-    @commands.command()
+    @commands.command(usage="loops")
     async def loops(self, ctx):
+        """
+        Displays all running background tasks
+        Permissions: Owner
+        """
         if await self.bot.is_owner(ctx.author):
             all_loops = {
                 "Lecture Updates Loop": self.bot.get_cog("Updates").heartbeat(),
@@ -151,8 +161,12 @@ class Owner(commands.Cog):
         else:
             raise discord.ext.commands.errors.NotOwner
 
-    @commands.command()
+    @commands.command(usage="loading")
     async def loading(self, ctx):
+        """
+        Plays a little loading animation in a message.
+        Permissions: Owner
+        """
         if await self.bot.is_owner(ctx.author):
             msg = await ctx.send("Loading:\n0% | " + await self.loading_bar(0))
             for i in range(1, 10):
@@ -163,27 +177,35 @@ class Owner(commands.Cog):
         else:
             raise discord.ext.commands.errors.NotOwner
 
-    @commands.command()
+    @commands.command(usage="reboot")
     async def reboot(self, ctx):
+        """
+        Uses `reboot now` in the command line. Restarts the current device if it runs on linux.
+        Permissions: Owner
+        """
         if await self.bot.is_owner(ctx.author):
             await ctx.send("Rebooting...")
             os.system('reboot now')  # Only works on linux (saved me a few times)
         else:
             raise discord.ext.commands.errors.NotOwner
 
-    @commands.command()
+    @commands.command(usage="react <message_id> <reaction>")
     async def react(self, ctx, message_id, reaction):
+        """
+        React to a message using the bot.
+        Permissions: Owner
+        """
         if await self.bot.is_owner(ctx.author):
             message = await ctx.fetch_message(int(message_id))
             await message.add_reaction(reaction)
         else:
             raise discord.ext.commands.errors.NotOwner
 
-    @commands.command()
+    @commands.command(usage="spam")
     async def spam(self, ctx):
         """
-        Sends close to the maximum allowed chars on Discord in one single message
-        Usage: {@}spam
+        Sends close to the maximum allowed characters on Discord in one single message
+        Permissions: Owner
         """
         if await self.bot.is_owner(ctx.author):
             spam = "\n" * 1900
@@ -197,10 +219,11 @@ class Owner(commands.Cog):
         else:
             raise discord.ext.commands.errors.NotOwner
 
-    @commands.command(aliases=["send", "repeatme"])
+    @commands.command(aliases=["send", "repeatme", "echo"], usage="say <msg>")
     async def say(self, ctx, *, cont):
         """
         Repeats a message
+        Permissions: Owner
         """
         if await self.bot.is_owner(ctx.author):
             await ctx.send(cont)

@@ -74,14 +74,22 @@ class Quote(commands.Cog):
             except KeyError:
                 log(f"Name does not exist in database: {name}", "QUOTE")
 
-    @commands.command(aliases=["q", "quotes"])
+    @commands.command(aliases=["q", "quotes"], usage="quote [user] [quote/command] [index]")
     async def quote(self, ctx, name=None, *quote):
         """
-        Adds a quote or calls a quote for the user mentioned
-        :param ctx: message object
-        :param name: Name of the person
-        :param quote: Quote to add or command to use
-        :return:
+        Sends a completely random quote from the server if all parameters are empty. \
+        If only a name is given, it sends a random quote from that user.
+        By using `-name` for any name that has quotes you can display a random quote from that person \
+        directly.
+
+        Some examples:
+        `$quote`   - sends a random quote from any user
+        `$quote ueli`   - sends a random quote from the user ueli
+        `$quote ueli haHaa`   - adds "haHaa" as a quote to the user ueli
+        `$quote ueli all`   - displays all quotes from the user ueli
+        `$quote ueli 23`   - displays the 23rd indexed quote from the user ueli
+        `$quote names`   - displays all names that have a quote
+        `-ueli`   - displays a random quote from the one and only ueli
         """
         guild_id = str(ctx.message.guild.id)
         if name is not None:

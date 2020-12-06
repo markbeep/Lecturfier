@@ -83,15 +83,18 @@ class Hangman(commands.Cog):
                         alphabet[key] = count
             return {'fitting_words': fitting_words, 'alphabet': alphabet, 'total': total}
 
-    @commands.command(aliases=["hm"])
+    @commands.command(aliases=["hm"], usage="hangman <word up till now> <wrong letters or 0> <language>")
     async def hangman(self, ctx, inputted_word=None, unused_letters=None, language="e"):
         """
+        This is used to solve hangman the best way possible. It is not optimized, so take it easy with the usage.
+        To use this command properly, you want to insert an underscore (\\_) for every unknown character and the known letters \
+        for any letters you know of already. The word "apple" would be `_____` for example.
 
-        :param ctx:
-        :param inputted_word:
-        :param unused_letters:
-        :param language:
-        :return:
+        Wrong letters is any guessed letter that was wrong. If there are none, enter 0.
+
+        As for the language, this command works for both English and German words. If no language is specified, English is used by default. \
+        It has some problems with long German words that are just stringed together, because those words are usually not \
+        in the dictionary.
         """
         if inputted_word is not None and unused_letters is not None and not self.sending:
             async with ctx.typing():

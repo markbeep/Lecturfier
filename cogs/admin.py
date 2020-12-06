@@ -140,15 +140,12 @@ class Admin(commands.Cog):
         embed.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
         await channel.send(embed=embed)
 
-    @commands.command(aliases=["prefixes"])
+    @commands.command(aliases=["prefixes"], usage="prefix <add/delete> <prefix> <info>")
     async def prefix(self, ctx, command=None, prefix=None, *args):
         """
-        Is used to view all current used prefixes on the INFK-2020 server.
-        :param ctx: message object
-        :param command: Command can either be "add" or "delete"
-        :param prefix: The prefix to edit
-        :param args: Additional info about the prefix and what bot the prefix corresponds to
-        :return: None
+        Is used to view all currently used prefixes for the bots on the server.
+        The prefixes are saved in a dictionary, where the prefix itself is the key.
+        Adding an already existing prefix changes the value instead of adding an additional entry.
         """
         if command is None:
             msg = "**Already in use Bot Prefixes:**"
@@ -178,14 +175,12 @@ class Admin(commands.Cog):
             await ctx.send("Unrecognized command.", delete_after=7)
             raise discord.ext.commands.errors.BadArgument
 
-    @commands.command()
+    @commands.command(usage="testWelcome")
     @commands.has_permissions(administrator=True)
     async def testWelcome(self, ctx):
         """
-        Is used to test a welcome message.
-        Requires administrator permission
-        :param ctx: message object
-        :return: None
+        Is used to test the welcome message when a new member joins the server.
+        Permissions: Administrator
         """
         await self.send_welcome_message(ctx, ctx.author, ctx.message.guild)
 
@@ -206,15 +201,12 @@ class Admin(commands.Cog):
         await message.add_reaction("✏")
         await message.add_reaction("<:bach:764174568000192552>")
 
-    @commands.command()
+    @commands.command(usage="ban <user>")
     @commands.has_permissions(administrator=True)
     async def ban(self, ctx, person):
         """
         Plays a little joke and "bans" the given user
-        Requires administrator permission
-        :param ctx: message object
-        :param person: The person to "ban"
-        :return: None
+        Permissions: Administrator
         """
         await ctx.send(f"Banning {person}...")
         await asyncio.sleep(10)

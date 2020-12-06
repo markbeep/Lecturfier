@@ -56,9 +56,14 @@ class Updates(commands.Cog):
                 log(f"Error in background loop self.bot.py: {traceback.format_exc()}", "BACKGROUND")
                 await asyncio.sleep(10)
 
-    @commands.command()
+    @commands.command(usage="edit <message id> <livestream link>")
     @commands.has_permissions(manage_messages=True)
     async def edit(self, ctx, id: int = None, link=None):
+        """
+        *Does not work anymore*
+        Was used to edit the link of a lecture livestream if it was wrong.
+        Permissions: manage_messages
+        """
         try:
             await ctx.message.delete()
             if id is None or link is None:

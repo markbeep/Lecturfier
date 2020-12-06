@@ -84,11 +84,18 @@ class Minesweeper(commands.Cog):
                 break
         return field
 
-    @commands.command(aliases=["ms"])
+    @commands.command(aliases=["ms"], usage="minesweeper [size] [amount of mines]")
     async def minesweeper(self, ctx, size=10, mines=10):
+        """
+        Sends a minefield from the nice nostalgic minesweeper game in Discord-style. Each box is a spoiler that contains \
+        either a number or a bomb. If you want to retry a minefield, you need to go out and into a channel to hide the \
+        spoilers again.
+
+        The maximum size of a minefield is 20 x 20 squares. Any more and discord completely messes it up.
+        """
         while self.sending:
             await asyncio.sleep(1)
-            msg = await ctx.send("❗❗ Already sending a mine field. Hold on ❗❗", delete_after=7)
+            await ctx.send("❗❗ Already sending a mine field. Hold on ❗❗", delete_after=7)
             raise discord.ext.commands.errors.BadArgument
 
         self.sending = True
@@ -124,7 +131,6 @@ class Minesweeper(commands.Cog):
 
         mine_field = await self.uncover_field(mine_field)
 
-
         for row in mine_field:
             for i in row:
                 if "f" in str(i):
@@ -146,7 +152,6 @@ class Minesweeper(commands.Cog):
         except discord.errors.HTTPException:
             await ctx.send("Too big of a mine field to send on discord.")
             raise discord.ext.commands.errors.BadArgument
-
 
 
 def setup(bot):

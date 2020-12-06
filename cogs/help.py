@@ -3,136 +3,98 @@ from discord.ext import commands
 import datetime
 from pytz import timezone
 
-# TODO: make a proper help page
+
 class Help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.help_message_ids = {}
 
-    @commands.command()
-    async def helptest(self, ctx):
-        if await self.bot.is_owner(ctx.author):
-            commands = {}
-            for cog in self.bot.cogs:
-                commands[cog] = []
-                all_commands = self.bot.get_cog(cog).get_commands()
-                for com in all_commands:
-                    commands[cog].append(com)
-            msg = ""
-            for key in commands.keys():
-                msg += f"**{key}**\n"
-                for com in commands[key]:
-                    msg += f"-- {com}\n"
-            embed = discord.Embed(title="HELP", description=msg)
+    @commands.command(aliases=["halp", "h"], usage="help <command>")
+    async def help(self, ctx, specific_command=None):
+        """
+        You madlad just called help on the help command.
+        You can get more detailed information about a command by using $help <command> on any command.
+        """
+        sorted_commands = {}
+        for cog in self.bot.cogs:
+            sorted_commands[cog] = []
+            all_commands = self.bot.get_cog(cog).get_commands()
+            for com in all_commands:
+                if specific_command == com.name:
+                    specific_command = com
+                sorted_commands[cog].append(com)
+            if len(sorted_commands[cog]) == 0:
+                sorted_commands.pop(cog)
+        if specific_command is None:
+            # file = discord.File("./readme_images/help_page.png")
+            embed = discord.Embed(description="""██╗░░██╗███████╗██╗░░░░░██████╗░
+██║░░██║██╔════╝██║░░░░░██╔══██╗
+███████║█████╗░░██║░░░░░██████╔╝
+██╔══██║██╔══╝░░██║░░░░░██╔═══╝░
+██║░░██║███████╗███████╗██║░░░░░
+╚═╝░░╚═╝╚══════╝╚══════╝╚═╝░░░░░""")
+
+            sorted_commands = self.sort_by_dict_size(sorted_commands)
+            for key in sorted_commands.keys():
+                sorted_commands[key] = self.sort_by_com_name(sorted_commands[key])
+                msg = ""
+                msg += f"```asciidoc\n= {key} =\n"
+                for com in sorted_commands[key]:
+                    if com.help is None:
+                        prefix = "-"
+                    else:
+                        prefix = "*"
+                    msg += f"{prefix} {com}\n"
+                msg += "```"
+                embed.add_field(name=key, value=msg)
+                embed.set_footer(text="Commands with a star (*) have extra info when viewed with $help <command>")
             await ctx.send(embed=embed)
         else:
-            raise discord.ext.commands.errors.NotOwner
+            help_msg = str(specific_command.help)
+            if help_msg == "None":
+                await ctx.send(f"**{specific_command.name}** has no help page yet.")
+                return
+            aliases = specific_command.aliases
+            usage = specific_command.usage
+            if "Permissions" in help_msg:
+                listified = help_msg.split("Permissions: ")
+                help_msg = listified[0]
+                permissions = listified[1]
+            else:
+                permissions = "`everyone`"
 
-    # TODO  HELP - Make a proper working help page
-    # labels: HELP
-    # TODO Make the help page have different pages that can be gone through with reactions
-    # labels: HELP
-    @commands.group(aliases=["halp", "commands", "h", "c"])
-    async def help(self, ctx):
-        if ctx.invoked_subcommand is None:
-            embed = discord.Embed(
-                title="Commands List",
-                description="Use `$help <command>` to get help about a specific command.\n"
-                            "`< >` are required parameters, `[ ]` are optional parameters.",
-                color=0xF4C06A, timestamp=datetime.datetime.now(timezone("Europe/Zurich")))
-            embed.set_footer(text=f"Called by {ctx.author.display_name}", icon_url=ctx.author.avatar_url)
+            nl = "\n"
+            aliases_msg = f"- {f'{nl}- '.join(aliases)}"
+            if aliases_msg == "- ":
+                aliases_msg = "= None ="
+            embed = discord.Embed(title=specific_command.name)
+            embed.add_field(name="Info", value=help_msg.replace("Permissions:", "\n**Permissions:**"), inline=False)
+            embed.add_field(name="Aliases", value=f"```asciidoc\n{aliases_msg}```")
+            embed.add_field(name="Usage", value=f"`{usage}`")
+            embed.add_field(name="Permissions", value=f"`{permissions}`")
             embed.set_thumbnail(url=self.bot.user.avatar_url)
-            embed.set_author(name=self.bot.user.display_name, icon_url=self.bot.user.avatar_url)
-            embed.add_field(
-                name="Quote Command(s)",
-                value="""`quote` > Call upon a quote or create a new one.""",
-                inline=False)
-            embed.add_field(
-                name="Reputation Command(s)",
-                value="""`rep` > Give positive reputation to other people.""",
-                inline=False)
-            embed.add_field(
-                name="Statistics Command(s)",
-                value="""`statistics` > Displays statistics for the server.""",
-                inline=False)
-            embed.add_field(
-                name="Useful Command(s)",
-                value="`hangman` > Too lazy to solve hangman puzzles? Use this.\n"
-                      "`solve` > Solves an equation. Deprecated, as it causes the bot to crash :)\n"
-                      "`cipher` > Cipher a word or sentence into some unread-able gibberish.",
-                inline=False)
-            embed.add_field(
-                name="Fun Command(s)",
-                value="`minesweeper` > Play some of that nostalgic minesweeper.\n"
-                      "`calc` > Calculates something.",
-                inline=False)
-            embed.add_field(
-                name="Usual Bot Command(s)",
-                value="`help` > Get help on commands\n"
-                      "`ping` > Displays the bot ping to the discord server.\n"
-                      "`info` > Displays running time and cpu info about the bot.",
-                inline=False)
-            embed.add_field(
-                name="Admin Command(s)",
-                value="`ban` > bans? Or not? I dunno. At your own risk.\n"
-                      "`test_welcome` > Used to test the welcome message functionality.",
-                inline=False)
-            embed.add_field(
-                name="Owner Command(s)",
-                value="`loading` > Simulates a loading bar.\n"
-                      "`say` > Repeats a message.\n"
-                      "`spam_till_youre_dead` > Spam. Till. You're. Dead.\n"
-                      "`reboot` > Reboots the bot.",
-                inline=False)
             await ctx.send(embed=embed)
-    """
-    Quote
-    """
-    @help.command(aliases=["q", "quotes"])
-    async def quote(self, ctx):
-        embed = discord.Embed(title="Quote Command Help", description="""**Description:**
-Sends a completely random quote from the server if all parameters are empty. \
-If only a name is given, it sends a random quote from that user.
-**Aliases:**
-`quotes`  |  `q`  |  `-` *(only works for calling upon a user)*
-**Usage:**
-`$quote [user] [quote/command] [index]`  |  `-<user>`
-**Examples:**
-`$quote`   - sends a random quote from any user
-`$quote ueli`   - sends a random quote from the user ueli
-`$quote ueli haHaa`   - adds "haHaa" as a quote to the user ueli
-`$quote ueli all`   - displays all quotes from the user ueli
-`$quote ueli 23`   - displays the 23rd indexed quote from the user ueli
-`$quote names`   - displays all names that have a quote
-`-ueli`   - displays a random quote from the user ueli
-**Permissions:**
-`@everyone`
-""", color=0xF4C06A)
-        embed.set_footer(text=f"Called by {ctx.author.display_name}", icon_url=ctx.author.avatar_url)
-        embed.set_thumbnail(url=self.bot.user.avatar_url)
-        embed.set_author(name=self.bot.user.display_name, icon_url=self.bot.user.avatar_url)
-        await ctx.send(embed=embed)
 
-    """
-    Hangman
-    """
-    @help.command(aliases=["hm"])
-    async def hangman(self, ctx):
-        embed = discord.Embed(title="Hangman Solver Command Help", description="""**Description:**
-Sends the most probable letter for each hangman guess in either German or English. Defaults to English.
-**Aliases:**
-`hm`
-**Usage:**
-`$hangman [word to guess] [unused letters (0 if there are none)] <language>`
-**Examples:**
-`$hangman _____ 0`   - displays the most probable letter for a 5 letter word with 0 ununused letters in English
-`$hm _th aoiu g`   - displays the most probably letter that is not one of aoiu in English
-**Permissions:**
-`@everyone`
-""", color=0xF4C06A)
-        embed.set_footer(text=f"Called by {ctx.author.display_name}", icon_url=ctx.author.avatar_url)
-        embed.set_thumbnail(url=self.bot.user.avatar_url)
-        embed.set_author(name=self.bot.user.display_name, icon_url=self.bot.user.avatar_url)
-        await ctx.send(embed=embed)
+    def sort_by_com_name(self, inp):
+        with_keys = {}
+        for command in inp:
+            with_keys[command.name] = command
+        sorted_keys = sorted(list(with_keys.keys()))
+        com_sorted = []
+        for key in sorted_keys:
+            com_sorted.append(with_keys[key])
+        return com_sorted
+
+    def sort_by_dict_size(self, inp):
+        d = {}
+        for key in inp:
+            d[key] = len(inp[key])
+        d = {k: d[k] for k in sorted(d, key=d.get, reverse=True)}
+        sort = {}
+        for key in d:
+            sort[key] = inp[key]
+        return sort
+
 
 def setup(bot):
     bot.add_cog(Help(bot))
