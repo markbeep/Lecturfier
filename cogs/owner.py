@@ -1,8 +1,5 @@
 import discord
-try:
-    from PIL.Image import Image
-except:
-    pass
+from PIL.Image import Image
 from discord.ext import commands
 import random
 import asyncio
@@ -175,7 +172,19 @@ class Owner(commands.Cog):
             raise discord.ext.commands.errors.NotOwner
 
     @commands.command()
-    async def spam_till_youre_dead(self, ctx):
+    async def react(self, ctx, message_id, reaction):
+        if await self.bot.is_owner(ctx.author):
+            message = await ctx.fetch_message(int(message_id))
+            await message.add_reaction(reaction)
+        else:
+            raise discord.ext.commands.errors.NotOwner
+
+    @commands.command()
+    async def spam(self, ctx):
+        """
+        Sends close to the maximum allowed chars on Discord in one single message
+        Usage: {@}spam
+        """
         if await self.bot.is_owner(ctx.author):
             spam = "\n" * 1900
             embed = discord.Embed(title="." + "\n" * 250 + ".", description="." + "\n" * 2000 + ".")
