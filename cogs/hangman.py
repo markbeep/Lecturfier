@@ -1,9 +1,7 @@
-import asyncio
 import discord
 from discord.ext import commands
-import random
-import time
 import re
+
 
 class Hangman(commands.Cog):
     def __init__(self, bot):
@@ -87,6 +85,14 @@ class Hangman(commands.Cog):
 
     @commands.command(aliases=["hm"])
     async def hangman(self, ctx, inputted_word=None, unused_letters=None, language="e"):
+        """
+
+        :param ctx:
+        :param inputted_word:
+        :param unused_letters:
+        :param language:
+        :return:
+        """
         if inputted_word is not None and unused_letters is not None and not self.sending:
             async with ctx.typing():
                 self.sending = True

@@ -142,6 +142,14 @@ class Admin(commands.Cog):
 
     @commands.command(aliases=["prefixes"])
     async def prefix(self, ctx, command=None, prefix=None, *args):
+        """
+        Is used to view all current used prefixes on the INFK-2020 server.
+        :param ctx: message object
+        :param command: Command can either be "add" or "delete"
+        :param prefix: The prefix to edit
+        :param args: Additional info about the prefix and what bot the prefix corresponds to
+        :return: None
+        """
         if command is None:
             msg = "**Already in use Bot Prefixes:**"
             for prefix in self.all_prefix.keys():
@@ -172,7 +180,13 @@ class Admin(commands.Cog):
 
     @commands.command()
     @commands.has_permissions(administrator=True)
-    async def test_welcome(self, ctx):
+    async def testWelcome(self, ctx):
+        """
+        Is used to test a welcome message.
+        Requires administrator permission
+        :param ctx: message object
+        :return: None
+        """
         await self.send_welcome_message(ctx, ctx.author, ctx.message.guild)
 
     async def send_welcome_message(self, channel, user, guild):
@@ -195,6 +209,13 @@ class Admin(commands.Cog):
     @commands.command()
     @commands.has_permissions(administrator=True)
     async def ban(self, ctx, person):
+        """
+        Plays a little joke and "bans" the given user
+        Requires administrator permission
+        :param ctx: message object
+        :param person: The person to "ban"
+        :return: None
+        """
         await ctx.send(f"Banning {person}...")
         await asyncio.sleep(10)
         await ctx.send("Was justa prank brudi")
