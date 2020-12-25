@@ -93,10 +93,13 @@ class Statistics(commands.Cog):
         self.notice_message = 0  # The message that notifies others about joining the spam channel
         self.recent_message = []
         self.bot_changed_to_yesterday = {}
-
+        self.time_heartbeat = 0
         self.task = self.bot.loop.create_task(self.background_save_statistics())
 
     def heartbeat(self):
+        return self.time_heartbeat
+
+    def get_task(self):
         return self.task
 
     async def background_save_statistics(self):
@@ -104,6 +107,7 @@ class Statistics(commands.Cog):
         await self.bot.wait_until_ready()
         start_time = time.perf_counter()
         while not self.bot.is_closed():
+            self.time_heartbeat = time.time()
             if self.time_counter >= 6:  # Saves the statistics file every minute
                 self.time_counter = 0
                 try:
@@ -313,8 +317,6 @@ class Statistics(commands.Cog):
     async def advent(self, ctx):
         """
         Sends the advent score from Kay as a json to Kay
-        :param ctx: message content
-        :return:
         """
         if ctx.message.author.id in [252091777115226114, 205704051856244736]:
             user = ctx.message.author

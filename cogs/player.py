@@ -14,6 +14,7 @@ import json
 import aiohttp
 from bs4 import BeautifulSoup as bs
 import asyncio
+from pytz import timezone
 
 
 # TODO Source command that displays the source code of a command using the inspect library
@@ -32,10 +33,13 @@ class Player(commands.Cog):
             self.cases_today = int(f.read())
         with open("./data/guesses.json") as f:
             self.covid_guesses = json.load(f)
-
+        self.time_heartbeat = 0
         self.task = self.bot.loop.create_task(self.background_check_cases())
 
     def heartbeat(self):
+        return self.time_heartbeat
+
+    def get_task(self):
         return self.task
 
     def save(self, file_path):
@@ -46,11 +50,12 @@ class Player(commands.Cog):
         counter = 0
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
+            self.time_heartbeat = time.time()
             async with aiohttp.ClientSession() as cs:
                 async with cs.get("https://www.covid19.admin.ch/en/overview") as r:
                     response = await r.read()
             soup = bs(response.decode('utf-8'), "html.parser")
-            new_cases = int(soup.find_all("span", class_="bag-key-value-list__entry-value")[0].get_text())
+            new_cases = int(soup.find_all("span", class_="bag-key-value-list__entry-value")[0].get_text().replace(" ", ""))
             if self.cases_today != new_cases:
                 self.cases_today = new_cases
                 self.confirmed_cases = new_cases
@@ -62,8 +67,8 @@ class Player(commands.Cog):
                 await self.send_message(channel, guild)
             await asyncio.sleep(10)
             if counter == 6:
-                log("Saved guesses.txt", "COVID")
-                self.save("./data/guesses.txt")
+                log("Saved guesses.json", "COVID")
+                self.save("./data/guesses.json")
                 counter = 0
             else:
                 counter += 1
@@ -75,7 +80,7 @@ class Player(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot:
-            if message.content == "Hello there <@!<@!755781649643470868>>":
+            if message.content == "Hello there <@!755781649643470868>":
                 await message.channel.send("General kenobi <@!306523617188118528>")
             return
         if "<@!755781649643470868>" in message.content:
@@ -244,6 +249,9 @@ class Player(commands.Cog):
         # Send last guess from user
         leaderboard_aliases = ["leaderboard", "lb", "top", "best", "ranking"]
         average_aliases = ["avg", "average"]
+
+        hour = int(datetime.now(timezone("Europe/Zurich")).strftime("%H"))
+        minute = int(datetime.now(timezone("Europe/Zurich")).strftime("%M"))
         if number is None:
             if amt != 0:
                 avg = round(avg/amt)
@@ -275,6 +283,9 @@ class Player(commands.Cog):
                     await self.send_leaderboard(ctx)
                 elif number.lower() in average_aliases:
                     await self.send_leaderboard(ctx, True)
+                elif 12 <= hour < 17:
+                    await ctx.send("Can't guess from 12:00 till 17:00. The confirmed amount of cases will be released soon.", delete_after=7)
+                    await ctx.message.delete()
                 else:
                     number = int(number)
                     if number < 0:

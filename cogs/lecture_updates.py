@@ -21,15 +21,19 @@ class Updates(commands.Cog):
         self.test_livestream_message = self.settings["test_livestream_message"]
         self.send_message_to_finn = self.settings["send_message_to_finn"]
         self.lecture_updater_version = "v2.4"
-
+        self.time_heartbeat = 0
         self.task = self.bot.loop.create_task(self.background_loop())
 
     def heartbeat(self):
+        return self.time_heartbeat
+
+    def get_task(self):
         return self.task
 
     async def background_loop(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
+            self.time_heartbeat = time.time()
             print("BACKGROUND LOOP")
             try:
                 channel = self.bot.get_channel(self.channel_to_post)

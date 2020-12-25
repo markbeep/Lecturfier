@@ -151,12 +151,15 @@ class Owner(commands.Cog):
             }
 
             msg = ""
-            for task in all_loops.keys():
-                running = not all_loops[task].cancelled()
-                if running:
-                    msg += f"\n**{task}:** <:checkmark:769279808244809798> | Running..."
+            cur_time = time.time()
+            for name in all_loops.keys():
+                seconds_elapsed = cur_time - all_loops[name]
+                if seconds_elapsed <= 120:
+                    msg += f"\n**{name}:** <:checkmark:776717335242211329> | Last Heartbeat: `{int(round(seconds_elapsed))}` seconds ago"
+                elif all_loops[name] == 0:
+                    msg += f"\n**{name}:** <:xmark:776717315139698720> | Last Heartbeat: **background task never even started**"
                 else:
-                    msg += f"\n**{task}:** <:xmark:769279807916998728> | Offline..."
+                    msg += f"\n**{name}:** <:xmark:776717315139698720> | Last Heartbeat: `{int(round(seconds_elapsed))}` seconds ago"
             await ctx.send(msg)
         else:
             raise discord.ext.commands.errors.NotOwner
