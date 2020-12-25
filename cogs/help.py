@@ -46,7 +46,7 @@ class Help(commands.Cog):
                         prefix = "*"
                     msg += f"{prefix} {com}\n"
                 msg += "```"
-                embed.add_field(name=key, value=msg)
+                embed.add_field(name="\u200b", value=msg)
                 embed.set_footer(text="Commands with a star (*) have extra info when viewed with $help <command>")
             await ctx.send(embed=embed)
         else:
