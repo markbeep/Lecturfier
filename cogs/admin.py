@@ -5,6 +5,7 @@ from helper.log import log
 from datetime import datetime
 from pytz import timezone
 import json
+import time
 
 
 # TODO Add a wrapper around commands to easily enable/disable commands per server
@@ -23,6 +24,7 @@ class Admin(commands.Cog):
         self.bot_prefix_path = "./data/bot_prefix.json"
         with open(self.bot_prefix_path, "r") as f:
             self.all_prefix = json.load(f)
+        self.secret_channels = {}
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -140,6 +142,15 @@ class Admin(commands.Cog):
         embed.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
         await channel.send(embed=embed)
 
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.id == 755781649643470868 or message.author.id == 776713845238136843:
+            return
+        if message.channel.id in self.secret_channels:
+            if time.time() < self.secret_channels[message.channel.id][0]:
+                await asyncio.sleep(self.secret_channels[message.channel.id][1])
+                await message.delete()
+
     @commands.command(aliases=["prefixes"], usage="prefix <add/delete> <prefix> <info>")
     async def prefix(self, ctx, command=None, prefix=None, *args):
         """
@@ -174,6 +185,16 @@ class Admin(commands.Cog):
         else:
             await ctx.send("Unrecognized command.", delete_after=7)
             raise discord.ext.commands.errors.BadArgument
+
+    @commands.command(aliases=["secret"])
+    @commands.has_permissions(administrator=True)
+    async def elthision(self, ctx, seconds=10, delete=2.0):
+        self.secret_channels[ctx.message.channel.id] = [time.time() + seconds, delete]
+        await ctx.send(f"All messages will be deleted after {delete} seconds for the next `{seconds}` seconds.\n"+"<:that:758262252699779073>"*10)
+        await asyncio.sleep(seconds)
+        if ctx.message.channel.id in self.secret_channels:
+            self.secret_channels.pop(ctx.message.channel.id)
+            await ctx.send("<:elthision:787256721508401152>\n"+"<:this:747783377662378004>"*10+"\nMessages are not Elthision anymore.")
 
     @commands.command(usage="testWelcome")
     @commands.has_permissions(administrator=True)
