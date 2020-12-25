@@ -76,10 +76,10 @@ async def stop_bg_task(task):
     """
     task = task.lower()
     all_loops = {
-        "lecture_updates": bot.get_cog("Updates").heartbeat(),
-        "statistics": bot.get_cog("Statistics").heartbeat(),
-        "voice_xp": bot.get_cog("Voice").heartbeat(),
-        "player": bot.get_cog("Player").heartbeat()
+        "lecture_updates": bot.get_cog("Updates").get_task(),
+        "statistics": bot.get_cog("Statistics").get_task(),
+        "voice_xp": bot.get_cog("Voice").get_task(),
+        "player": bot.get_cog("Player").get_task()
     }
     if task in all_loops:
         return all_loops[task].cancel()
@@ -112,7 +112,7 @@ for extension in startup_extensions:
         log("Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)), "EXTENSION")
 print("-------------------")
 
-with open("../LECTURFIER.json", "r") as f:
+with open("../LECTURFIERBETA.json", "r") as f:
     settings = json.load(f)
 if len(settings["token"]) == 0:
     log("NO TOKEN IN LECTURFIER.json! Stopping bot.", "TOKEN")
