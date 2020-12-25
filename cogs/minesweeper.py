@@ -11,12 +11,12 @@ class Minesweeper(commands.Cog):
 
     async def bomb_placer(self, size:int, mines:int):
         mine_field = []
-        if mines > size**2 - 1:
-            mines = size**2 - 1
-        if size < 1:
-            size = 1
+        if size < 2:
+            size = 2
         if mines < 1:
             mines = 1
+        if mines > size**2 - 1:
+            mines = size**2 - 1
 
         for i in range(size):
             xx_mine_field = []
@@ -85,7 +85,7 @@ class Minesweeper(commands.Cog):
         return field
 
     @commands.command(aliases=["ms"], usage="minesweeper [size] [amount of mines]")
-    async def minesweeper(self, ctx, size=10, mines=10):
+    async def minesweeper(self, ctx, size="10", mines="10"):
         """
         Sends a minefield from the nice nostalgic minesweeper game in Discord-style. Each box is a spoiler that contains \
         either a number or a bomb. If you want to retry a minefield, you need to go out and into a channel to hide the \
@@ -93,9 +93,10 @@ class Minesweeper(commands.Cog):
 
         The maximum size of a minefield is 20 x 20 squares. Any more and discord completely messes it up.
         """
-        while self.sending:
+        if self.sending:
             await asyncio.sleep(1)
             await ctx.send("❗❗ Already sending a mine field. Hold on ❗❗", delete_after=7)
+            await ctx.message.delete()
             raise discord.ext.commands.errors.BadArgument
 
         self.sending = True
@@ -103,22 +104,27 @@ class Minesweeper(commands.Cog):
             size = int(size)
             mines = int(mines)
             if size > 20:
-                await ctx.send("Too big of a mine field to send on discord. Keep it under 20.")
+                await ctx.send("Too big of a mine field to send on discord. Keep it under 20.", delete_after=7)
+                await ctx.message.delete()
                 self.sending = False
                 raise discord.ext.commands.errors.BadArgument
 
         except ValueError:
-            if size.lower() == "beginner":
-                size = random.randrange(8, 11)
-                mines = 10
-            elif size.lower() == "intermediate":
-                size = random.randrange(13, 17)
-                mines = 40
-            elif size.lower() == "expert":
-                size = random.randrange(21, 22)
-                mines = 99
-            else:
-                await ctx.send("Wrong input. Use `$minesweeper <size> <mines>`")
+            try:
+                if size.lower() == "beginner":
+                    size = random.randrange(8, 11)
+                    mines = 10
+                elif size.lower() == "intermediate":
+                    size = random.randrange(13, 17)
+                    mines = 40
+                elif size.lower() == "expert":
+                    size = random.randrange(21, 22)
+                    mines = 99
+                else:
+                    raise ValueError
+            except (ValueError, AttributeError):
+                await ctx.send("Wrong input. Use `$minesweeper <size> <mines>`", delete_after=7)
+                await ctx.message.delete()
                 self.sending = False
                 raise discord.ext.commands.errors.BadArgument
         placed_bombs = await self.bomb_placer(size=int(size), mines=int(mines))
@@ -127,28 +133,30 @@ class Minesweeper(commands.Cog):
         corrected_mines = placed_bombs[2]
 
         mine_field = await self.bomb_counter(mine_field)
-        final_message = f"__Size: {corrected_size} | Mines: {corrected_mines}__\n"
+        final_message = f"__Size: {corrected_size} | Mines: {corrected_mines}__"
 
         mine_field = await self.uncover_field(mine_field)
-
+        split_messages = []
         for row in mine_field:
+            row_string = ""
             for i in row:
                 if "f" in str(i):
-                    final_message += f"{i.replace('f', '')} "
+                    row_string += i.replace('f', '')
                 else:
-                    final_message += f"||{i}|| "
-            test_message = await self.minesweeper_text_format(final_message)
-            if len(test_message) > 1500:
-                await ctx.send(f"{test_message}")
-                final_message = ""
-            final_message += "\n"
+                    row_string += f"||{i}||"
+            if len(await self.minesweeper_text_format(final_message) + await self.minesweeper_text_format(row_string)) > 850:
+                msg = await self.minesweeper_text_format(final_message)
+                await ctx.send(msg)
+                final_message = row_string
+            else:
+                final_message += "\n" + row_string
 
         try:
             final_message = await self.minesweeper_text_format(final_message)
+            self.sending = False
             if len(final_message) <= 1:
                 return
-            await ctx.send(f"{final_message}")
-            self.sending = False
+            await ctx.send(final_message)
         except discord.errors.HTTPException:
             await ctx.send("Too big of a mine field to send on discord.")
             raise discord.ext.commands.errors.BadArgument
