@@ -32,7 +32,7 @@ class Help(commands.Cog):
 ███████║█████╗░░██║░░░░░██████╔╝
 ██╔══██║██╔══╝░░██║░░░░░██╔═══╝░
 ██║░░██║███████╗███████╗██║░░░░░
-╚═╝░░╚═╝╚══════╝╚══════╝╚═╝░░░░░""")
+╚═╝░░╚═╝╚══════╝╚══════╝╚═╝░░░░░""", color=0x245C84)
 
             sorted_commands = self.sort_by_dict_size(sorted_commands)
             for key in sorted_commands.keys():
