@@ -50,8 +50,7 @@ class Updates(commands.Cog):
                     await asyncio.sleep(30)
                 await asyncio.sleep(40)
             except Exception:
-                user = self.bot.get_user(205704051856244736)
-                await user.send(f"Error in background loop: {traceback.format_exc()}")
+                await self.bot.owner.send(f"Error in background loop: {traceback.format_exc()}")
                 log(f"Error in background loop self.bot.py: {traceback.format_exc()}", "BACKGROUND")
                 await asyncio.sleep(10)
 
@@ -79,8 +78,7 @@ class Updates(commands.Cog):
             embed.set_footer(text="(Edited)")
             await message.edit(embed=embed)
         except Exception:
-            user = self.bot.get_user(205704051856244736)
-            await user.send(f"No lesson error: {traceback.format_exc()}")
+            await self.bot.owner.send(f"No lesson error: {traceback.format_exc()}")
 
     async def check_updates(self, channel, cur_time, version):
         start = time.time()
@@ -108,16 +106,16 @@ class Updates(commands.Cog):
                             correct_changes = changes[lesson][i]
                         except KeyError as e:
                             correct_changes = changes[lesson]
-                            user = self.bot.get_user(205704051856244736)
+                            user = self.bot.get_user(self.bot.owner_id)
                             await user.send(f"Lesson: {lesson}\nError: KeyError\nChanges: `{changes}`")
                         if correct_changes["event"] == "other":
                             embed = discord.Embed(title=f"{lesson} has been changed!",
                                                   description=f"[Click here to get to {lesson}'s website]({lecture_urls[lesson]}).",
                                                   timestamp=datetime.utcfromtimestamp(time.time()), color=color)
                             if self.send_message_to_finn:
-                                users = [205704051856244736, 304014259975880704]  # 304014259975880704
+                                users = [self.bot.owner_id, 304014259975880704]  # 304014259975880704
                             else:
-                                users = [205704051856244736]
+                                users = [self.bot.owner_id]
                             for u_id in users:
                                 user = self.bot.get_user(u_id)
                                 await user.send(embed=embed)
@@ -156,8 +154,7 @@ class Updates(commands.Cog):
                             await msg.publish()
                             send_ping = False
             except Exception:
-                user = self.bot.get_user(205704051856244736)
-                await user.send(f"Lesson{lesson}\nError: {traceback.format_exc()}")
+                await self.bot.owner.send(f"Lesson{lesson}\nError: {traceback.format_exc()}")
 
     def format_exercise(self, version, edited_keys=None):
         topics = {"name": "Name", "date": "Date", "abgabe_date": "Submission Date", "links": "Link"}

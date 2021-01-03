@@ -113,8 +113,7 @@ class Statistics(commands.Cog):
                         json.dump(self.bot_uptime, f, indent=2)
                     log("SAVED BOT UPTIME", "UPTIME")
                 except Exception:
-                    user = self.bot.get_user(205704051856244736)
-                    await user.send(f"Saving files failed:\n{traceback.format_exc()}")
+                    await self.bot.owner.send(f"Saving files failed:\n{traceback.format_exc()}")
             else:
                 self.time_counter += 1
             if not sent_file and datetime.now().hour % 2 == 0:  # Backs up all files every 2 hours
@@ -124,7 +123,7 @@ class Statistics(commands.Cog):
                 if settings["upload to git"]:
                     sent_file = True
                     output = gitpush("./data")
-                    user = self.bot.get_user(205704051856244736)
+                    user = self.bot.get_user(self.bot.owner_id)
                     await user.send("Updated GIT\n"
                                     f"Commit: `{output[0]}`\n"
                                     f"Push: `{output[1]}`")
@@ -177,38 +176,6 @@ class Statistics(commands.Cog):
             self.bot_uptime[guild_id][bot_id][data_range] = 0
         return self.bot_uptime[guild_id][bot_id][data_range]
 
-    @commands.command()
-    async def uptime(self, ctx, bot=None):
-        if bot is None:
-            await ctx.send("No bot specified.")
-        else:
-            try:
-                memberconverter = discord.ext.commands.MemberConverter()
-                user = await memberconverter.convert(ctx, bot)
-            except discord.ext.commands.errors.BadArgument:
-                await ctx.send(f"{ctx.message.author.mention}, that is not a user. Mention a user or bot for this command to work.")
-                raise discord.ext.commands.errors.BadArgument
-
-            lecturfier_start_time = time.time() - await self.get_uptime(ctx.message.guild.id, self.bot.user.id, "start")
-            lecturfier_total = round((float(await self.get_uptime(ctx.message.guild.id, self.bot.user.id, "total")) / lecturfier_start_time) * 100, 2)
-            if lecturfier_total > 100:
-                lecturfier_total = 100
-
-            bot_yesterday = round(float(await self.get_uptime(ctx.message.guild.id, user.id, "yesterday")) / 864, 2)
-            bot_week = round(float(await self.get_uptime(ctx.message.guild.id, user.id, "past_week")) / 6048, 2)
-            bot_start_time = time.time() - await self.get_uptime(ctx.message.guild.id, user.id, "start")
-            bot_total = round((float(await self.get_uptime(ctx.message.guild.id, user.id, "total")) / bot_start_time) * 100, 2)
-            if bot_total > 100:
-                bot_total = 100
-            embed = discord.Embed(title=f"Bot Uptime",
-                                  description=f"**{user.display_name}**\n"
-                                              f"Total: {bot_total}%\n"
-                                              f"Last Week: {bot_week}%\n"
-                                              f"Yesterday: {bot_yesterday}%",
-                                  color=discord.Color.blue())
-            embed.set_footer(text=f"Accuracy: {lecturfier_total}%")
-            await ctx.send(embed=embed)
-
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
         if "is not found" in str(error):
@@ -238,7 +205,6 @@ class Statistics(commands.Cog):
     async def on_ready(self):
         self.script_start = time.time()
 
-    # TODO Find out why stats doesnt always work
     @commands.Cog.listener()
     async def on_message(self, message):
         if "@everyone" in message.content.lower():
@@ -285,8 +251,7 @@ class Statistics(commands.Cog):
             await asyncio.sleep(5)
             self.recent_message.pop(self.recent_message.index(message.author.id))
         except AttributeError:
-            user = self.bot.get_user(205704051856244736)
-            await user.send("AttributeError for on_message")
+            pass
 
     async def user_checkup(self, message=None, reaction=None, user=None):
         if message is not None and user is None:
@@ -319,8 +284,7 @@ class Statistics(commands.Cog):
             await self.user_checkup(message)
             self.statistics[str(message.guild.id)]["messages_deleted"][str(message.author.id)] += 1
         except AttributeError:
-            user = self.bot.get_user(205704051856244736)
-            await user.send("AttributeError for message delete")
+            pass
 
     @commands.Cog.listener()
     async def on_message_edit(self, before, message):
@@ -330,8 +294,7 @@ class Statistics(commands.Cog):
             await self.user_checkup(message)
             self.statistics[str(message.guild.id)]["messages_edited"][str(message.author.id)] += 1
         except AttributeError:
-            user = self.bot.get_user(205704051856244736)
-            await user.send("AttributeError for message edit")
+            pass
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
@@ -349,8 +312,7 @@ class Statistics(commands.Cog):
             await self.user_checkup(message=reaction.message)
             self.statistics[str(reaction.message.guild.id)]["reactions_received"][str(reaction.message.author.id)] += 1
         except AttributeError:
-            user = self.bot.get_user(205704051856244736)
-            await user.send("AttributeError for reaction add")
+            pass
 
     @commands.Cog.listener()
     async def on_reaction_remove(self, reaction, user):
@@ -371,16 +333,14 @@ class Statistics(commands.Cog):
             if self.statistics[str(reaction.message.guild.id)]["reactions_received"][str(reaction.message.author.id)] < 0:
                 self.statistics[str(reaction.message.guild.id)]["reactions_received"][str(reaction.message.author.id)] = 0
         except AttributeError:
-            user = self.bot.get_user(205704051856244736)
-            await user.send("AttributeError for reaction remove")
+            pass
 
-    @commands.command(aliases=["stats"])
+    @commands.command(aliases=["stats"], usage="statistics [user]")
     async def statistics(self, ctx, user=None):
         """
-        Used to call a statistics page
-        :param ctx: Message context
-        :param user: Either no input, "top" or @user
-        :return: nothing
+        Used to call the statistics page of a user or of the server.
+        The user parameter can be another user or "top" to get the top three users \
+        of each category.
         """
         if user is None:
             await self.user_checkup(message=ctx.message)
@@ -431,6 +391,46 @@ class Statistics(commands.Cog):
                         rank += 1
                 embed.add_field(name=self.checks_full_name[c],
                                 value=f"*{self.statistics[str(ctx.message.guild.id)][c][str(user.id)]} ({rank}.)*\n")
+            await ctx.send(embed=embed)
+
+    @commands.command(usage="uptime <user/bot>")
+    async def uptime(self, ctx, bot=None):
+        """
+        Used to check the uptime of a user. It's not going to be 100% correct because of crap implementation \
+        and the bot might not be up 100% itself.
+        """
+        if bot is None:
+            await ctx.send("No user or bot specified.")
+        else:
+            try:
+                memberconverter = discord.ext.commands.MemberConverter()
+                user = await memberconverter.convert(ctx, bot)
+            except discord.ext.commands.errors.BadArgument:
+                await ctx.send(
+                    f"{ctx.message.author.mention}, that is not a user. Mention a user or bot for this command to work.")
+                raise discord.ext.commands.errors.BadArgument
+
+            lecturfier_start_time = time.time() - await self.get_uptime(ctx.message.guild.id, self.bot.user.id, "start")
+            lecturfier_total = round((float(
+                await self.get_uptime(ctx.message.guild.id, self.bot.user.id, "total")) / lecturfier_start_time) * 100,
+                                     2)
+            if lecturfier_total > 100:
+                lecturfier_total = 100
+
+            bot_yesterday = round(float(await self.get_uptime(ctx.message.guild.id, user.id, "yesterday")) / 864, 2)
+            bot_week = round(float(await self.get_uptime(ctx.message.guild.id, user.id, "past_week")) / 6048, 2)
+            bot_start_time = time.time() - await self.get_uptime(ctx.message.guild.id, user.id, "start")
+            bot_total = round(
+                (float(await self.get_uptime(ctx.message.guild.id, user.id, "total")) / bot_start_time) * 100, 2)
+            if bot_total > 100:
+                bot_total = 100
+            embed = discord.Embed(title=f"Bot Uptime",
+                                  description=f"**{user.display_name}**\n"
+                                              f"Total: {bot_total}%\n"
+                                              f"Last Week: {bot_week}%\n"
+                                              f"Yesterday: {bot_yesterday}%",
+                                  color=discord.Color.blue())
+            embed.set_footer(text=f"Accuracy: {lecturfier_total}%")
             await ctx.send(embed=embed)
 
 

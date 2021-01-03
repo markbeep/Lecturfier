@@ -10,6 +10,7 @@ import requests
 from io import BytesIO
 import os
 import time
+from cogs import admin, hangman, help, updates, minesweeper, owner, player, quote, reputation, statistics, voice
 
 
 class Owner(commands.Cog):
@@ -122,14 +123,13 @@ class Owner(commands.Cog):
             raise discord.ext.commands.errors.NotOwner
 
     @commands.command(usage="inspect <cmd>")
-    async def inspect(self, ctx, cmd=None):
+    async def inspect(self, ctx, cmd="minesweeper"):
         """
         Used to send the code of any given command. **Does not work yet.**
         Permissions: Owner
         """
         if await self.bot.is_owner(ctx.author):
-            source_code = inspect.getsource(self.inspect)
-            print(source_code)
+            source_code = inspect.getsource(minesweeper.Minesweeper)
             await ctx.send(f"```python\n"
                            f"{source_code}\n"
                            f"```")
