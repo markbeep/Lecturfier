@@ -1,13 +1,8 @@
 import discord
-from PIL.Image import Image
 from discord.ext import commands
 import random
 import asyncio
 import inspect
-from nudenet import NudeClassifierLite
-from PIL import Image
-import requests
-from io import BytesIO
 import os
 import time
 from cogs import admin, hangman, help, updates, minesweeper, owner, player, quote, reputation, statistics, voice
@@ -21,77 +16,6 @@ class Owner(commands.Cog):
     async def on_message(self, message):
         if message.author.id == 755781649643470868:
             return
-        if message.channel.id == 00:  # turned it off
-            try:
-                msg = ""
-                time_taken = 0
-                url_list = []
-                for i in range(len(message.attachments)):
-                    if message.attachments[i].height is not None:
-                        # The file is an image
-                        url_list.append(message.attachments[i].url)
-                temp_message_content = message.content
-                while "http" in temp_message_content:
-                    url = await self.get_link(temp_message_content)
-                    url_list.append(url)
-                    temp_message_content = temp_message_content.replace(url, "")
-
-                if len(url_list) == 0:
-                    return
-                msg_info = await self.nsfw_check_message(url_list)
-                msg += msg_info[0]
-                time_taken += msg_info[1]
-
-                if len(msg) > 0:
-                    await message.channel.send(f"\n{message.author.mention}\n{msg}"
-                                               f"\n`Seconds taken: {time_taken}`")
-            except KeyError:
-                raise discord.ext.commands.errors.BadArgument
-
-    async def get_link(self, message_content):
-        message_content = " " + message_content + " "
-        if "http" in message_content:
-            for i in range(message_content.index("http"), len(message_content)):
-                if message_content[i] == " " or message_content[i] == "\n":
-                    url = message_content[message_content.index("http"): i]
-                    url = url.replace("<", "").replace(">", "")
-                    return url
-        else:
-            return None
-
-    async def nsfw_check_message(self, url):
-        msg = ""
-        output = await self.nsfw_check(url)
-        result = output['result']
-        filenames = output['filename']
-        for i in range(len(filenames)):
-            msg += f"Image nsfw score: {int(round(result[filenames[i]]['unsafe'] *  100))}% | <{url[i]}>\n"
-        return msg, round(output['time_taken'], 2)
-
-    async def nsfw_check(self, url):
-        start = time.perf_counter()
-
-        file_names = []
-        for u in url:
-            # downloads the images
-            response = requests.get(u, verify=False)
-            img = Image.open(BytesIO(response.content))
-
-            # gives a random filename and saves the image
-            filename = f"{random.randint(1, 1000000)}.png"
-            img.save(filename, format="png")
-            file_names.append(filename)
-
-        # classifies the image to get the nude amount
-        classifier = NudeClassifierLite()
-        result = classifier.classify(file_names)
-
-        for fn in file_names:
-            # removes the image again
-            os.remove(fn)
-
-        time_taken = time.perf_counter() - start
-        return {"filename": file_names, "result": result, "time_taken": time_taken}
 
     async def loading_bar(self, bars, max_length=None, failed=None):
         bars = round(bars)
