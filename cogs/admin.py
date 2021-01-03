@@ -206,13 +206,11 @@ class Admin(commands.Cog):
         await self.send_welcome_message(ctx, ctx.author, ctx.message.guild)
 
     async def send_welcome_message(self, channel, user, guild):
-        msg = f"Welcome {user.mention}! Head to <#769261792491995176> to read " \
-              f"through the few rules we have on this server. " \
-              f"Then press one of the following reactions.\n\n" \
+        msg = f"Welcome {user.mention}!\n " \
+              f"To get the full experience of the server press one of the following reactions:\n\n" \
               f"🧑‍🏫   if you're a TA (press the TA reaction before the student)\n" \
               f"✏   if you're a **D-INFK** student.\n" \
-              f"<:bach:764174568000192552>   if you're external.\n\n" \
-              f"**YOUR EMAIL ADDRESS FOR DISCORD NEEDS TO BE VERIFIED FOR YOU TO BE ABLE TO CHAT AND PARTICIPATE ON THIS SERVER**"
+              f"<:bach:764174568000192552>   if you're external.\n\n"
         embed = discord.Embed(title=f"**WELCOME!**", description=msg, color=0xadd8e6)
         embed.set_thumbnail(url=user.avatar_url)
         embed.set_footer(text=f"You are the {len(guild.members)}. member")
