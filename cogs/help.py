@@ -2,12 +2,40 @@ import discord
 from discord.ext import commands
 import datetime
 from pytz import timezone
+from helper import git_tools
+import json
+import os
 
 
 class Help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.help_message_ids = {}
+        with open("./data/versions.json", "r") as f:
+            self.versions = json.load(f)
+        with open("./data/settings.json", "r") as f:
+            self.prefix = json.load(f)["prefix"]
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        await self.update_versions()
+
+    async def update_versions(self):
+        """
+        Goes through all file versions and updates them accordingly, adding them to the versions.json file
+        """
+        print("### Running version updater ###")
+        updated_versions = await git_tools.get_versions(os.getcwd())
+        for v in updated_versions.keys():
+            if updated_versions[v]["status"]:
+                if v not in self.versions:
+                    print(f"--- {v} is a newly committed file ---")
+                elif updated_versions[v]["version"] != self.versions[v]:
+                    print(f"--- {v} version was updated ---")
+                self.versions[v] = updated_versions[v]["version"]
+        with open("./data/versions.json", "w") as f:
+            json.dump(self.versions, f, indent=2)
+        print("### Version updater done ###")
 
     @commands.command(aliases=["halp", "h"], usage="help <command>")
     async def help(self, ctx, specific_command=None):
@@ -37,8 +65,12 @@ class Help(commands.Cog):
             sorted_commands = self.sort_by_dict_size(sorted_commands)
             for key in sorted_commands.keys():
                 sorted_commands[key] = self.sort_by_com_name(sorted_commands[key])
+                version = "v00.0.0.0"
+                version_key = str(key).lower() + ".py"
+                if version_key in self.versions:
+                    version = self.versions[version_key]
                 msg = ""
-                msg += f"```asciidoc\n= {key} =\n"
+                msg += f"```asciidoc\n= {key} =\n{version}\n=======\n"
                 for com in sorted_commands[key]:
                     if com.help is None:
                         prefix = "-"
@@ -61,17 +93,17 @@ class Help(commands.Cog):
                 help_msg = listified[0]
                 permissions = listified[1]
             else:
-                permissions = "`everyone`"
+                permissions = "@everyone"
 
             nl = "\n"
             aliases_msg = f"- {f'{nl}- '.join(aliases)}"
             if aliases_msg == "- ":
-                aliases_msg = "= None ="
-            embed = discord.Embed(title=specific_command.name)
+                aliases_msg = "none"
+            embed = discord.Embed(title=specific_command.name, color=0x245C84)
             embed.add_field(name="Info", value=help_msg.replace("Permissions:", "\n**Permissions:**"), inline=False)
-            embed.add_field(name="Aliases", value=f"```asciidoc\n{aliases_msg}```")
-            embed.add_field(name="Usage", value=f"`{usage}`")
-            embed.add_field(name="Permissions", value=f"`{permissions}`")
+            embed.add_field(name="\u200b", value=f"```asciidoc\n= Aliases =\n{aliases_msg}```")
+            embed.add_field(name="\u200b", value=f"```asciidoc\n= Permissions =\n{permissions}```")
+            embed.add_field(name="\u200b", value=f"```asciidoc\n= Usage =\n{self.prefix}{usage}```", inline=False)
             embed.set_thumbnail(url=self.bot.user.avatar_url)
             await ctx.send(embed=embed)
 
