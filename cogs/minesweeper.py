@@ -92,6 +92,9 @@ class Minesweeper(commands.Cog):
         spoilers again.
 
         The maximum size of a minefield is 20 x 20 squares. Any more and discord completely messes it up.
+
+        You can also use one of the three presets to create a field with pre-made rules using either "beginner", \
+        "intermediate" or "expert" as the size keyword.
         """
         if self.sending:
             await asyncio.sleep(1)
