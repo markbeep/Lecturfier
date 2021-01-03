@@ -130,8 +130,11 @@ class Voice(commands.Cog):
             log(f"Creating new entry for {user.name} and adding xp", "XP")
             self.levels[str(guild_id)][str(user.id)] = random.randrange(amount_min, amount_max)
 
-    @commands.command()
+    @commands.command(usage="rank [user]")
     async def rank(self, ctx, user=None):
+        """
+        This command sends the users voice XP rank. If no user is defined, the command user's rank is sent.
+        """
         if str(ctx.message.guild.id) in self.levels and not self.levels[str(ctx.message.guild.id)]["on"]:
             await ctx.send(f"{ctx.message.author.mention}, `levels` are turned off on this server! *(If you just turned them on, wait 10 seconds)*")
             return
@@ -152,8 +155,11 @@ class Voice(commands.Cog):
         except KeyError:
             await ctx.send(f"{ctx.message.author.mention}, invalid mention or user ID. Can't display rank for that user.")
 
-    @commands.command(aliases=["lb", "ranks"])
+    @commands.command(aliases=["lb", "ranks"], usage="leaderboard")
     async def leaderboard(self, ctx):
+        """
+        This command sends the top 10 users with the most voice XP on this server.
+        """
         async with ctx.typing():
             try:
                 """
@@ -200,9 +206,14 @@ class Voice(commands.Cog):
                 embed = discord.Embed(title=f"Error", description="This server has no levels yet", color=0xFF0000)
         await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.command(usage="levels [on/off]")
     @commands.has_permissions(administrator=True)
     async def levels(self, ctx, state=None):
+        """
+        Used to turn levels tracking either on or off on a server.
+        Using levels without any parameters displays the current status of the command.
+        Permissions: Administrator
+        """
         if state is None:
             if str(ctx.message.guild.id) in self.levels and self.levels[str(ctx.message.guild.id)]["on"]:
                 await ctx.send("Levels are `ON` on this server!")
