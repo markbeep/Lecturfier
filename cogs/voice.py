@@ -2,6 +2,7 @@ import asyncio
 import json
 import math
 import random
+import ssl
 import time
 from datetime import datetime
 
@@ -63,7 +64,6 @@ class Voice(commands.Cog):
         if message.channel.id in self.ignore_channels:
             return
         if message.author.id in self.recent_message:  # If the user recently sent a message
-            print("SENDING MESSAGES TOO QUICK")
             return
         self.recent_message.append(message.author.id)  # Puts the user into the recently sent messages list
         # add xp to user
@@ -109,8 +109,6 @@ class Voice(commands.Cog):
             if guild is None:
                 log(f"{guild_id} does not exist anymore. Skipping...", "XP")
                 continue
-
-            log(f"Checking voice channels of guild: {guild_id} | # of vc: {len(guild.voice_channels)}", "XP")
             for v_ch in guild.voice_channels:
                 # Goes through every voice channel on that specific server
                 for u in v_ch.members:
@@ -180,7 +178,11 @@ class Voice(commands.Cog):
                     member = ctx.message.guild.get_member(int(profile[0]))
                     if member is None:
                         print("not in cache")
-                        member = await ctx.message.guild.fetch_member(int(profile[0]))
+                        try:
+                            member = await ctx.message.guild.fetch_member(int(profile[0]))
+                        except discord.HTTPException:
+                            print("User is not on server anymore")
+                            continue
                     if member is None:
                         pass
                     else:
@@ -192,10 +194,9 @@ class Voice(commands.Cog):
                             cont += "<:bronze:413030030076149776>"
                         else:
                             cont += "<:invisible:413030446327267328>"
-                        member = member.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
 
                         # 1 xp / second
-                        cont += f"**{i}.** __{member}__: **Level {levefier(profile[1])}** (*{number_split(profile[1])} xp | {round(profile[1] / 3600, 1)} hours*)\n\n"
+                        cont += f"**{i}.** {member.mention} | **Level {levefier(profile[1])}** (*{number_split(profile[1])} xp | {round(profile[1] / 3600, 1)} hours*)\n\n"
                         i += 1
                         if i >= 11:
                             break
