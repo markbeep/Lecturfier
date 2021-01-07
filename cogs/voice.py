@@ -2,7 +2,6 @@ import asyncio
 import json
 import math
 import random
-import ssl
 import time
 from datetime import datetime
 
