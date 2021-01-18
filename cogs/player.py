@@ -34,6 +34,7 @@ class Player(commands.Cog):
         with open("./data/guesses.json") as f:
             self.covid_guesses = json.load(f)
         self.time_heartbeat = 0
+        self.time_since_task_start = time.time()
         self.task = self.bot.loop.create_task(self.background_check_cases())
 
     def heartbeat(self):
@@ -283,7 +284,7 @@ class Player(commands.Cog):
                     await self.send_leaderboard(ctx)
                 elif number.lower() in average_aliases:
                     await self.send_leaderboard(ctx, True)
-                elif 12 <= hour < 17:
+                elif 13 <= hour < 17:
                     await ctx.send("Can't guess from 12:00 till 17:00. The confirmed amount of cases will be released soon.", delete_after=7)
                     await ctx.message.delete()
                 else:
