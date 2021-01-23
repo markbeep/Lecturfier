@@ -11,6 +11,7 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
 
 ## TODO 
   - 🔴 IMPORTANT 🔴 LECTURE UPDATES - update lecture updates to work with the new sites to come
+  - LECTURE UPDATES - lecture updates per semester
   - DB - Move from unreliant json to a reliant SQL db (maybe using peewee)
   - CHANGELOG - Create a changelog command that shows the past commit messages (and per command basis)  
   - EVENTS - See all upcomming Discord community events and in how many days (Each user can add a max of 1 event and will be marked as the host of said event)
