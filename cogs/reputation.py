@@ -127,7 +127,8 @@ class Reputation(commands.Cog):
             log("SAVED REPUTATION", "REPUTATION")
         except Exception:
             log(f"Saving REPUTATION file failed:\n{traceback.format_exc()}", "REPUTATION")
-            await self.bot.owner.send(f"Saving REPUTATION file failed:\n{traceback.format_exc()}")
+            user = self.bot.get_user(self.bot.owner_id)
+            await user.send(f"Saving REPUTATION file failed:\n{traceback.format_exc()}")
         return True
 
     async def rep_checkup(self, guild_id, name):

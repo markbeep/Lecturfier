@@ -113,7 +113,8 @@ class Statistics(commands.Cog):
                         json.dump(self.bot_uptime, f, indent=2)
                     log("SAVED BOT UPTIME", "UPTIME")
                 except Exception:
-                    await self.bot.owner.send(f"Saving files failed:\n{traceback.format_exc()}")
+                    user = self.bot.get_user(self.bot.owner_id)
+                    await user.send(f"Saving files failed:\n{traceback.format_exc()}")
             else:
                 self.time_counter += 1
             if not sent_file and datetime.now().hour % 2 == 0:  # Backs up all files every 2 hours

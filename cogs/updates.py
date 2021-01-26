@@ -50,7 +50,8 @@ class Updates(commands.Cog):
                     await asyncio.sleep(30)
                 await asyncio.sleep(40)
             except Exception:
-                await self.bot.owner.send(f"Error in background loop: {traceback.format_exc()}")
+                user = self.bot.get_user(self.bot.owner_id)
+                await user.send(f"Error in background loop: {traceback.format_exc()}")
                 log(f"Error in background loop self.bot.py: {traceback.format_exc()}", "BACKGROUND")
                 await asyncio.sleep(10)
 
@@ -78,7 +79,8 @@ class Updates(commands.Cog):
             embed.set_footer(text="(Edited)")
             await message.edit(embed=embed)
         except Exception:
-            await self.bot.owner.send(f"No lesson error: {traceback.format_exc()}")
+            user = self.bot.get_user(self.bot.owner_id)
+            await user.send(f"No lesson error: {traceback.format_exc()}")
 
     async def check_updates(self, channel, cur_time, version):
         start = time.time()
@@ -154,7 +156,8 @@ class Updates(commands.Cog):
                             await msg.publish()
                             send_ping = False
             except Exception:
-                await self.bot.owner.send(f"Lesson{lesson}\nError: {traceback.format_exc()}")
+                user = self.bot.get_user(self.bot.owner_id)
+                await user.send(f"Lesson{lesson}\nError: {traceback.format_exc()}")
 
     def format_exercise(self, version, edited_keys=None):
         topics = {"name": "Name", "date": "Date", "abgabe_date": "Submission Date", "links": "Link"}
