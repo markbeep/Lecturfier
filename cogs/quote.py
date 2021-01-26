@@ -187,9 +187,9 @@ class Quote(commands.Cog):
                         else:  # If the quote is a new quote to add
                             date = datetime.datetime.now(timezone("Europe/Zurich")).strftime("%d/%m/%Y")
 
-                            if len(quote) > 300 and not await self.bot.is_owner(ctx.author):
+                            if len(quote) > 500 and not await self.bot.is_owner(ctx.author):
                                 await ctx.send(
-                                    "This quote exceeds the max_length length of 300 chars. DM Mark if you want the quote added.")
+                                    "This quote exceeds the max_length length of 500 chars. DM Mark if you want the quote added.")
                                 raise discord.ext.commands.errors.NotOwner
 
                             self.quotes[guild_id][name].append([date, quote])
@@ -202,7 +202,8 @@ class Quote(commands.Cog):
                                 log("SAVED QUOTES", "QUOTES")
                             except Exception:
                                 log(f"Saving QUOTES file failed:\n{traceback.format_exc()}", "QUOTES")
-                                await self.bot.owner.send(f"Saving QUOTES file failed:\n{traceback.format_exc()}")
+                                user = self.bot.get_user(self.bot.owner_id)
+                                await user.send(f"Saving QUOTES file failed:\n{traceback.format_exc()}")
 
                             await ctx.send(f"Added quote for {name}")
                     except IndexError:
