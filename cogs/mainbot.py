@@ -8,7 +8,6 @@ class MainBot(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.startup_extensions = [
-            "mainbot",
             "player",
             "statistics",
             "minesweeper",
@@ -20,6 +19,7 @@ class MainBot(commands.Cog):
             "owner",
             "voice",
             "updates",
+            "mainbot",
         ]
 
     @commands.Cog.listener()
