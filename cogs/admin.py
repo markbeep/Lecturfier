@@ -49,7 +49,7 @@ class Admin(commands.Cog):
                     await user.add_roles(role, reason="Reaction role")
                     log(f"Added External role to {str(user)}.", "ROLE")
                     embed = discord.Embed(title="External role added",
-                                          description=f"Added **External** role to {str(user)}", color=0xa52222)
+                                          description=f"Added **External** role to {user.mention}", color=0xa52222)
 
                 # STUDENT reaction
                 elif str(reaction) == "✏":
@@ -57,7 +57,7 @@ class Admin(commands.Cog):
                     await user.add_roles(role, reason="Reaction role")
                     log(f"Added Student role to {str(user)}.", "ROLE")
                     embed = discord.Embed(title="Student role added",
-                                          description=f"Added **Student** role to {str(user)}", color=0xff6c00)
+                                          description=f"Added **Student** role to {user.mention}", color=0xff6c00)
 
                 # TA reaction
                 elif str(reaction) == "🧑‍🏫":
@@ -65,7 +65,7 @@ class Admin(commands.Cog):
                     channel = self.bot.get_channel(747768907992924192)
                     ta_embed = discord.Embed(
                         title="TA REQUEST",
-                        description=f"{str(user)} requests to be a TA\n"
+                        description=f"{user.mention} requests to be a TA\n"
                                     f"<:checkmark:769279808244809798> to accept\n"
                                     f"<:xmark:769279807916998728> to decline",
                         color=discord.Color.gold())
@@ -93,14 +93,14 @@ class Admin(commands.Cog):
         if reaction.message.id in self.ta_request:
             ta_user = reaction.message.guild.get_member(self.ta_request[reaction.message.id])
             if str(reaction) == "<:checkmark:769279808244809798>":
-                embed = discord.Embed(title="Accepted TA Role", description=f"Added **TA** role to {str(ta_user)}",
+                embed = discord.Embed(title="Accepted TA Role", description=f"Added **TA** role to {ta_user.mention}",
                                       color=discord.Color.green())
                 role = discord.Object(767084137361440819)
                 await ta_user.add_roles(role, reason="Accepted TA role")
                 log(f"Added TA role to {str(user)}.", "ROLE")
             elif str(reaction) == "<:xmark:769279807916998728>":
                 embed = discord.Embed(title="Rejected TA Role",
-                                      description=f"Did **not** add TA role to {str(ta_user)}",
+                                      description=f"Did **not** add TA role to {ta_user.mention}",
                                       color=discord.Color.red())
                 log(f"Did NOT add TA role to {str(user)}.", "ROLE")
             else:
