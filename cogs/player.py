@@ -306,6 +306,30 @@ class Player(commands.Cog):
                 await ctx.message.delete()
                 raise discord.ext.commands.errors.BadArgument
 
+    @commands.command()
+    async def guild(self, ctx):
+        guild = ctx.message.guild
+        embed = discord.Embed(title=f"Guild Statistics", color=discord.colour.Color.dark_blue())
+        embed.add_field(name="Categories", value=f"Server Name:\n"
+                                                 f"Server ID:\n"
+                                                 f"Member Count:\n"
+                                                 f"Categories:\n"
+                                                 f"Text Channels:\n"
+                                                 f"Voice Channels:\n"
+                                                 f"Emoji Count / Max emojis:\n"
+                                                 f"Owner:\n"
+                                                 f"Roles:")
+        embed.add_field(name="Values", value=f"{guild.name}\n"
+                                             f"{guild.id}\n"
+                                             f"{guild.member_count}\n"
+                                             f"{len(guild.categories)}\n"
+                                             f"{len(guild.text_channels)}\n"
+                                             f"{len(guild.voice_channels)}\n"
+                                             f"{len(guild.emojis)} / {guild.emoji_limit}\n"
+                                             f"{guild.owner.mention}\n"
+                                             f"{len(guild.roles)}")
+        await ctx.send(embed=embed)
+
     @commands.command(aliases=["source", "code"], usage="info")
     async def info(self, ctx):
         """
