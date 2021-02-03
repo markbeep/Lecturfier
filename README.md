@@ -25,3 +25,6 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
   - MOD - Edit command to check what an edited message was changed from and to
   - MOD - Past nicknames command
   - INFO - Source (inspect) command that displays the source code of a command 
+  - INFO - Have $info display proper instance uptime, not cog uptime.
+  - COVID GUESSER - Update to have it be more gamble. You spend your points which get multiplied depending on how good your guess is.
+  - COVID GUESSER - Display the cases for the past few days.
