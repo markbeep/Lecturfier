@@ -28,4 +28,5 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
   - INFO - Source (inspect) command that displays the source code of a command 
   - INFO - Have $info display proper instance uptime, not cog uptime.
   - COVID GUESSER - Update to have it be more gamble. You spend your points which get multiplied depending on how good your guess is.
+  - COVID GUESSER - Amount you win depends on the main pot (the amount that was put in from all players)
   - COVID GUESSER - Display the cases for the past few days.
