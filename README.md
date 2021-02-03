@@ -17,6 +17,7 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
   - CHANGELOG - Create a changelog command that shows the past commit messages (and per command basis)  
   - EVENTS - See all upcomming Discord community events and in how many days (Each user can add a max of 1 event and will be marked as the host of said event)
   - HELP - Change cog versions to last modified file change instead of last commit
+  - USABILITY - Make wrongly typed commands (or in `man`) be checked up using `difflib.get_close_matches` to find best match (Did you mean "..."?)
   - Q&A - Q&A channel/embed that users can submit questions which creates an embed and people can submit answers with a command that updates the embed
   - LOG - Use a proper reliable logging library instead of some quick self-made thing
   - RELIABILITY - Change reactions in #welcome to raw-reactions as well as make stats also raw (deleted_messages as well as reactions added/removed)
