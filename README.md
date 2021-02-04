@@ -10,4 +10,6 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
 ## Progress View
 [Click Here](https://github.com/markbeep/Lecturfier/projects/1)
 
+
+## 
 <img src="https://i.imgur.com/RiUvcML.jpg" width="460"/>
