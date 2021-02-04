@@ -9,33 +9,5 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
   - Stores quotes
   - and much much more
 
-## HIGH PRIORITY TODO
-  - LECTURE UPDATES - update lecture updates to work with the new sites to come
-  - WELCOME - Update welcome message to work with new verifying system.
-  - RELIABILITY - Additionally make reaction events all be on raw_reactions
-
-
-## BRAINSTORM IDEAS 
-  - LECTURE UPDATES - lecture updates per semester
-  - DB - Move from unreliant json to a reliant SQL db (maybe using peewee)
-  - UPTIME - Make an actual working uptime logger
-  - ACTIVITY LOGGER - Keep track how much a user is chatting on the server (timewise)
-  - CHANGELOG - Create a changelog command that shows the past commit messages (and per command basis)  
-  - EVENTS - See all upcomming Discord community events and in how many days (Each user can add a max of 1 event and will be marked as the host of said event)
-  - HELP - Change cog versions to last modified file change instead of last commit
-  - HELP - Create a proper `man` command to get manual for all users
-  - TODO - Easily add things to TODO list using a bot command.
-  - USABILITY - Make wrongly typed commands (or in `man`) be checked up using `difflib.get_close_matches` to find best match (Did you mean "..."?)
-  - Q&A - Q&A channel/embed that users can submit questions which creates an embed and people can submit answers with a command that updates the embed
-  - LOG - Use a proper reliable logging library instead of some quick self-made thing
-  - RELIABILITY - Change reactions in #welcome to raw-reactions as well as make stats also raw (deleted_messages as well as reactions added/removed)
-  - PERMS - Add a wrapper around commands to easily enable/disable commands per server
-  - PERMS - Select what roles (maybe even user sepecific) should be able to use what command on a per server basis
-  - MOD - Edit command to check what an edited message was changed from and to
-  - MOD - Past nicknames command
-  - INFO - Source (inspect) command that displays the source code of a command 
-  - INFO - Have $info display proper instance uptime, not cog uptime.
-  - INFO - $info should say Discord.py version, not "Rewrite".
-  - COVID GUESSER - Update to have it be more gamble. You spend your points which get multiplied depending on how good your guess is.
-  - COVID GUESSER - Amount you win depends on the main pot (the amount that was put in from all players)
-  - COVID GUESSER - Display the cases for the past few days.
+## Progress View
+[Click Here](https://github.com/markbeep/Lecturfier/projects/1)
