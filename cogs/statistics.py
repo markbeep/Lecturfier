@@ -95,7 +95,7 @@ class Statistics(commands.Cog):
         except AttributeError:
             guild_obj = None
 
-        SUBJECT_ID = 1
+        SUBJECT_ID = 0
 
         # Increments sent message count
         result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "MessageSentCount", "UserMessageStatistic")
