@@ -40,7 +40,7 @@ class Statistics(commands.Cog):
             self.time_heartbeat = time.time()
 
             # Backs up all files every 2 hours
-            if not sent_file or datetime.now().hour % 2 == 0:
+            if not sent_file and datetime.now().hour % 2 == 0:
                 # Backs the data files up to github
                 with open("./data/settings.json", "r") as f:
                     settings = json.load(f)
