@@ -1,6 +1,7 @@
 import os
 import json
 from helper.log import log
+from helper import handySQL
 
 
 def createFiles():
@@ -9,7 +10,7 @@ def createFiles():
     :return: None
     """
     keyword = "FILE"
-    file_list = ["quotes", "reputation", "statistics", "ignored_users", "ignored_channels", "levels", "covid_points", "bot_prefix", "bot_uptime", "guesses", "versions"]
+    file_list = ["quotes", "reputation", "ignored_users", "ignored_channels", "covid_points", "bot_prefix", "guesses", "versions"]
     website_list = ["ad", "dm", "ep", "la"]
     stop = False
 
@@ -55,6 +56,11 @@ def createFiles():
         stop = True
         with open("../LECTURFIER.json", "w") as f:
             f.write('{"token":""}')
+
+    if not os.path.exists("./data/discord.db"):
+        print("Creating DB tables")
+        handySQL.create_all_tables("./data/discord.db")
+        print("Created DB tables successfully")
 
     if not os.path.exists("./data/settings.json"):
         log("Creating settings.json", keyword)

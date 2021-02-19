@@ -18,13 +18,15 @@ class Help(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        await self.update_versions()
+        pass
+        # Not needed right now
+        # await self.update_versions()
 
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot:
             return
-        if message.content.startswith("man "):
+        if message.content.startswith("man ") and False:  # not yet implemented, so set to False
             args = message.content.split(" ")
             args.pop(0)
             modifiers = []
@@ -73,13 +75,8 @@ class Help(commands.Cog):
         specific_command, sorted_commands = await self.get_specific_com(specific_command)
 
         if specific_command is None:
-            # file = discord.File("./readme_images/help_page.png")
-            embed = discord.Embed(description="""██╗░░██╗███████╗██╗░░░░░██████╗░
-██║░░██║██╔════╝██║░░░░░██╔══██╗
-███████║█████╗░░██║░░░░░██████╔╝
-██╔══██║██╔══╝░░██║░░░░░██╔═══╝░
-██║░░██║███████╗███████╗██║░░░░░
-╚═╝░░╚═╝╚══════╝╚══════╝╚═╝░░░░░""", color=0x245C84)
+            file = discord.File("./images/help_page.gif")
+            embed = discord.Embed(color=0xcbd3d7)
 
             sorted_commands = self.sort_by_dict_size(sorted_commands)
             for key in sorted_commands.keys():
@@ -89,7 +86,8 @@ class Help(commands.Cog):
                 if version_key in self.versions:
                     version = self.versions[version_key]
                 msg = ""
-                msg += f"```asciidoc\n= {key} =\n{version}\n=======\n"
+                # msg += f"```asciidoc\n= {key} =\n{version}\n=======\n" # old
+                msg += f"```asciidoc\n"
                 for com in sorted_commands[key]:
                     if com.help is None:
                         prefix = "-"
@@ -97,9 +95,9 @@ class Help(commands.Cog):
                         prefix = "*"
                     msg += f"{prefix} {com}\n"
                 msg += "```"
-                embed.add_field(name="\u200b", value=msg)
+                embed.add_field(name=key, value=msg)
                 embed.set_footer(text="Commands with a star (*) have extra info when viewed with $help <command>")
-            await ctx.send(embed=embed)
+            await ctx.send(file=file, embed=embed)
         else:
             embed = await self.command_help(specific_command)
             if embed == "":
@@ -138,11 +136,12 @@ class Help(commands.Cog):
         aliases_msg = f"- {f'{nl}- '.join(aliases)}"
         if aliases_msg == "- ":
             aliases_msg = "none"
-        embed = discord.Embed(title=specific_command.name, color=0x245C84)
+        embed = discord.Embed(title=specific_command.name, color=0xcbd3d7)
         embed.add_field(name="Info", value=help_msg.replace("Permissions:", "\n**Permissions:**"), inline=False)
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Aliases =\n{aliases_msg}```")
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Permissions =\n{permissions}```")
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Usage =\n{self.prefix}{usage}```", inline=False)
+        print(help_msg)
         embed.set_thumbnail(url=self.bot.user.avatar_url)
         return embed
 

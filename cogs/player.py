@@ -17,8 +17,6 @@ import asyncio
 from pytz import timezone
 
 
-# TODO Source command that displays the source code of a command using the inspect library
-# labels: idea
 class Player(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -84,9 +82,6 @@ class Player(commands.Cog):
             if message.content == "Hello there <@!755781649643470868>":
                 await message.channel.send("General kenobi <@!306523617188118528>")
             return
-        if "<@!755781649643470868>" in message.content:
-            for i in range(5):
-                await message.author.send(message.author.mention)
         if time.time() - self.time > 10:
             self.clap_counter = 0
         if "👏" in message.content:
@@ -306,8 +301,11 @@ class Player(commands.Cog):
                 await ctx.message.delete()
                 raise discord.ext.commands.errors.BadArgument
 
-    @commands.command()
+    @commands.command(usage="guild")
     async def guild(self, ctx):
+        """
+        Used to display information about the server.
+        """
         guild = ctx.message.guild
         embed = discord.Embed(title=f"Guild Statistics", color=discord.colour.Color.dark_blue())
         embed.add_field(name="Categories", value=f"Server Name:\n"

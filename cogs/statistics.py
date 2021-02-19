@@ -1,13 +1,10 @@
 import discord
 from discord.ext import commands
 from datetime import datetime
-from pytz import timezone
 import time
 import asyncio
-import json
 from emoji import demojize
-import traceback
-from helper.log import log
+import json
 from helper.git_backup import gitpush
 from helper import handySQL
 
@@ -23,9 +20,6 @@ class Statistics(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.script_start = 0
-        self.bot_uptime_path = "./data/bot_uptime.json"
-        with open(self.bot_uptime_path, "r") as f:
-            self.bot_uptime = json.load(f)
         self.waiting = False
         self.time_counter = 0  # So statistics dont get saved every few seconds, and instead only every 2 mins
         self.bot_changed_to_yesterday = {}
@@ -46,7 +40,7 @@ class Statistics(commands.Cog):
             self.time_heartbeat = time.time()
 
             # Backs up all files every 2 hours
-            if not sent_file and datetime.now().hour % 2 == 0:
+            if not sent_file or datetime.now().hour % 2 == 0:
                 # Backs the data files up to github
                 with open("./data/settings.json", "r") as f:
                     settings = json.load(f)
@@ -160,29 +154,6 @@ class Statistics(commands.Cog):
                 print(f"ERROR! ImageCount: {result[2]} | UserID: {message.author.id}")
 
         conn.close()
-
-    async def user_checkup(self, message=None, reaction=None, user=None):
-        if message is not None and user is None:
-            author_id = message.author.id
-        if reaction is not None:
-            message = reaction.message
-            author_id = user.id
-        if user is not None:
-            author_id = user.id
-
-        # If the guild doesnt exist in statistics yet
-        if str(message.guild.id) not in self.statistics:
-            self.statistics[str(message.guild.id)] = {}
-
-        # If the check doesnt exist in statistics yet
-        for check in self.checks:
-            if check not in self.statistics[str(message.guild.id)]:
-                self.statistics[str(message.guild.id)][check] = {}
-
-        # If the user doesnt exist in statistics yet
-        for check in self.checks:
-            if str(author_id) not in self.statistics[str(message.guild.id)][check]:
-                self.statistics[str(message.guild.id)][check][str(author_id)] = 0
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
@@ -355,7 +326,11 @@ class Statistics(commands.Cog):
                 continue
             lb_msg = ""
             for i in range(len(rows)):
-                lb_msg += f"**{i+1}.** <@!{rows[i][0]}> *({rows[i][1]})*\n"
+                val = rows[i][1]
+                if column == "FileTotalSize":
+                    val = round(val / 1000000.0, 2)
+                    val = f"{val} MB"
+                lb_msg += f"**{i+1}.** <@!{rows[i][0]}> *({val})*\n"
             embed.add_field(name=column, value=lb_msg)
         for column in reaction_columns:
             rows = await self.get_rows(column, "UserReactionStatistic", guild_id, limit)
@@ -403,7 +378,6 @@ class Statistics(commands.Cog):
             user_reaction_val = is_in(user, reaction_columns)
 
         if user is None:
-            await self.user_checkup(message=ctx.message)
             embed = await self.create_embed(ctx.message.author.display_name, guild_id, ctx.message.author.id, message_columns, reaction_columns)
             await ctx.send(embed=embed)
         elif user == "top":

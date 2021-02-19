@@ -6,7 +6,8 @@ import inspect
 import os
 import time
 from cogs import admin, hangman, help, updates, minesweeper, owner, player, quote, reputation, statistics, voice
-
+import json
+from helper import handySQL
 
 class Owner(commands.Cog):
     def __init__(self, bot):
@@ -27,6 +28,104 @@ class Owner(commands.Cog):
             return "<:red_box:764901465872662528>"*bars  # Red square
         else:
             return "<:green_box:764901465948684289>"*bars  # Green square
+
+    @commands.command(usage="moveToDB")
+    async def moveToDB(self, ctx, file=""):
+        db_path = "./data/discord.db"
+        conn = handySQL.create_connection(db_path)
+        if await self.bot.is_owner(ctx.author):
+            if file == "levels":
+                with open("./data/levels.json", "r") as f:
+                    levels = json.load(f)
+                for guild_id in levels:
+                    count = 0
+                    guild_obj = self.bot.get_guild(int(guild_id))
+                    if guild_obj is None:
+                        print(f"Didn't find Guild with ID: {guild_id}")
+                        continue
+                    for member_id in levels[guild_id]:
+                        if member_id == "on":
+                            continue
+                        member_obj = guild_obj.get_member(int(member_id))
+                        if member_obj is None:
+                            print(f"Didn't find Member with ID: {member_id}")
+                            continue
+
+                        handySQL.create_voice_level_entry(conn, member_obj, guild_obj)
+                        uniqueID = handySQL.get_uniqueMemberID(conn, member_id, guild_id)
+                        conn.execute("UPDATE VoiceLevels SET ExperienceAmount=? WHERE UniqueMemberID=?", (levels[guild_id][member_id], uniqueID))
+                        conn.commit()
+                        count += 1
+                    await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
+            elif file == "statistics":
+                with open("./data/statistics.json", "r") as f:
+                    statistics = json.load(f)
+                for guild in statistics:
+                    guild_obj = self.bot.get_guild(int(guild))
+                    if guild_obj is None:
+                        print(f"Didn't find Guild with ID: {guild}")
+                        continue
+                    count = 0
+                    for member in statistics[guild]["messages_sent"]:
+                        member_obj = guild_obj.get_member(int(member))
+                        if member_obj is None:
+                            print(f"Didn't find Member with ID: {member}")
+                            continue
+                        # Create DB entries
+                        msg_result = handySQL.create_message_statistic_entry(conn, member_obj, guild_obj, 0, "UserMessageStatistic")
+                        reaction_result = handySQL.create_message_statistic_entry(conn, member_obj, guild_obj, 0, "UserReactionStatistic")
+                        uniqueID = handySQL.get_uniqueMemberID(conn, member, guild)
+                        sql = """   UPDATE UserMessageStatistic
+                                    SET
+                                        MessageSentCount=?,
+                                        MessageDeletedCount=?,
+                                        MessageEditedCount=?,
+                                        CharacterCount=?,
+                                        WordCount=?,
+                                        SpoilerCount=?,
+                                        EmojiCount=?,
+                                        FileSentCount=?
+                                    WHERE UniqueMemberID=? AND SubjectID=0
+                                    """
+                        s = statistics[guild]
+                        for v in ("messages_sent", "messages_deleted", "messages_edited", "chars_sent", "words_sent", "spoilers", "emojis", "files_sent", "reactions_added", "reactions_received"):
+                            if member not in s[v]:
+                                s[v][member] = 0
+                        conn.execute(sql, (
+                            s["messages_sent"][member],
+                            s["messages_deleted"][member],
+                            s["messages_edited"][member],
+                            s["chars_sent"][member],
+                            s["words_sent"][member],
+                            s["spoilers"][member],
+                            s["emojis"][member],
+                            s["files_sent"][member],
+                            uniqueID
+                        ))
+                        sql = """   UPDATE UserReactionStatistic
+                                    SET
+                                        ReactionAddedCount=?,
+                                        GottenReactionCount=?
+                                    WHERE UniqueMemberID=? AND SubjectID=0"""
+                        conn.execute(sql, (
+                            s["reactions_added"][member],
+                            s["reactions_received"][member],
+                            uniqueID
+                        ))
+                        conn.commit()
+                        if not msg_result[0]:
+                            print(f"Message {msg_result[2]}")
+                        if not reaction_result[0]:
+                            print(f"Reaction {reaction_result[2]}")
+                        if reaction_result[0] and msg_result[0]:
+                            count += 1
+                    await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
+
+
+            else:
+                await ctx.send("Unknown file")
+        else:
+            raise discord.ext.commands.errors.NotOwner
 
     @commands.command(usage="bully <user>")
     async def bully(self, ctx, user=None):
@@ -69,7 +168,7 @@ class Owner(commands.Cog):
         if await self.bot.is_owner(ctx.author):
             all_loops = {
                 "Lecture Updates Loop": self.bot.get_cog("Updates").heartbeat(),
-                "Statistics file save Loop": self.bot.get_cog("Statistics").heartbeat(),
+                "Git Backup Loop": self.bot.get_cog("Statistics").heartbeat(),
                 "Voice XP track Loop": self.bot.get_cog("Voice").heartbeat(),
                 "COVID Web Scraper": self.bot.get_cog("Player").heartbeat()
             }

@@ -8,14 +8,6 @@ import json
 import time
 
 
-# TODO Add a wrapper around commands to easily enable/disable commands per server
-# labels: ADMIN
-# TODO Select what roles (maybe even user sepecific) should be able to use what command on a per server basis
-# labels: ADMIN
-# TODO Edit command to check what an edited message was changed from and to
-# labels: ADMIN
-# TODO Past nicknames command
-# labels: ADMIN
 class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -140,7 +132,10 @@ class Admin(commands.Cog):
             )
 
         embed.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
-        await channel.send(embed=embed)
+        try:
+            await channel.send(embed=embed)
+        except AttributeError:
+            print("Can't send deleted message")
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -186,9 +181,16 @@ class Admin(commands.Cog):
             await ctx.send("Unrecognized command.", delete_after=7)
             raise discord.ext.commands.errors.BadArgument
 
-    @commands.command(aliases=["secret"])
+    @commands.command(aliases=["secret"], usage="elthision [time in seconds] [delete after in seconds]")
     @commands.has_permissions(administrator=True)
     async def elthision(self, ctx, seconds=10, delete=2.0):
+        """
+        Deletes messages after the given seconds for the next given amount of seconds.
+        Default is for 10 seconds and deletes messages after 2.0 seconds.
+
+        `elthision 20 1.5` will delete all messages after 1.5 seconds for the next 20 seconds.
+        Permissions: Administrator
+        """
         self.secret_channels[ctx.message.channel.id] = [time.time() + seconds, delete]
         await ctx.send(f"All messages will be deleted after {delete} seconds for the next `{seconds}` seconds.\n"+"<:that:758262252699779073>"*10)
         await asyncio.sleep(seconds)
@@ -197,13 +199,15 @@ class Admin(commands.Cog):
             await ctx.send("<:elthision:787256721508401152>\n"+"<:this:747783377662378004>"*10+"\nMessages are not Elthision anymore.")
 
     @commands.command(usage="testWelcome")
-    @commands.has_permissions(administrator=True)
     async def testWelcome(self, ctx):
         """
         Is used to test the welcome message when a new member joins the server.
         Permissions: Administrator
         """
-        await self.send_welcome_message(ctx, ctx.author, ctx.message.guild)
+        if await self.bot.is_owner(ctx.author):
+            await self.send_welcome_message(ctx, ctx.author, ctx.message.guild)
+        else:
+            raise discord.ext.commands.errors.NotOwner
 
     async def send_welcome_message(self, channel, user, guild):
         msg = f"Welcome {user.mention}!\n " \
