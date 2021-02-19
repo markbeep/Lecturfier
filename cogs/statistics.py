@@ -9,87 +9,29 @@ from emoji import demojize
 import traceback
 from helper.log import log
 from helper.git_backup import gitpush
+from helper import handySQL
 
 
-# TODO make on_message_delete and on_reaction_add raw
-# labels: STATISTICS
+def is_in(word, list_to_check):
+    for v in list_to_check:
+        if word.lower() == v.lower():
+            return v
+    return False
+
+
 class Statistics(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.script_start = 0
-        self.checks = [
-            "messages_sent",            # DONE
-            "messages_deleted",         # DONE
-            "messages_edited",          # DONE
-            "chars_sent",               # DONE
-            "words_sent",               # DONE
-            "spoilers",                 # DONE
-            "emojis",                   # DONE
-            "msgs_during_lecture",      # DONE
-            "msgs_during_ep",           # DONE
-            "msgs_during_dm",           # DONE
-            "msgs_during_la",           # DONE
-            "msgs_during_ad",           # DONE
-            "reactions_added",          # DONE
-            "files_sent",               # DONE
-            "gifs_sent",                # DONE
-            "reactions_received",       # DONE
-            "commands_used"             # Only Lecturfier
-
-        ]
-        self.checks_full_name = {
-            "messages_sent": "Messages sent",
-            "messages_deleted": "Messages deleted",
-            "messages_edited": "Messages edited",
-            "chars_sent": "Characters sent",
-            "words_sent": "Words sent",
-            "spoilers": "Spoilers sent",
-            "emojis": "Emojis used",
-            "files_sent": "Files sent",
-            "gifs_sent": "GIFs sent",
-            "reactions_received": "Reactions received",
-            "commands_used": "Bot usage",
-            "msgs_during_lecture": "Messages / lectures",
-            "msgs_during_ep": "Messages / EProg",
-            "msgs_during_dm": "Messages / DiscMat",
-            "msgs_during_la": "Messages / LinAlg",
-            "msgs_during_ad": "Messages / AnD",
-            "reactions_added": "Reactions added"
-        }
-        self.lesson_times = {
-            "ep":
-                {
-                    "Tue": [10, 12],
-                    "Fri": [8, 10]
-                 },
-            "dm":
-                {
-                    "Tue": [12, 14],
-                    "Wed": [12, 14]
-                },
-            "la":
-                {
-                    "Wed": [10, 12],
-                    "Fri": [10, 12]
-                },
-            "ad":
-                {
-                    "Thu": [14, 17]
-                }
-        }
         self.bot_uptime_path = "./data/bot_uptime.json"
         with open(self.bot_uptime_path, "r") as f:
             self.bot_uptime = json.load(f)
-        self.statistics_filepath = "./data/statistics.json"
-        with open(self.statistics_filepath, "r") as f:
-            self.statistics = json.load(f)
         self.waiting = False
         self.time_counter = 0  # So statistics dont get saved every few seconds, and instead only every 2 mins
-        self.notice_message = 0  # The message that notifies others about joining the spam channel
-        self.recent_message = []
         self.bot_changed_to_yesterday = {}
         self.time_heartbeat = 0
-        self.task = self.bot.loop.create_task(self.background_save_statistics())
+        self.db_path = "./data/discord.db"
+        self.task = self.bot.loop.create_task(self.background_git_backup())
 
     def heartbeat(self):
         return self.time_heartbeat
@@ -97,27 +39,14 @@ class Statistics(commands.Cog):
     def get_task(self):
         return self.task
 
-    async def background_save_statistics(self):
+    async def background_git_backup(self):
         sent_file = False
         await self.bot.wait_until_ready()
-        start_time = time.perf_counter()
         while not self.bot.is_closed():
             self.time_heartbeat = time.time()
-            if self.time_counter >= 6:  # Saves the statistics file every minute
-                self.time_counter = 0
-                try:
-                    with open(self.statistics_filepath, "w") as f:
-                        json.dump(self.statistics, f, indent=2)
-                    log("SAVED STATISTICS", "STATISTICS")
-                    with open(self.bot_uptime_path, "w") as f:
-                        json.dump(self.bot_uptime, f, indent=2)
-                    log("SAVED BOT UPTIME", "UPTIME")
-                except Exception:
-                    user = self.bot.get_user(self.bot.owner_id)
-                    await user.send(f"Saving files failed:\n{traceback.format_exc()}")
-            else:
-                self.time_counter += 1
-            if not sent_file and datetime.now().hour % 2 == 0:  # Backs up all files every 2 hours
+
+            # Backs up all files every 2 hours
+            if not sent_file and datetime.now().hour % 2 == 0:
                 # Backs the data files up to github
                 with open("./data/settings.json", "r") as f:
                     settings = json.load(f)
@@ -132,50 +61,6 @@ class Statistics(commands.Cog):
                 sent_file = False
 
             await asyncio.sleep(10)
-            time_taken = time.perf_counter() - start_time
-
-            await self.is_bot_running(747752542741725244, time_taken)
-            await self.is_bot_running(237607896626495498, time_taken)
-            start_time = time.perf_counter()
-
-    async def is_bot_running(self, guild_id, time_taken):
-        guild = self.bot.get_guild(guild_id)
-        hour_min = datetime.now(timezone("Europe/Zurich")).strftime("%H:%M")
-        day = datetime.now(timezone("Europe/Zurich")).strftime("%w")
-        if guild is not None:
-            for u in guild.members:
-                if str(u.status) != "offline":
-                    await self.add_uptime(guild_id, u.id, hour_min, day, time_taken)
-
-    async def add_uptime(self, guild_id, bot_id, hour_min, day, time_taken):
-        guild_id = str(guild_id)
-        bot_id = str(bot_id)
-        if guild_id not in self.bot_uptime:
-            self.bot_uptime[guild_id] = {}
-        if bot_id not in self.bot_uptime[guild_id]:
-            self.bot_uptime[guild_id][bot_id] = {"day": time_taken, "yesterday": 0, "week": time_taken, "past_week": 0, "total": time_taken, "start": time.time()}
-        self.bot_uptime[guild_id][bot_id]["day"] += time_taken
-        self.bot_uptime[guild_id][bot_id]["week"] += time_taken
-        self.bot_uptime[guild_id][bot_id]["total"] += time_taken
-
-        if bot_id in self.bot_changed_to_yesterday and self.bot_changed_to_yesterday[bot_id] > time.time() - 300:
-            pass
-        elif hour_min == "23:59":
-            if day == "0":  # if sunday
-                self.bot_uptime[guild_id][bot_id]["past_week"] = self.bot_uptime[guild_id][bot_id]["week"]
-                self.bot_uptime[guild_id][bot_id]["week"] = 0
-            self.bot_uptime[guild_id][bot_id]["yesterday"] = self.bot_uptime[guild_id][bot_id]["day"]
-            self.bot_uptime[guild_id][bot_id]["day"] = 0
-            self.bot_changed_to_yesterday[bot_id] = time.time()
-
-    async def get_uptime(self, guild_id, bot_id, data_range):
-        guild_id = str(guild_id)
-        bot_id = str(bot_id)
-        if guild_id not in self.bot_uptime or bot_id not in self.bot_uptime[guild_id]:
-            return 0
-        if data_range not in self.bot_uptime[guild_id][bot_id]:
-            self.bot_uptime[guild_id][bot_id][data_range] = 0
-        return self.bot_uptime[guild_id][bot_id][data_range]
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
@@ -184,7 +69,6 @@ class Statistics(commands.Cog):
         if ctx.message.author.bot:
             return
         else:
-            self.recent_message.append(ctx.message.author.id)
             try:
                 await ctx.message.add_reaction("<:ERROR:792154973559455774>")
             except discord.errors.NotFound:
@@ -200,7 +84,6 @@ class Statistics(commands.Cog):
                 await ctx.message.add_reaction("<:checkmark:776717335242211329>")
             except discord.errors.NotFound:
                 pass
-            self.statistics[str(ctx.message.guild.id)]["commands_used"][str(ctx.message.author.id)] += 1
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -208,51 +91,75 @@ class Statistics(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if "@everyone" in message.content.lower():
-            return
-        if message.author.bot:
-            return
+        # Creates a connection with the DB
+        conn = handySQL.create_connection(self.db_path)
+        # Adds the message to the DB
+        handySQL.create_message_entry(conn, message, message.channel, message.guild)
         try:
-            if message.author.id in self.recent_message:
-                return
-            self.recent_message.append(message.author.id)
-
-            await self.user_checkup(message)
-
-            msg = demojize(message.content)
-            self.statistics[str(message.guild.id)]["messages_sent"][str(message.author.id)] += 1
-            self.statistics[str(message.guild.id)]["chars_sent"][str(message.author.id)] += len(msg)
-            self.statistics[str(message.guild.id)]["words_sent"][str(message.author.id)] += len(msg.split(" "))
-
-            # Amount of emojis in a message
-            emoji_amt = msg.count(":") // 2
-            if emoji_amt > 5:
-                emoji_amt = 5
-            self.statistics[str(message.guild.id)]["emojis"][str(message.author.id)] += emoji_amt
-
-            # Amount of spoilers in a message
-            spoiler_amt = msg.count("||") // 2
-            if spoiler_amt > 5:
-                spoiler_amt = 5
-            self.statistics[str(message.guild.id)]["spoilers"][str(message.author.id)] += spoiler_amt
-
-            self.statistics[str(message.guild.id)]["gifs_sent"][str(message.author.id)] += msg.count("giphy") + msg.count("tenor") + msg.count(".gif")
-
-            if len(message.attachments) > 0:
-                self.statistics[str(message.guild.id)]["files_sent"][str(message.author.id)] += len(message.attachments)
-
-            cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H").split(":")
-
-            for key in self.lesson_times.keys():
-                if cur_time[0] in self.lesson_times[key]:
-                    if self.lesson_times[key][cur_time[0]][0] <= int(cur_time[1]) <= self.lesson_times[key][cur_time[0]][1]:
-                        self.statistics[str(message.guild.id)][f"msgs_during_{key}"][str(message.author.id)] += 1
-                        self.statistics[str(message.guild.id)]["msgs_during_lecture"][str(message.author.id)] += 1
-
-            await asyncio.sleep(5)
-            self.recent_message.pop(self.recent_message.index(message.author.id))
+            # This is in case a message is a direct message
+            guild_obj = message.guild
         except AttributeError:
-            pass
+            guild_obj = None
+
+        SUBJECT_ID = 1
+
+        # Increments sent message count
+        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "MessageSentCount", "UserMessageStatistic")
+        if not result[0]:
+            print(f"ERROR! MessageSentCount: {result[2]} | UserID: {message.author.id}")
+
+        # Increments character count
+        msg = demojize(message.content)
+        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "CharacterCount", "UserMessageStatistic", len(msg))
+        if not result[0]:
+            print(f"ERROR! CharacterCount: {result[2]} | UserID: {message.author.id}")
+
+        # Increments word count
+        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "WordCount", "UserMessageStatistic",
+                                                      len(msg.split(" ")))
+        if not result[0]:
+            print(f"ERROR! WordCount: {result[2]} | UserID: {message.author.id}")
+
+        # Increments emoji count
+        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "EmojiCount", "UserMessageStatistic",
+                                                      (msg.count(":") // 2))
+        if not result[0]:
+            print(f"ERROR! EmojiCount: {result[2]} | UserID: {message.author.id}")
+
+        # Increments spoiler count
+        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "SpoilerCount", "UserMessageStatistic",
+                                                      (msg.count("||") // 2))
+        if not result[0]:
+            print(f"ERROR! SpoilerCount: {result[2]} | UserID: {message.author.id}")
+
+        # File Statistics
+        if len(message.attachments) > 0:
+            # Increments files sent count
+            result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "FileSentCount", "UserMessageStatistic",
+                                                          len(message.attachments))
+            if not result[0]:
+                print(f"ERROR! FileSentCount: {result[2]} | UserID: {message.author.id}")
+
+            file_sizes = 0
+            images_amt = 0
+            for f in message.attachments:
+                file_sizes += f.size
+                if f.height is not None and f.height > 0:
+                    images_amt += 1
+
+            # Increments total file size count
+            result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "FileTotalSize", "UserMessageStatistic",
+                                                          file_sizes)
+            if not result[0]:
+                print(f"ERROR! FileSentCount: {result[2]} | UserID: {message.author.id}")
+
+            # Increments images sent count
+            result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "ImageCount", "UserMessageStatistic",
+                                                          images_amt)
+            if not result[0]:
+                print(f"ERROR! ImageCount: {result[2]} | UserID: {message.author.id}")
+
+        conn.close()
 
     async def user_checkup(self, message=None, reaction=None, user=None):
         if message is not None and user is None:
@@ -279,62 +186,186 @@ class Statistics(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
+        # Update messages to be "deleted"
+        conn = handySQL.create_connection(self.db_path)
+        c = conn.cursor()
+        c.execute("UPDATE DiscordMessages SET IsDeleted=1, DeletedAt=? WHERE DiscordMessageID=?", (datetime.now(), message.id))
+        conn.commit()
+
         try:
-            if message.author.bot:
-                return
-            await self.user_checkup(message)
-            self.statistics[str(message.guild.id)]["messages_deleted"][str(message.author.id)] += 1
+            # This is in case a message is a direct message
+            guild_obj = message.guild
         except AttributeError:
-            pass
+            guild_obj = None
+
+        SUBJECT_ID = 0
+
+        # Increments deleted message count
+        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "MessageDeletedCount", "UserMessageStatistic")
+        if not result[0]:
+            print(f"ERROR! MessageDeletedCount: {result[2]} | UserID: {message.author.id}")
+
+        conn.close()
 
     @commands.Cog.listener()
     async def on_message_edit(self, before, message):
+        # Adds the edited message to the table
+        conn = handySQL.create_connection(self.db_path)
+        c = conn.cursor()
+        c.execute("SELECT IsEdited FROM DiscordMessages WHERE DiscordMessageID=? ORDER BY IsEdited DESC", (message.id,))
+        result = c.fetchone()
+        if result is not None:
+            IsEdited = result[0]
+            handySQL.create_message_entry(conn, message, message.channel, message.guild, IsEdited + 1)
+
         try:
-            if message.author.bot:
-                return
-            await self.user_checkup(message)
-            self.statistics[str(message.guild.id)]["messages_edited"][str(message.author.id)] += 1
+            # This is in case a message is a direct message
+            guild_obj = message.guild
         except AttributeError:
-            pass
+            guild_obj = None
+
+        SUBJECT_ID = 0
+
+        # Increments edited message count
+        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "MessageEditedCount", "UserMessageStatistic")
+        if not result[0]:
+            print(f"ERROR! MessageEditedCount: {result[2]} | UserID: {message.author.id}")
+
+        conn.close()
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
+        conn = handySQL.create_connection(self.db_path)
+
         try:
-            # Reactions added
-            if user.bot or reaction.message.author.bot:
-                return
-
-            await self.user_checkup(reaction=reaction, user=user)
-            self.statistics[str(reaction.message.guild.id)]["reactions_added"][str(user.id)] += 1
-
-            # Reactions on own message
-            if reaction.message.author.id == user.id:
-                return
-            await self.user_checkup(message=reaction.message)
-            self.statistics[str(reaction.message.guild.id)]["reactions_received"][str(reaction.message.author.id)] += 1
+            # This is in case a message is a direct message
+            guild_obj = reaction.message.guild
         except AttributeError:
-            pass
+            guild_obj = None
+
+        SUBJECT_ID = 0
+
+        # Increments added reaction count for reaction giver
+        result = handySQL.increment_message_statistic(conn, user, guild_obj, SUBJECT_ID, "ReactionAddedCount", "UserReactionStatistic")
+        if not result[0]:
+            print(f"ERROR! ReactionAddedCount: {result[2]} | UserID: {user.id}")
+
+        # User can't up the statistic on his own message
+        if user.id == reaction.message.author.id:
+            return
+
+        # Increments gotten reaction count for reaction receiver
+        result = handySQL.increment_message_statistic(conn, reaction.message.author, guild_obj, SUBJECT_ID, "GottenReactionCount",
+                                                      "UserReactionStatistic")
+        if not result[0]:
+            print(f"ERROR! GottenReactionCount: {result[2]} | UserID: {user.id}")
+
+        conn.close()
 
     @commands.Cog.listener()
     async def on_reaction_remove(self, reaction, user):
-        try:
-            if user.bot:
-                return
-            # Reactions added
-            await self.user_checkup(reaction=reaction, user=user)
-            self.statistics[str(reaction.message.guild.id)]["reactions_added"][str(user.id)] -= 1
-            if self.statistics[str(reaction.message.guild.id)]["reactions_added"][str(user.id)] < 0:
-                self.statistics[str(reaction.message.guild.id)]["reactions_added"][str(user.id)] = 0
+        conn = handySQL.create_connection(self.db_path)
 
-            # Reactions on own message
-            if reaction.message.author.id == user.id:
-                return
-            await self.user_checkup(message=reaction.message)
-            self.statistics[str(reaction.message.guild.id)]["reactions_received"][str(reaction.message.author.id)] -= 1
-            if self.statistics[str(reaction.message.guild.id)]["reactions_received"][str(reaction.message.author.id)] < 0:
-                self.statistics[str(reaction.message.guild.id)]["reactions_received"][str(reaction.message.author.id)] = 0
+        try:
+            # This is in case a message is a direct message
+            guild_obj = reaction.message.guild
         except AttributeError:
-            pass
+            guild_obj = None
+
+        SUBJECT_ID = 0
+
+        # Increments removed reaction count for reaction giver
+        result = handySQL.increment_message_statistic(conn, user, guild_obj, SUBJECT_ID, "ReactionRemovedCount", "UserReactionStatistic")
+        if not result[0]:
+            print(f"ERROR! ReactionRemovedCount: {result[2]} | UserID: {user.id}")
+
+        # User can't up the statistic on his own message
+        if user.id == reaction.message.author.id:
+            return
+
+        # Increments removed gotten reaction count for reaction receiver
+        result = handySQL.increment_message_statistic(conn, reaction.message.author, guild_obj, SUBJECT_ID, "GottenReactionRemovedCount",
+                                                      "UserReactionStatistic")
+        if not result[0]:
+            print(f"ERROR! GottenReactionRemovedCount: {result[2]} | UserID: {user.id}")
+
+        conn.close()
+
+    async def create_embed(self, display_name, guild_id, user_id, message_columns, reaction_columns):
+        embed = discord.Embed(title=f"Statistics for {display_name}")
+        conn = handySQL.create_connection(self.db_path)
+        c = conn.cursor()
+        uniqueID = handySQL.get_uniqueMemberID(conn, user_id, guild_id)
+        for column in message_columns:
+            sql = f"""  SELECT UniqueMemberID, SUM({column}) as sm
+                        FROM UserMessageStatistic
+                        GROUP BY UniqueMemberID
+                        ORDER BY sm DESC"""
+            rank = 0
+            val = None
+            for row in c.execute(sql):
+                rank += 1
+                if row[0] == uniqueID:
+                    val = row[1]
+                    break
+            if val is None:
+                continue
+            if column == "FileTotalSize":
+                val = round(val / 1000000.0, 2)
+                val = f"{val} MB"
+            embed.add_field(name=column, value=f"{val} *({rank}.)*\n")
+        for column in reaction_columns:
+            sql = f"""  SELECT UniqueMemberID, SUM({column}) as sm
+                        FROM UserReactionStatistic
+                        GROUP BY UniqueMemberID
+                        ORDER BY sm DESC"""
+            rank = 0
+            val = None
+            for row in c.execute(sql):
+                rank += 1
+                if row[0] == uniqueID:
+                    val = row[1]
+                    break
+            if val is None:
+                continue
+            embed.add_field(name=column, value=f"{val} *({rank}.)*\n")
+        conn.close()
+        return embed
+
+    async def get_rows(self, column, table, guild_id, limit):
+        conn = handySQL.create_connection(self.db_path)
+        sql = f"""  SELECT dm.DiscordUserID, SUM({column}) as sm
+                    FROM {table} as ums
+                    INNER JOIN DiscordMembers as dm on dm.UniqueMemberID=ums.UniqueMemberID
+                    INNER JOIN DiscordUsers DU on dm.DiscordUserID = DU.DiscordUserID
+                    WHERE dm.DiscordGuildID=? AND DU.IsBot=0
+                    GROUP BY ums.UniqueMemberID
+                    ORDER BY sm DESC
+                    LIMIT ?"""
+        result = conn.execute(sql, (guild_id, limit))
+        rows = result.fetchall()
+        conn.close()
+        return rows
+
+    async def get_top_users(self, guild_id, message_columns=(), reaction_columns=(), name="Top User Statistics", limit=3):
+        embed = discord.Embed(title=name)
+        for column in message_columns:
+            rows = await self.get_rows(column, "UserMessageStatistic", guild_id, limit)
+            if rows is None:
+                continue
+            lb_msg = ""
+            for i in range(len(rows)):
+                lb_msg += f"**{i+1}.** <@!{rows[i][0]}> *({rows[i][1]})*\n"
+            embed.add_field(name=column, value=lb_msg)
+        for column in reaction_columns:
+            rows = await self.get_rows(column, "UserReactionStatistic", guild_id, limit)
+            if rows is None:
+                continue
+            lb_msg = ""
+            for i in range(len(rows)):
+                lb_msg += f"**{i + 1}.** <@!{rows[i][0]}> *({rows[i][1]})*\n"
+            embed.add_field(name=column, value=lb_msg)
+        return embed
 
     @commands.command(aliases=["stats"], usage="statistics [user]")
     async def statistics(self, ctx, user=None):
@@ -343,35 +374,46 @@ class Statistics(commands.Cog):
         The user parameter can be another user or "top" to get the top three users \
         of each category.
         """
+        message_columns = [
+            "MessageSentCount",
+            "MessageDeletedCount",
+            "MessageEditedCount",
+            "CharacterCount",
+            "WordCount",
+            "SpoilerCount",
+            "EmojiCount",
+            "FileSentCount",
+            "FileTotalSize",
+            "ImageCount"
+        ]
+        reaction_columns = [
+            "ReactionAddedCount",
+            "ReactionRemovedCount",
+            "GottenReactionCount",
+            "GottenReactionRemovedCount"
+        ]
+
+        try:
+            guild_id = ctx.message.guild.id
+        except AttributeError:
+            guild_id = 0
+
+        if user is not None:
+            user_message_val = is_in(user, message_columns)
+            user_reaction_val = is_in(user, reaction_columns)
+
         if user is None:
             await self.user_checkup(message=ctx.message)
-            embed = discord.Embed(title=f"Statistics for {ctx.message.author.display_name}")
-            for c in self.checks:
-                sort = sorted(self.statistics[str(ctx.message.guild.id)][c].items(), key=lambda x: x[1], reverse=True)
-                rank = 1
-                for i in sort:
-                    if str(ctx.message.author.id) in i:
-                        break
-                    else:
-                        rank += 1
-                embed.add_field(name=self.checks_full_name[c], value=f"*{self.statistics[str(ctx.message.guild.id)][c][str(ctx.message.author.id)]} ({rank}.)*\n")
+            embed = await self.create_embed(ctx.message.author.display_name, guild_id, ctx.message.author.id, message_columns, reaction_columns)
             await ctx.send(embed=embed)
-
         elif user == "top":
-            sort = {}
-            embed = discord.Embed(title="Top User Statistics")
-            for c in self.checks:
-                users = []
-                sort[c] = sorted(self.statistics[str(ctx.message.guild.id)][c].items(), key=lambda x: x[1],
-                                 reverse=True)
-                for k in sort[c]:
-                    u_obj = ctx.message.guild.get_member(int(k[0]))
-                    users.append([str(u_obj.display_name), k[1]])
-                    if len(users) == 3:
-                        break
-                embed.add_field(name=self.checks_full_name[c], value=f"**1.** {users[0][0]} *({users[0][1]})*\n"
-                                                                     f"**2.** {users[1][0]} *({users[1][1]})*\n"
-                                                                     f"**3.** {users[2][0]} *({users[2][1]})*")
+            embed = await self.get_top_users(guild_id, message_columns, reaction_columns)
+            await ctx.send(embed=embed)
+        elif user_message_val:
+            embed = await self.get_top_users(guild_id, (user_message_val,), (), f"Top {user}", 10)
+            await ctx.send(embed=embed)
+        elif user_reaction_val:
+            embed = await self.get_top_users(guild_id, (), (user_reaction_val,), f"Top {user}", 10)
             await ctx.send(embed=embed)
         else:
             try:
@@ -380,58 +422,7 @@ class Statistics(commands.Cog):
             except discord.ext.commands.errors.BadArgument:
                 await ctx.send("Invalid user. Mention the user for this to work.")
                 raise discord.ext.commands.errors.BadArgument
-            await self.user_checkup(message=ctx.message, user=user)
-            embed = discord.Embed(title=f"Statistics for {user.display_name}")
-            for c in self.checks:
-                sort = sorted(self.statistics[str(ctx.message.guild.id)][c].items(), key=lambda x: x[1], reverse=True)
-                rank = 1
-                for i in sort:
-                    if str(user.id) in i:
-                        break
-                    else:
-                        rank += 1
-                embed.add_field(name=self.checks_full_name[c],
-                                value=f"*{self.statistics[str(ctx.message.guild.id)][c][str(user.id)]} ({rank}.)*\n")
-            await ctx.send(embed=embed)
-
-    @commands.command(usage="uptime <user/bot>")
-    async def uptime(self, ctx, bot=None):
-        """
-        Used to check the uptime of a user. It's not going to be 100% correct because of crap implementation \
-        and the bot might not be up 100% itself.
-        """
-        if bot is None:
-            await ctx.send("No user or bot specified.")
-        else:
-            try:
-                memberconverter = discord.ext.commands.MemberConverter()
-                user = await memberconverter.convert(ctx, bot)
-            except discord.ext.commands.errors.BadArgument:
-                await ctx.send(
-                    f"{ctx.message.author.mention}, that is not a user. Mention a user or bot for this command to work.")
-                raise discord.ext.commands.errors.BadArgument
-
-            lecturfier_start_time = time.time() - await self.get_uptime(ctx.message.guild.id, self.bot.user.id, "start")
-            lecturfier_total = round((float(
-                await self.get_uptime(ctx.message.guild.id, self.bot.user.id, "total")) / lecturfier_start_time) * 100,
-                                     2)
-            if lecturfier_total > 100:
-                lecturfier_total = 100
-
-            bot_yesterday = round(float(await self.get_uptime(ctx.message.guild.id, user.id, "yesterday")) / 864, 2)
-            bot_week = round(float(await self.get_uptime(ctx.message.guild.id, user.id, "past_week")) / 6048, 2)
-            bot_start_time = time.time() - await self.get_uptime(ctx.message.guild.id, user.id, "start")
-            bot_total = round(
-                (float(await self.get_uptime(ctx.message.guild.id, user.id, "total")) / bot_start_time) * 100, 2)
-            if bot_total > 100:
-                bot_total = 100
-            embed = discord.Embed(title=f"Bot Uptime",
-                                  description=f"**{user.display_name}**\n"
-                                              f"Total: {bot_total}%\n"
-                                              f"Last Week: {bot_week}%\n"
-                                              f"Yesterday: {bot_yesterday}%",
-                                  color=discord.Color.blue())
-            embed.set_footer(text=f"Accuracy: {lecturfier_total}%")
+            embed = await self.create_embed(user.display_name, guild_id, user.id, message_columns, reaction_columns)
             await ctx.send(embed=embed)
 
 
