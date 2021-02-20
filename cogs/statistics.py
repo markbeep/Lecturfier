@@ -25,6 +25,7 @@ class Statistics(commands.Cog):
         self.bot_changed_to_yesterday = {}
         self.time_heartbeat = 0
         self.db_path = "./data/discord.db"
+        self.conn = handySQL.create_connection(self.db_path)
         self.task = self.bot.loop.create_task(self.background_git_backup())
 
     def heartbeat(self):
@@ -32,6 +33,15 @@ class Statistics(commands.Cog):
 
     def get_task(self):
         return self.task
+
+    def get_connection(self):
+        """
+        Retreives the current database connection
+        :return: Database Connection
+        """
+        if self.conn is None:
+            self.conn = handySQL.create_connection(self.db_path)
+        return self.conn
 
     async def background_git_backup(self):
         sent_file = False
@@ -86,7 +96,7 @@ class Statistics(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         # Creates a connection with the DB
-        conn = handySQL.create_connection(self.db_path)
+        conn = self.get_connection()
         # Adds the message to the DB
         handySQL.create_message_entry(conn, message, message.channel, message.guild)
         try:
@@ -102,8 +112,10 @@ class Statistics(commands.Cog):
         if not result[0]:
             print(f"ERROR! MessageSentCount: {result[2]} | UserID: {message.author.id}")
 
-        # Increments character count
+        # Makes it better to work with the message
         msg = demojize(message.content)
+
+        # Increments character count
         result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "CharacterCount", "UserMessageStatistic", len(msg))
         if not result[0]:
             print(f"ERROR! CharacterCount: {result[2]} | UserID: {message.author.id}")
@@ -115,16 +127,18 @@ class Statistics(commands.Cog):
             print(f"ERROR! WordCount: {result[2]} | UserID: {message.author.id}")
 
         # Increments emoji count
-        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "EmojiCount", "UserMessageStatistic",
-                                                      (msg.count(":") // 2))
-        if not result[0]:
-            print(f"ERROR! EmojiCount: {result[2]} | UserID: {message.author.id}")
+        if ":" in msg:
+            result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "EmojiCount", "UserMessageStatistic",
+                                                          (msg.count(":") // 2))
+            if not result[0]:
+                print(f"ERROR! EmojiCount: {result[2]} | UserID: {message.author.id}")
 
         # Increments spoiler count
-        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "SpoilerCount", "UserMessageStatistic",
-                                                      (msg.count("||") // 2))
-        if not result[0]:
-            print(f"ERROR! SpoilerCount: {result[2]} | UserID: {message.author.id}")
+        if "||" in msg:
+            result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "SpoilerCount", "UserMessageStatistic",
+                                                          (msg.count("||") // 2))
+            if not result[0]:
+                print(f"ERROR! SpoilerCount: {result[2]} | UserID: {message.author.id}")
 
         # File Statistics
         if len(message.attachments) > 0:
@@ -153,12 +167,10 @@ class Statistics(commands.Cog):
             if not result[0]:
                 print(f"ERROR! ImageCount: {result[2]} | UserID: {message.author.id}")
 
-        conn.close()
-
     @commands.Cog.listener()
     async def on_message_delete(self, message):
         # Update messages to be "deleted"
-        conn = handySQL.create_connection(self.db_path)
+        conn = self.get_connection()
         c = conn.cursor()
         c.execute("UPDATE DiscordMessages SET IsDeleted=1, DeletedAt=? WHERE DiscordMessageID=?", (datetime.now(), message.id))
         conn.commit()
@@ -176,12 +188,12 @@ class Statistics(commands.Cog):
         if not result[0]:
             print(f"ERROR! MessageDeletedCount: {result[2]} | UserID: {message.author.id}")
 
-        conn.close()
-
     @commands.Cog.listener()
     async def on_message_edit(self, before, message):
         # Adds the edited message to the table
-        conn = handySQL.create_connection(self.db_path)
+        if before.content == message.content:
+            return
+        conn = self.get_connection()
         c = conn.cursor()
         c.execute("SELECT IsEdited FROM DiscordMessages WHERE DiscordMessageID=? ORDER BY IsEdited DESC", (message.id,))
         result = c.fetchone()
@@ -202,11 +214,9 @@ class Statistics(commands.Cog):
         if not result[0]:
             print(f"ERROR! MessageEditedCount: {result[2]} | UserID: {message.author.id}")
 
-        conn.close()
-
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
-        conn = handySQL.create_connection(self.db_path)
+        conn = self.get_connection()
 
         try:
             # This is in case a message is a direct message
@@ -231,11 +241,9 @@ class Statistics(commands.Cog):
         if not result[0]:
             print(f"ERROR! GottenReactionCount: {result[2]} | UserID: {user.id}")
 
-        conn.close()
-
     @commands.Cog.listener()
     async def on_reaction_remove(self, reaction, user):
-        conn = handySQL.create_connection(self.db_path)
+        conn = self.get_connection()
 
         try:
             # This is in case a message is a direct message
@@ -260,11 +268,9 @@ class Statistics(commands.Cog):
         if not result[0]:
             print(f"ERROR! GottenReactionRemovedCount: {result[2]} | UserID: {user.id}")
 
-        conn.close()
-
     async def create_embed(self, display_name, guild_id, user_id, message_columns, reaction_columns):
         embed = discord.Embed(title=f"Statistics for {display_name}")
-        conn = handySQL.create_connection(self.db_path)
+        conn = self.get_connection()
         c = conn.cursor()
         uniqueID = handySQL.get_uniqueMemberID(conn, user_id, guild_id)
         for column in message_columns:
@@ -300,11 +306,10 @@ class Statistics(commands.Cog):
             if val is None:
                 continue
             embed.add_field(name=column, value=f"{val} *({rank}.)*\n")
-        conn.close()
         return embed
 
     async def get_rows(self, column, table, guild_id, limit):
-        conn = handySQL.create_connection(self.db_path)
+        conn = self.get_connection()
         sql = f"""  SELECT dm.DiscordUserID, SUM({column}) as sm
                     FROM {table} as ums
                     INNER JOIN DiscordMembers as dm on dm.UniqueMemberID=ums.UniqueMemberID
@@ -315,7 +320,6 @@ class Statistics(commands.Cog):
                     LIMIT ?"""
         result = conn.execute(sql, (guild_id, limit))
         rows = result.fetchall()
-        conn.close()
         return rows
 
     async def get_top_users(self, guild_id, message_columns=(), reaction_columns=(), name="Top User Statistics", limit=3):
