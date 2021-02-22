@@ -72,6 +72,17 @@ class Help(commands.Cog):
                 cont += f"<@{row[0]}> | {row[1]} | {row[3][0:30]}...\n"
             await message.channel.send(cont)
 
+    @commands.command(usage="doTheThing")
+    async def doTheThing(self, ctx):
+        if await self.bot.is_owner(ctx.author):
+            for cog in self.bot.cogs:
+                all_commands = self.bot.get_cog(cog).get_commands()
+                for com in all_commands:
+                    await ctx.send(f"\\botman {com} {com.help}")
+            await ctx.send("Done")
+        else:
+            raise discord.ext.commands.errors.NotOwner
+
     async def update_versions(self):
         """
         Goes through all file versions and updates them accordingly, adding them to the versions.json file
@@ -165,7 +176,6 @@ class Help(commands.Cog):
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Aliases =\n{aliases_msg}```")
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Permissions =\n{permissions}```")
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Usage =\n{self.prefix}{usage}```", inline=False)
-        print(help_msg)
         embed.set_thumbnail(url=self.bot.user.avatar_url)
         return embed
 
