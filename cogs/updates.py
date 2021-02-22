@@ -11,14 +11,17 @@ from helper.log import log
 from helper import handySQL
 
 
-async def create_lecture_embed(subject_name, stream_url, subject_website_url, subject_room=None, color=discord.colour.Color.light_gray()):
+async def create_lecture_embed(subject_name, stream_url, zoom_url, subject_website_url, subject_room=None, color=discord.colour.Color.light_gray()):
     embed = discord.Embed(title=f"Lecture Starting: {subject_name}", color=color, timestamp=datetime.now())
     if stream_url is not None:
         stream_url = f"[Click Here]({stream_url})"
     if subject_website_url is not None:
         subject_website_url = f"[Click Here]({subject_website_url})"
+    if zoom_url is not None:
+        zoom_url = f"[Click Here]({zoom_url})"
 
     embed.description = f"**Stream URL:** {stream_url}\n" \
+                        f"**Zoom URL:** {zoom_url}\n" \
                         f"**Subject Room:** {subject_room}\n" \
                         f"**Subject Website URL:** {subject_website_url}"
     return embed
@@ -59,7 +62,6 @@ class Updates(commands.Cog):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             self.time_heartbeat = time.time()
-            print("BACKGROUND LOOP")
             try:
                 channel = self.bot.get_channel(self.channel_to_post)
                 cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
@@ -81,6 +83,7 @@ class Updates(commands.Cog):
                             subject["StreamLink"],
                             self.channel_to_post,
                             759615935496847412,  # Role to ping
+                            subject["ZoomLink"],
                             subject["OnSiteLocation"])
                         await asyncio.sleep(30)
                 await asyncio.sleep(40)
@@ -145,7 +148,7 @@ class Updates(commands.Cog):
                 await ctx.send("ERROR! That SubjectID does not exist in the DB")
                 raise discord.ext.commands.CommandError
             try:
-                await self.send_lecture_start(subject[1], subject[2], stream_url, channel_id, role_id)
+                await self.send_lecture_start(subject[1], subject[2], stream_url, channel_id=channel_id, role_id=role_id)
             except Exception as e:
                 await ctx.send(f"ERROR! Can't send embed message:\n`{e}`")
         else:
@@ -154,7 +157,7 @@ class Updates(commands.Cog):
     def get_starting_subject(self, semester=2):
         conn = self.get_connection()
         c = conn.cursor()
-        sql = """   SELECT WD.SubjectID, S.SubjectName, S.SubjectLink, WD.StreamLink, WD.OnSiteLocation
+        sql = """   SELECT WD.SubjectID, S.SubjectName, S.SubjectLink, WD.StreamLink, WD.ZoomLink, WD.OnSiteLocation
                     FROM WeekDayTimes WD
                     INNER JOIN Subject S on WD.SubjectID=S.SubjectID
                     WHERE WD.DayID=? AND WD.TimeFROM=? AND S.SubjectSemester=?"""
@@ -164,13 +167,13 @@ class Updates(commands.Cog):
         row = c.fetchone()
         if row is None:
             return None
-        return {"SubjectID": row[0], "SubjectName": row[1], "SubjectLink": row[2], "StreamLink": row[3], "OnSiteLocation": row[4]}
+        return {"SubjectID": row[0], "SubjectName": row[1], "SubjectLink": row[2], "StreamLink": row[3], "ZoomLink": row[4], "OnSiteLocation": row[5]}
 
-    async def send_lecture_start(self, subject_name, website_url, stream_url, channel_id, role_id, subject_room=None):
+    async def send_lecture_start(self, subject_name, website_url, stream_url, channel_id, role_id, zoom_url=None, subject_room=None):
         channel = self.bot.get_channel(channel_id)
         if channel is None:
             raise discord.ext.commands.CommandError("Invalid ChannelID")
-        embed = await create_lecture_embed(subject_name, stream_url, website_url, subject_room)
+        embed = await create_lecture_embed(subject_name, stream_url, zoom_url, website_url, subject_room)
         await channel.send(f"<@&{role_id}>", embed=embed)
 
     async def check_updates(self, channel, cur_time, version):
