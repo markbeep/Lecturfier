@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands
-import datetime
-from pytz import timezone
+from helper import handySQL
 from helper import git_tools
 import json
 import os
@@ -15,6 +14,7 @@ class Help(commands.Cog):
             self.versions = json.load(f)
         with open("./data/settings.json", "r") as f:
             self.prefix = json.load(f)["prefix"]
+        self.db_path = "./data/discord.db"
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -26,27 +26,51 @@ class Help(commands.Cog):
     async def on_message(self, message):
         if message.author.bot:
             return
-        if message.content.startswith("man ") and False:  # not yet implemented, so set to False
+        if message.content.startswith("<@!755781649643470868>"):
             args = message.content.split(" ")
             args.pop(0)
+            if len(args) == 0:
+                return
+            found_command = False
+            command_name = ""
+
+            modifier_booleans = {"bot": False}
+            values = []
             modifiers = []
             for a in args:
                 if a.startswith("-"):
-                    modifiers.append(a)
-            modifiers = ", ".join(modifiers)
-            specific_command, sorted_commands = await self.get_specific_com(args[0])
-            bots_with_command = []
-            if specific_command != "":
-                print(specific_command)
-                bots_with_command.append("Lecturfier")
+                    # a is a modifier keyword
+                    # Next word is the modifier phrase
+                    if a[1:] == "b":
+                        modifier_booleans["bot"] = True
+                elif not found_command:
+                    command_name = a
+                    found_command = True
+                elif modifier_booleans["bot"]:
+                    modifier_booleans["bot"] = False
+                    modifiers.append("AND DM.DiscordUserID=?")
+                    values.append(a)
 
-            if len(bots_with_command) == 0:
-                bots_with_command.append("None")
-            bots_with_command = ", ".join(bots_with_command)
-            await message.channel.send(f"Command: {args[0]}\n"
-                                       f"Bots with that command: {bots_with_command}\n"
-                                       f"Modifiers: {modifiers}\n"
-                                       f"**Note:** This hasn't been implemented yet.")
+            values.insert(0, command_name.lower())
+
+            if command_name == "":
+                await message.channel.send("No command given")
+                return
+
+            conn = handySQL.create_connection(self.db_path)
+            c = conn.cursor()
+
+            modifiers_msg = " ".join(modifiers)
+
+            sql = f"""  SELECT DM.DiscordUserID, BC.BotPrefix, BC.CommandName, BC.CommandInfo
+                        FROM BotCommands BC
+                        INNER JOIN DiscordMembers DM on DM.UniqueMemberID=BC.UniqueMemberID
+                        WHERE CommandName=? {modifiers_msg}"""
+            c.execute(sql, values)
+            cont = f"Bots with command: `{command_name}`\n"
+            for row in c.fetchall():
+                cont += f"<@{row[0]}> | {row[1]} | {row[3][0:30]}...\n"
+            await message.channel.send(cont)
 
     async def update_versions(self):
         """
