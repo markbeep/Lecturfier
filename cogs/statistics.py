@@ -105,7 +105,7 @@ class Statistics(commands.Cog):
         except AttributeError:
             guild_obj = None
 
-        SUBJECT_ID = 0
+        SUBJECT_ID = self.get_current_subject_id()
 
         # Increments sent message count
         result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "MessageSentCount", "UserMessageStatistic")
@@ -167,6 +167,21 @@ class Statistics(commands.Cog):
             if not result[0]:
                 print(f"ERROR! ImageCount: {result[2]} | UserID: {message.author.id}")
 
+    def get_current_subject_id(self, semester=2):
+        conn = self.get_connection()
+        c = conn.cursor()
+        sql = """   SELECT WD.SubjectID
+                    FROM WeekDayTimes WD
+                    INNER JOIN Subject S on WD.SubjectID=S.SubjectID
+                    WHERE WD.DayID=? AND WD.TimeFROM<=? AND WD.TimeTo>? AND S.SubjectSemester=?"""
+        day = datetime.now().weekday()
+        hour = datetime.now().hour
+        c.execute(sql, (day, hour, hour, semester))
+        row = c.fetchone()
+        if row is None:
+            return 0
+        return row[0]
+
     @commands.Cog.listener()
     async def on_message_delete(self, message):
         # Update messages to be "deleted"
@@ -181,7 +196,7 @@ class Statistics(commands.Cog):
         except AttributeError:
             guild_obj = None
 
-        SUBJECT_ID = 0
+        SUBJECT_ID = self.get_current_subject_id()
 
         # Increments deleted message count
         result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "MessageDeletedCount", "UserMessageStatistic")
@@ -207,7 +222,7 @@ class Statistics(commands.Cog):
         except AttributeError:
             guild_obj = None
 
-        SUBJECT_ID = 0
+        SUBJECT_ID = self.get_current_subject_id()
 
         # Increments edited message count
         result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "MessageEditedCount", "UserMessageStatistic")
@@ -224,7 +239,7 @@ class Statistics(commands.Cog):
         except AttributeError:
             guild_obj = None
 
-        SUBJECT_ID = 0
+        SUBJECT_ID = self.get_current_subject_id()
 
         # Increments added reaction count for reaction giver
         result = handySQL.increment_message_statistic(conn, user, guild_obj, SUBJECT_ID, "ReactionAddedCount", "UserReactionStatistic")
@@ -251,7 +266,7 @@ class Statistics(commands.Cog):
         except AttributeError:
             guild_obj = None
 
-        SUBJECT_ID = 0
+        SUBJECT_ID = self.get_current_subject_id()
 
         # Increments removed reaction count for reaction giver
         result = handySQL.increment_message_statistic(conn, user, guild_obj, SUBJECT_ID, "ReactionRemovedCount", "UserReactionStatistic")
