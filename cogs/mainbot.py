@@ -8,7 +8,7 @@ class MainBot(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.startup_extensions = [
-            "player",
+            "games",
             "statistics",
             "minesweeper",
             "hangman",
@@ -19,6 +19,7 @@ class MainBot(commands.Cog):
             "owner",
             "voice",
             "updates",
+            "information",
             "mainbot",
         ]
 
@@ -76,9 +77,9 @@ class MainBot(commands.Cog):
             msg = "--Stopped background task--"
         else:
             msg = "--No background task to stop--"
-        if cog == "player":
-            player = self.bot.get_cog("Player")
-            player.save("./data/guesses.json")
+        if cog == "games":
+            games = self.bot.get_cog("Games")
+            games.save("./data/guesses.json")
             msg += "\n--Saved covid guesses--"
         self.bot.reload_extension("cogs." + cog)
         return f"Reloaded `{cog}`\n{msg}"
@@ -94,7 +95,7 @@ class MainBot(commands.Cog):
             "lecture_updates": self.bot.get_cog("Updates").get_task(),
             "statistics": self.bot.get_cog("Statistics").get_task(),
             "voice_xp": self.bot.get_cog("Voice").get_task(),
-            "player": self.bot.get_cog("Player").get_task()
+            "games": self.bot.get_cog("Games").get_task()
         }
         if task in all_loops:
             return all_loops[task].cancel()
