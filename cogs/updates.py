@@ -72,7 +72,7 @@ class Updates(commands.Cog):
                     await general.send("<@&770968106679926868> it's time to guess today's covid cases using `$g <guess>`!")
                     await asyncio.sleep(30)
                 minute = datetime.now().minute
-                if minute == 13:
+                if minute == 0:
                     subject = self.get_starting_subject()
                     if subject is not None:
                         await self.send_lecture_start(

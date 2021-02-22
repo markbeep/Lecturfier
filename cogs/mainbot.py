@@ -88,9 +88,9 @@ class MainBot(commands.Cog):
         """
         task = task.lower()
         all_loops = {
-            "lecture_updates": self.bot.get_cog("Updates").get_task(),
+            "updates": self.bot.get_cog("Updates").get_task(),
             "statistics": self.bot.get_cog("Statistics").get_task(),
-            "voice_xp": self.bot.get_cog("Voice").get_task(),
+            "voice": self.bot.get_cog("Voice").get_task(),
             "games": self.bot.get_cog("Games").get_task()
         }
         if task in all_loops:
