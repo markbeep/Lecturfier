@@ -5,34 +5,101 @@ import asyncio
 import inspect
 import os
 import time
-from cogs import admin, hangman, help, updates, minesweeper, owner, player, quote, reputation, statistics, voice
+from cogs import admin, hangman, help, updates, minesweeper, owner, games, quote, reputation, statistics, voice
 import json
 from helper import handySQL
+from sqlite3 import Error
+import sqlite3
+from tabulate import tabulate
+
+
+def loading_bar(bars, max_length=None, failed=None):
+    bars = round(bars)
+    if max_length is None:
+        max_length = 10
+    if failed is None:
+        return "<:blue_box:764901467097792522>" * bars + "<:grey_box:764901465592037388>" * (max_length - bars)  # First is blue square, second is grey
+    elif failed:
+        return "<:red_box:764901465872662528>"*bars  # Red square
+    else:
+        return "<:green_box:764901465948684289>"*bars  # Green square
+
 
 class Owner(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.db_path = "./data/discord.db"
+        self.conn = handySQL.create_connection(self.db_path)
+
+    def get_connection(self):
+        """
+        Retreives the current database connection
+        :return: Database Connection
+        """
+
+        if self.conn is None:
+            self.conn = handySQL.create_connection(self.db_path)
+        return self.conn
 
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.id == 755781649643470868:
             return
 
-    async def loading_bar(self, bars, max_length=None, failed=None):
-        bars = round(bars)
-        if max_length is None:
-            max_length = 10
-        if failed is None:
-            return "<:blue_box:764901467097792522>" * bars + "<:grey_box:764901465592037388>" * (max_length - bars)  # First is blue square, second is grey
-        elif failed:
-            return "<:red_box:764901465872662528>"*bars  # Red square
+    @commands.command(usage="sql <command>")
+    async def sql(self, ctx, *, sql):
+        """
+        Use SQL
+        Permissions: Owner
+        """
+        if len(sql) > 0 and sql[0] == "table":
+            file = discord.File("./images/sql_table.png")
+            await ctx.send(file=file)
+            return
+        if await self.bot.is_owner(ctx.author):
+            conn = self.get_connection()
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            start_time = time.perf_counter()
+            sql = sql.replace("INSERT", "INSERT OR IGNORE").replace("insert", "insert or ignore")
+            try:
+                c.execute(sql)
+                conn.commit()
+            except Error as e:
+                await ctx.send(e)
+                return
+            rows = c.fetchall()
+            if rows is None:
+                await ctx.send("Rows is a None Object. Might have failed getting a connection to the DB?")
+                return
+            if len(rows) > 0:
+                header = list(dict(rows[0]).keys())
+                values = []
+                for r in rows:
+                    values.append(list(dict(r).values()))
+                table = tabulate(values, header, tablefmt="presto")
+                table = table.replace("```", "")
+                row_count = len(rows)
+            else:
+                table = "Execution finished without errors."
+                row_count = c.rowcount
+            cont = f"```\nRows affected: {row_count}\n" \
+                   f"Time taken: {round((time.perf_counter()-start_time)*1000, 2)} ms\n" \
+                   f"{table}```"
+            if len(cont) > 2000:
+                index = cont.rindex("\n", 0, 1900)
+                cont = cont[0:index] + "\n  ...```"
+            await ctx.send(cont)
         else:
-            return "<:green_box:764901465948684289>"*bars  # Green square
+            raise discord.ext.commands.errors.NotOwner
 
-    @commands.command(usage="moveToDB")
+    @commands.command(usage="moveToDB <file>")
     async def moveToDB(self, ctx, file=""):
-        db_path = "./data/discord.db"
-        conn = handySQL.create_connection(db_path)
+        """
+        Used to move data from json files to the database
+        Permissions: Owner
+        """
+        conn = self.get_connection()
         if await self.bot.is_owner(ctx.author):
             if file == "levels":
                 with open("./data/levels.json", "r") as f:
@@ -57,6 +124,29 @@ class Owner(commands.Cog):
                         conn.commit()
                         count += 1
                     await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
+            elif file == "covid":
+                with open("./data/covid_points.json", "r") as f:
+                    covid = json.load(f)
+                for guild in covid:
+                    count = 0
+                    guild_obj = self.bot.get_guild(int(guild))
+                    if guild_obj is None:
+                        print(f"Didn't find Guild with ID: {guild}")
+                        continue
+                    for member in covid[guild]:
+                        member_obj = guild_obj.get_member(int(member))
+                        if member_obj is None:
+                            print(f"Didn't find Member with ID: {member}")
+                            continue
+                        handySQL.create_covid_guessing_entry(conn, member_obj, guild_obj)
+                        uniqueID = handySQL.get_uniqueMemberID(conn, member, guild)
+                        total = int(covid[guild][member][1])
+                        guessCount = covid[guild][member][2]
+                        conn.execute("UPDATE CovidGuessing SET TotalPointsAmount=?, GuessCount=? WHERE UniqueMemberID=?", (total, guessCount, uniqueID))
+                        conn.commit()
+                        count += 1
+                    await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
+
             elif file == "statistics":
                 with open("./data/statistics.json", "r") as f:
                     statistics = json.load(f)
@@ -120,8 +210,6 @@ class Owner(commands.Cog):
                         if reaction_result[0] and msg_result[0]:
                             count += 1
                     await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
-
-
             else:
                 await ctx.send("Unknown file")
         else:
@@ -170,7 +258,7 @@ class Owner(commands.Cog):
                 "Lecture Updates Loop": self.bot.get_cog("Updates").heartbeat(),
                 "Git Backup Loop": self.bot.get_cog("Statistics").heartbeat(),
                 "Voice XP track Loop": self.bot.get_cog("Voice").heartbeat(),
-                "COVID Web Scraper": self.bot.get_cog("Player").heartbeat()
+                "COVID Web Scraper": self.bot.get_cog("Games").heartbeat()
             }
 
             msg = ""
@@ -194,12 +282,12 @@ class Owner(commands.Cog):
         Permissions: Owner
         """
         if await self.bot.is_owner(ctx.author):
-            msg = await ctx.send("Loading:\n0% | " + await self.loading_bar(0))
+            msg = await ctx.send("Loading:\n0% | " + loading_bar(0))
             for i in range(1, 10):
                 await msg.edit(
-                    content=("Loading:\n" + f"{random.randint(i * 10, i * 10 + 5)}% | " + await self.loading_bar(i)))
+                    content=("Loading:\n" + f"{random.randint(i * 10, i * 10 + 5)}% | " + loading_bar(i)))
                 await asyncio.sleep(0.75)
-            await msg.edit(content=("Loading: DONE\n" + "100% | " + await self.loading_bar(10, 10, False)))
+            await msg.edit(content=("Loading: DONE\n" + "100% | " + loading_bar(10, 10, False)))
         else:
             raise discord.ext.commands.errors.NotOwner
 
