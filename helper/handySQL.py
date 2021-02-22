@@ -316,6 +316,15 @@ def get_or_create_member(conn, user, guild):
         return uniqueID
 
 
+def create_covid_guessing_entry(conn, member, guild):
+    if guild is None:
+        guild_id = 0
+    else:
+        guild_id = guild.id
+    uniqueID = get_or_create_member(conn, member, guild)
+    return insert(conn, (uniqueID,), ("UniqueMemberID",), "CovidGuessing")
+
+
 def create_message_statistic_entry(conn, user, guild, subjectID, table):
     try:
         c = conn.cursor()
@@ -404,10 +413,13 @@ def create_all_tables(path):
                             SubjectSemester integer
                             );"""
     sql_create_WeekDayTimes = """ CREATE TABLE IF NOT EXISTS WeekDayTimes (
-                                SubjectID integer NOT NULL PRIMARY KEY,
+                                UniqueDayTimesID integer NOT NULL PRIMARY KEY,
+                                SubjectID integer NOT NULL,
                                 DayID integer NOT NULL,
                                 TimeFrom integer,
                                 TimeTo integer,
+                                StreamLink text,
+                                OnSiteLocation text,
                                 FOREIGN KEY (SubjectID) REFERENCES Subject(SubjectID)
                                 );"""
     sql_create_UserReactionStatistic = """ CREATE TABLE IF NOT EXISTS UserReactionStatistic (
@@ -454,13 +466,23 @@ def create_all_tables(path):
                                     ExperienceAmount integer DEFAULT 0,
                                     FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
                                     );"""
-    sql_create_CovidGuessing = """ CREATE TABLE IF NOT EXISTS CovidGuessing (
-                                        UniqueMemberID integer NOT NULL PRIMARY KEY,
-                                        TotalPointsAmount integer DEFAULT 0,
-                                        GuessCount integer DEFAULT 0,
-                                        NextGuess integer,
-                                        FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
-                                        );"""
+    sql_create_CovidGuessing = """  CREATE TABLE IF NOT EXISTS CovidGuessing (
+                                    UniqueMemberID integer NOT NULL PRIMARY KEY,
+                                    TotalPointsAmount integer DEFAULT 0,
+                                    GuessCount integer DEFAULT 0,
+                                    NextGuess integer,
+                                    TempPoints integer,
+                                    FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
+                                    );"""
+    sql_create_bot_commands = """   CREATE TABLE IF NOT EXISTS BotCommands (
+                                    UniqueMemberID integer NOT NULL PRIMARY KEY,
+                                    BotPrefix text NOT NULL,
+                                    CommandName text NOT NULL,
+                                    CommandInfo text,
+                                    CommandAliases text,
+                                    CommandUsage text,
+                                    FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
+                                    );"""
 
     conn = create_connection(database)
 
