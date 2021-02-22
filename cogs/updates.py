@@ -8,6 +8,20 @@ from helper.lecture_scraper.scrape import scraper
 import json
 import traceback
 from helper.log import log
+from helper import handySQL
+
+
+async def create_lecture_embed(subject_name, stream_url, subject_website_url, subject_room=None, color=discord.colour.Color.light_gray()):
+    embed = discord.Embed(title=f"Lecture Starting: {subject_name}", color=color, timestamp=datetime.now())
+    if stream_url is not None:
+        stream_url = f"[Click Here]({stream_url})"
+    if subject_website_url is not None:
+        subject_website_url = f"[Click Here]({subject_website_url})"
+
+    embed.description = f"**Stream URL:** {stream_url}\n" \
+                        f"**Subject Room:** {subject_room}\n" \
+                        f"**Subject Website URL:** {subject_website_url}"
+    return embed
 
 
 class Updates(commands.Cog):
@@ -22,6 +36,8 @@ class Updates(commands.Cog):
         self.send_message_to_finn = self.settings["send_message_to_finn"]
         self.lecture_updater_version = "v2.4"
         self.time_heartbeat = 0
+        self.db_path = "./data/discord.db"
+        self.conn = handySQL.create_connection(self.db_path)
         self.task = self.bot.loop.create_task(self.background_loop())
 
     def heartbeat(self):
@@ -29,6 +45,15 @@ class Updates(commands.Cog):
 
     def get_task(self):
         return self.task
+
+    def get_connection(self):
+        """
+        Retreives the current database connection
+        :return: Database Connection
+        """
+        if self.conn is None:
+            self.conn = handySQL.create_connection(self.db_path)
+        return self.conn
 
     async def background_loop(self):
         await self.bot.wait_until_ready()
@@ -42,12 +67,22 @@ class Updates(commands.Cog):
                     cur_time = "test"
                 if int(datetime.now(timezone("Europe/Zurich")).strftime("%M")) % 10 == 0:  # Only check updates every 10 minutes
                     await self.check_updates(channel, cur_time, self.lecture_updater_version)
-                if cur_time in self.all_times(self.schedule):
-                    await self.send_livestream(cur_time, channel, self.lecture_updater_version)
                 if "10:00" in cur_time and "Sat" not in cur_time and "Sun" not in cur_time:
                     general = self.bot.get_channel(747752542741725247)
                     await general.send("<@&770968106679926868> it's time to guess today's covid cases using `$g <guess>`!")
                     await asyncio.sleep(30)
+                minute = datetime.now().minute
+                if minute == 13:
+                    subject = self.get_starting_subject()
+                    if subject is not None:
+                        await self.send_lecture_start(
+                            subject["SubjectName"],
+                            subject["SubjectLink"],
+                            subject["StreamLink"],
+                            self.channel_to_post,
+                            759615935496847412,  # Role to ping
+                            subject["OnSiteLocation"])
+                        await asyncio.sleep(30)
                 await asyncio.sleep(40)
             except Exception:
                 user = self.bot.get_user(self.bot.owner_id)
@@ -81,6 +116,62 @@ class Updates(commands.Cog):
         except Exception:
             user = self.bot.get_user(self.bot.owner_id)
             await user.send(f"No lesson error: {traceback.format_exc()}")
+
+    @commands.command(usage="testLecture <subject_id> <channel_id> <role_id>")
+    async def testLecture(self, ctx, subject_id=None, channel_id=None, role_id=0, stream_url=None):
+        """
+        Test the embed message for starting lectures
+        """
+        if await self.bot.is_owner(ctx.author):
+            # Input/Error catching
+            if channel_id is None:
+                await ctx.send("ERROR! Not enough parameters: `$testLecture <subjectID> <channelID> [streamURL] [roleID to ping]`")
+                raise discord.ext.commands.CommandError
+            try:
+                channel = self.bot.get_channel(int(channel_id))
+                channel_id = int(channel_id)
+            except ValueError:
+                await ctx.send("ERROR! `channel_id` needs to be an integer")
+                raise discord.ext.commands.CommandError
+            if channel is None:
+                await ctx.send("ERROR! Can't retreive channel with that channel ID")
+                raise discord.ext.commands.CommandError
+
+            conn = self.get_connection()
+            c = conn.cursor()
+            c.execute("SELECT SubjectID, SubjectName, SubjectLink FROM Subject WHERE SubjectID=? LIMIT 1", (subject_id,))
+            subject = c.fetchone()
+            if subject is None:
+                await ctx.send("ERROR! That SubjectID does not exist in the DB")
+                raise discord.ext.commands.CommandError
+            try:
+                await self.send_lecture_start(subject[1], subject[2], stream_url, channel_id, role_id)
+            except Exception as e:
+                await ctx.send(f"ERROR! Can't send embed message:\n`{e}`")
+        else:
+            raise discord.ext.commands.errors.NotOwner
+
+    def get_starting_subject(self, semester=2):
+        conn = self.get_connection()
+        c = conn.cursor()
+        sql = """   SELECT WD.SubjectID, S.SubjectName, S.SubjectLink, WD.StreamLink, WD.OnSiteLocation
+                    FROM WeekDayTimes WD
+                    INNER JOIN Subject S on WD.SubjectID=S.SubjectID
+                    WHERE WD.DayID=? AND WD.TimeFROM=? AND S.SubjectSemester=?"""
+        day = datetime.now().weekday()
+        hour = datetime.now().hour
+        c.execute(sql, (day, hour, semester))
+        row = c.fetchone()
+        if row is None:
+            return None
+        return {"SubjectID": row[0], "SubjectName": row[1], "SubjectLink": row[2], "StreamLink": row[3], "OnSiteLocation": row[4]}
+
+    async def send_lecture_start(self, subject_name, website_url, stream_url, channel_id, role_id, subject_room=None):
+        channel = self.bot.get_channel(channel_id)
+        if channel is None:
+            raise discord.ext.commands.CommandError("Invalid ChannelID")
+        embed = await create_lecture_embed(subject_name, stream_url, website_url, subject_room)
+        await channel.send(f"<@&{role_id}>", embed=embed)
 
     async def check_updates(self, channel, cur_time, version):
         start = time.time()
@@ -178,64 +269,12 @@ class Updates(commands.Cog):
         else:
             return data
 
-    async def send_livestream(self, cur_time: str, channel, version):
-        color = discord.Color.lighter_grey()
-        log("Sending Embed Message for livestream.", "LIVESTREAM")
-        link = ""
-        name = ""
-        website_url = ""
-        if cur_time in self.schedule['eprog']:  # Eprog
-            link = self.schedule['eprog'][cur_time]
-            website_url = self.schedule['eprog']['url']
-            name = "Introduction to Programming"
-            color = discord.Color.blue()
-        elif cur_time in self.schedule['diskmat']:  # diskmat
-            link = self.schedule['diskmat'][cur_time]
-            website_url = self.schedule['diskmat']['url']
-            name = "Discrete Mathematics"
-            color = discord.Color.purple()
-        elif cur_time in self.schedule['linalg']:  # linalg
-            link = self.schedule['linalg'][cur_time]
-            website_url = self.schedule['linalg']['url']
-            name = "Linear Algebra"
-            color = discord.Color.gold()
-        elif cur_time in self.schedule['and']:  # AnD
-            link = self.schedule['and'][cur_time]
-            website_url = self.schedule['and']['url']
-            name = "Algorithms and Data Structures"
-            color = discord.Color.magenta()
-        elif cur_time in self.schedule['test']:  # TEST
-            link = self.schedule['test'][cur_time]
-            website_url = self.schedule['test']['url']
-            name = "< Test Message >"
-
-        room = self.get_room(link)
-        embed = discord.Embed(title=f"{name} is starting soon!",
-                              description=f"**Lecture is in {room}**\n[**>> Click here to view the lecture <<**]({link})\n---------------------\n[*Link to Website*]({website_url})",
-                              timestamp=datetime.utcfromtimestamp(time.time()), color=color)
-        embed.set_footer(text=f"{version}")
-        msg = await channel.send("<@&759615935496847412>", embed=embed)
-        await msg.publish()
-
-        await asyncio.sleep(40)  # So it doesnt send the stream twice in a minute
-
     def all_times(self, schedule):
         times = []
         for subject in self.schedule:
             for time_text in self.schedule[subject]:
                 times.append(time_text)
         return times
-
-    def get_room(self, link):
-        if "zoom" in link:
-            room = "Zoomland"
-        elif "ethz" in link:
-            link = link[46:-5]
-            room = link[link.index("/") + 1:].replace("-", " ").upper()
-        else:
-            room = "(N/A)"
-
-        return room
 
 
 def setup(bot):
