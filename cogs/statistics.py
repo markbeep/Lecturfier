@@ -106,66 +106,44 @@ class Statistics(commands.Cog):
             guild_obj = None
 
         SUBJECT_ID = self.get_current_subject_id()
-
-        # Increments sent message count
-        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "MessageSentCount", "UserMessageStatistic")
-        if not result[0]:
-            print(f"ERROR! MessageSentCount: {result[2]} | UserID: {message.author.id}")
-
         # Makes it better to work with the message
         msg = demojize(message.content)
 
-        # Increments character count
-        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "CharacterCount", "UserMessageStatistic", len(msg))
-        if not result[0]:
-            print(f"ERROR! CharacterCount: {result[2]} | UserID: {message.author.id}")
-
-        # Increments word count
-        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "WordCount", "UserMessageStatistic",
-                                                      len(msg.split(" ")))
-        if not result[0]:
-            print(f"ERROR! WordCount: {result[2]} | UserID: {message.author.id}")
-
-        # Increments emoji count
-        if ":" in msg:
-            result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "EmojiCount", "UserMessageStatistic",
-                                                          (msg.count(":") // 2))
-            if not result[0]:
-                print(f"ERROR! EmojiCount: {result[2]} | UserID: {message.author.id}")
-
-        # Increments spoiler count
-        if "||" in msg:
-            result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "SpoilerCount", "UserMessageStatistic",
-                                                          (msg.count("||") // 2))
-            if not result[0]:
-                print(f"ERROR! SpoilerCount: {result[2]} | UserID: {message.author.id}")
+        char_count = len(msg)
+        word_count = len(msg.split(" "))
+        emoji_count = msg.count(":") // 2
+        spoiler_count = msg.count("||") // 2
 
         # File Statistics
-        if len(message.attachments) > 0:
-            # Increments files sent count
-            result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "FileSentCount", "UserMessageStatistic",
-                                                          len(message.attachments))
-            if not result[0]:
-                print(f"ERROR! FileSentCount: {result[2]} | UserID: {message.author.id}")
+        files_amount = 0
+        file_sizes = 0
+        images_amt = 0
+        for f in message.attachments:
+            file_sizes += f.size
+            if f.height is not None and f.height > 0:
+                images_amt += 1
 
-            file_sizes = 0
-            images_amt = 0
-            for f in message.attachments:
-                file_sizes += f.size
-                if f.height is not None and f.height > 0:
-                    images_amt += 1
+        uniqueID = handySQL.get_or_create_member(conn, message.author, guild_obj)
 
-            # Increments total file size count
-            result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "FileTotalSize", "UserMessageStatistic",
-                                                          file_sizes)
+        c = conn.cursor()
+        c.execute(f"SELECT * FROM UserMessageStatistic WHERE UniqueMemberID=? AND SubjectID=?", (uniqueID, SUBJECT_ID))
+        if c.fetchone() is None:
+            result = handySQL.create_message_statistic_entry(conn, message.author, guild_obj, SUBJECT_ID, "UserMessageStatistic")
             if not result[0]:
-                print(f"ERROR! FileSentCount: {result[2]} | UserID: {message.author.id}")
-
-            # Increments images sent count
-            result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "ImageCount", "UserMessageStatistic",
-                                                          images_amt)
-            if not result[0]:
-                print(f"ERROR! ImageCount: {result[2]} | UserID: {message.author.id}")
+                return
+        values = (char_count, word_count, spoiler_count, emoji_count, files_amount, file_sizes, images_amt, uniqueID, SUBJECT_ID)
+        sql = """   UPDATE UserMessageStatistic
+                    SET MessageSentCount=MessageSentCount+1,
+                        CharacterCount=CharacterCount+?,
+                        WordCount=WordCount+?,
+                        SpoilerCount=SpoilerCount+?,
+                        EmojiCount=EmojiCount+?,
+                        FileSentCount=FileSentCount+?,
+                        FileTotalSize=FileTotalSize+?,
+                        ImageCount=ImageCount+?
+                    WHERE UniqueMemberID=? AND SubjectID=?"""
+        c.execute(sql, values)
+        conn.commit()
 
     def get_current_subject_id(self, semester=2):
         conn = self.get_connection()

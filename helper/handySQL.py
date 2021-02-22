@@ -369,10 +369,10 @@ def create_all_tables(path):
     sql_create_DiscordGuilds = """ CREATE TABLE IF NOT EXISTS DiscordGuilds (
                                     DiscordGuildID integer NOT NULL PRIMARY KEY,
                                     GuildName text NOT NULL,
-                                    GuildRegion text NOT NULL,
-                                    GuildChannelCount integer NOT NULL,
-                                    GuildMemberCount integer NOT NULL,
-                                    GuildRoleCount integer NOT NULL
+                                    GuildRegion text,
+                                    GuildChannelCount integer,
+                                    GuildMemberCount integer,
+                                    GuildRoleCount integer
                                     );"""
     sql_create_DiscordMembers = """ CREATE TABLE IF NOT EXISTS DiscordMembers (
                                     UniqueMemberID integer PRIMARY KEY,
