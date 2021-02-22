@@ -3,7 +3,7 @@ from discord.ext import commands
 from datetime import datetime
 import time
 from helper.log import log
-import json
+from PIL import UnidentifiedImageError
 import aiohttp
 from bs4 import BeautifulSoup as bs
 import asyncio
@@ -121,7 +121,6 @@ class Games(commands.Cog):
         if c != 0:
             embed.add_field(name=f"Top {len(points_list)}", value=msg, inline=False)
         await channel.send(embed=embed)
-        await self.bot.change_presence(activity=discord.Activity(name=f'closely', type=discord.ActivityType.watching))
 
     async def point_distribute(self, guild, confirmed_cases):
         log(f"Starting COVID points distribution", "COVID")
@@ -262,33 +261,38 @@ class Games(commands.Cog):
 
         if number is None:
             # No values were given in the command:
-            c.execute("SELECT TotalPointsAmount, GuessCount, NextGuess FROM CovidGuessing WHERE UniqueMemberID=?", (uniqueID,))
-            row = c.fetchone()
-            if row is None:
-                await ctx.send(f"{ctx.message.author.mention}, you have not made any guesses yet. Guess with `$guess <integer>`.", delete_after=7)
-                return
-            image_url = f"https://robohash.org/{uniqueID}.png"
-            async with aiohttp.ClientSession() as cs:
-                async with cs.get(image_url) as r:
-                    buffer = io.BytesIO(await r.read())
-            color_thief = ColorThief(buffer)
-            dominant_color = color_thief.get_palette(color_count=2, quality=10)[0]
-            hex_color = '0x%02x%02x%02x' % dominant_color
-            if row[1] != 0:
-                avg = round(row[0] / row[1])
-                acc = round(avg/10, 2)
-            else:
-                avg = 0
-                acc = 0.0
-            embed = discord.Embed(title="Covid Guesser Profile",
-                                  description=f"**User:** <@{ctx.message.author.id}>\n"
-                                              f"**Total Points:** `{row[0]}`\n"
-                                              f"**Total Guesses:** `{row[1]}`\n"
-                                              f"**Average:** `{avg}`\n"
-                                              f"**Accuracy:** `{acc}`%\n"
-                                              f"**Next Guess:** `{row[2]}`",
-                                  color=int(hex_color, 0))
-            embed.set_thumbnail(url=image_url)
+            async with ctx.typing():
+                c.execute("SELECT TotalPointsAmount, GuessCount, NextGuess FROM CovidGuessing WHERE UniqueMemberID=?", (uniqueID,))
+                row = c.fetchone()
+                if row is None:
+                    await ctx.send(f"{ctx.message.author.mention}, you have not made any guesses yet. Guess with `$guess <integer>`.", delete_after=7)
+                    return
+                image_url = f"https://robohash.org/{uniqueID}.png"
+                try:
+                    async with aiohttp.ClientSession() as cs:
+                        async with cs.get(image_url) as r:
+                            buffer = io.BytesIO(await r.read())
+                    color_thief = ColorThief(buffer)
+                    dominant_color = color_thief.get_palette(color_count=2, quality=10)[0]
+                except UnidentifiedImageError as e:
+                    await ctx.send(f"Whoops, something went wrong. Try again.\nError msg: `{e}`", delete_after=7)
+                    return
+                hex_color = '0x%02x%02x%02x' % dominant_color
+                if row[1] != 0:
+                    avg = round(row[0] / row[1])
+                    acc = round(avg/10, 2)
+                else:
+                    avg = 0
+                    acc = 0.0
+                embed = discord.Embed(title="Covid Guesser Profile",
+                                      description=f"**User:** <@{ctx.message.author.id}>\n"
+                                                  f"**Total Points:** `{row[0]}`\n"
+                                                  f"**Total Guesses:** `{row[1]}`\n"
+                                                  f"**Average:** `{avg}`\n"
+                                                  f"**Accuracy:** `{acc}`%\n"
+                                                  f"**Next Guess:** `{row[2]}`",
+                                      color=int(hex_color, 0))
+                embed.set_thumbnail(url=image_url)
             await ctx.send(embed=embed, delete_after=7)
         else:
             try:

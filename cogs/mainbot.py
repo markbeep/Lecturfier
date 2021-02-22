@@ -30,7 +30,7 @@ class MainBot(commands.Cog):
         print(f"Name: {self.bot.user.name}", "LOGIN")
         print(f"ID: {self.bot.user.id}", "LOGIN")
         print(f"Version: {discord.__version__}", "LOGIN")
-        await self.bot.change_presence(activity=discord.Activity(name='myself just boot up', type=discord.ActivityType.watching))
+        await self.bot.change_presence(activity=discord.Activity(name=f'closely', type=discord.ActivityType.watching))
         print("-------------")
         await self.load_all_extensions(self.startup_extensions)
         file_creator.createFiles()
@@ -77,10 +77,6 @@ class MainBot(commands.Cog):
             msg = "--Stopped background task--"
         else:
             msg = "--No background task to stop--"
-        if cog == "games":
-            games = self.bot.get_cog("Games")
-            games.save("./data/guesses.json")
-            msg += "\n--Saved covid guesses--"
         self.bot.reload_extension("cogs." + cog)
         return f"Reloaded `{cog}`\n{msg}"
 
