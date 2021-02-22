@@ -32,6 +32,7 @@ class Voice(commands.Cog):
         self.bot = bot
 
         self.db_path = "./data/discord.db"
+        self.conn = handySQL.create_connection(self.db_path)
         self.time_heartbeat = 0
 
         self.task = self.bot.loop.create_task(self.background_save_levels())
@@ -41,6 +42,15 @@ class Voice(commands.Cog):
 
     def get_task(self):
         return self.task
+
+    def get_connection(self):
+        """
+        Retreives the current database connection
+        :return: Database Connection
+        """
+        if self.conn is None:
+            self.conn = handySQL.create_connection(self.db_path)
+        return self.conn
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -82,7 +92,7 @@ class Voice(commands.Cog):
         :param amount_max:
         :return:
         """
-        conn = handySQL.create_connection(self.db_path)
+        conn = self.get_connection()
         if conn is not None:
             rand_amount = random.randrange(1, 10)
 
@@ -100,7 +110,6 @@ class Voice(commands.Cog):
             c = conn.cursor()
             c.execute(sql, (uniqueMemberID,))
             conn.commit()
-            conn.close()
         else:
             print("ERROR! conn was a None type")
 
@@ -117,8 +126,9 @@ class Voice(commands.Cog):
                 u_id = user.replace("<@", "").replace(">", "").replace("!", "")
             else:
                 u_id = member.id
+
         # Query User experience
-        conn = handySQL.create_connection(self.db_path)
+        conn = self.get_connection()
         try:
             c = conn.cursor()
             if ctx.message.guild is None:
@@ -129,7 +139,6 @@ class Voice(commands.Cog):
                             WHERE DM.DiscordUserID=? AND DM.DiscordGuildID=?"""
             c.execute(sql, (u_id, guild_id))
             line = c.fetchone()
-            conn.close()
             if line is None:
                 await ctx.send(f"{ctx.message.author.mention}, invalid mention or user ID. Can't display rank for that user.")
                 raise ValueError
@@ -157,7 +166,7 @@ class Voice(commands.Cog):
         """
         This command sends the top 10 users with the most voice XP on this server.
         """
-        conn = handySQL.create_connection(self.db_path)
+        conn = self.get_connection()
         if conn is not None:
             c = conn.cursor()
             try:
@@ -173,7 +182,6 @@ class Voice(commands.Cog):
                                     ORDER BY ExperienceAmount DESC"""
                     c.execute(sql, (guild_id,))
                     rows = c.fetchall()
-                    conn.close()
 
                     # Creates the message content
                     i = 1
