@@ -2,22 +2,55 @@ import discord
 from discord.ext import commands
 import datetime
 import time
-import asyncio
 import json
 import traceback
 from helper.log import log
+from helper import handySQL
+
+
+def get_most_recent_time(conn, uniqueMemberID):
+    c = conn.cursor()
+    c.execute("SELECT CreatedAt from Reputations WHERE AddedByUniqueMemberID=? ORDER BY CreatedAt DESC", (uniqueMemberID,))
+    result = c.fetchone()
+    if result is None:
+        return None
+    return result[0]
+
+
+def get_valid_guild_id(message):
+    # To avoid errors when commands are used in DMs
+    try:
+        guild_id = message.guild.id
+    except AttributeError:
+        guild_id = 0
+    return guild_id
+
+
+async def valid_chars_checker(message_content):
+    valid_chars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', "ä", "ü", "ö", "Ä", "Ü", "Ö", '!', '"', '#', '$', '%', '&', "'", '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?', '@', '[', ']', '^', '_', '{', '|', '}', '~', ' ', '\t', '\n', '\r', '\x0b', '\x0c']
+    for letter in message_content:
+        if letter not in valid_chars:
+            return False
+    return True
 
 
 class Reputation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.TIME_TO_WAIT = 20 * 3600  # hours to wait between reps
         with open("./data/ignored_users.json") as f:
             self.ignored_users = json.load(f)
-        self.reputation_filepath = "./data/reputation.json"
+        self.db_path = "./data/discord.db"
+        self.conn = handySQL.create_connection(self.db_path)
+        self.time_to_wait = 20 * 3600  # Wait 20 hours before repping again
 
-        with open(self.reputation_filepath, "r") as f:
-            self.reputation = json.load(f)
+    def get_connection(self):
+        """
+        Retreives the current database connection
+        :return: Database Connection
+        """
+        if self.conn is None:
+            self.conn = handySQL.create_connection(self.db_path)
+        return self.conn
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -55,15 +88,13 @@ class Reputation(commands.Cog):
                     raise ValueError
 
                 # checks if the message chars are valid
-                if not await self.valid_chars_checker(message.content):
+                if not await valid_chars_checker(message.content):
                     raise ValueError
-
-                # check if the user exists
-                await self.rep_checkup(message.guild.id, member.id)
-                await self.rep_checkup(message.guild.id, message.author.id)
 
                 # Add reputation to user
                 time_valid = await self.add_rep(message, member, message.author)
+
+                # Send return message
                 if time_valid:
                     display_name = member.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
                     embed = discord.Embed(
@@ -77,74 +108,110 @@ class Reputation(commands.Cog):
                     await message.delete()
 
                 else:
-                    send_time = self.reputation[str(message.guild.id)]['last_rep_time'][str(message.author.id)] + self.TIME_TO_WAIT
-                    send_time = datetime.datetime.fromtimestamp(send_time).strftime("%A at %H:%M")
-                    embed = discord.Embed(
-                        title="Error",
-                        description=f"You've repped too recently. You can rep again on {send_time}.",
-                        color=discord.Color.red())
-                    msg = await message.channel.send(embed=embed, delete_after=10)
+                    conn = self.get_connection()
+                    guild_id = get_valid_guild_id(message)
+                    uniqueID = handySQL.get_uniqueMemberID(conn, message.author.id, guild_id)
+                    last_sent_time = get_most_recent_time(conn, uniqueID)
+                    if last_sent_time is not None:
+                        seconds = datetime.datetime.strptime(last_sent_time, '%Y-%m-%d %H:%M:%S.%f').timestamp() + self.time_to_wait
+                        next_time = datetime.datetime.fromtimestamp(seconds).strftime("%A at %H:%M")
+                        embed = discord.Embed(
+                            title="Error",
+                            description=f"You've repped too recently. You can rep again on {next_time}.",
+                            color=discord.Color.red())
+                        await message.channel.send(embed=embed, delete_after=10)
+                    else:
+                        embed = discord.Embed(title="Error",
+                                              description="Had problems parsing something. Tbh this error shouldn't show up...",
+                                              color=discord.Color.red())
+                        await message.channel.send(embed=embed, delete_after=10)
 
         except ValueError:
             embed = discord.Embed(title="Error", description="Only mention one user, don't mention yourself, only use printable ascii characters, and keep it under 40 characters.", color=discord.Color.red())
             embed.add_field(name="Example", value="+rep <@755781649643470868> helped with Eprog")
-            msg = await message.channel.send(embed=embed, delete_after=10)
-
-    async def valid_chars_checker(self, message_content):
-        valid_chars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', "ä", "ü", "ö", "Ä", "Ü", "Ö", '!', '"', '#', '$', '%', '&', "'", '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?', '@', '[', ']', '^', '_', '{', '|', '}', '~', ' ', '\t', '\n', '\r', '\x0b', '\x0c']
-        for letter in message_content:
-            if letter not in valid_chars:
-                return False
-        return True
+            await message.channel.send(embed=embed, delete_after=10)
 
     async def send_reputations(self, message, member):
-        await self.rep_checkup(message.guild.id, member.id)
         reputation_msg = ""
-        for rep in self.reputation[str(message.guild.id)]["rep"][str(member.id)]:
-            reputation_msg += f"+ {rep}\n"
-        if len(reputation_msg) == 0:
+        conn = self.get_connection()
+        c = conn.cursor()
+        guild_id = get_valid_guild_id(message)
+        sql = """   SELECT R.IsPositive, R.ReputationMessage
+                    FROM Reputations R
+                    INNER JOIN DiscordMembers DM on R.UniqueMemberID = DM.UniqueMemberID
+                    WHERE DM.DiscordUserID=? AND DM.DiscordGuildID=?"""
+        c.execute(sql, (member.id, guild_id))
+        rows = c.fetchall()
+
+        # Create reputation message
+        if len(rows) == 0:
             reputation_msg = "--- it's pretty empty here, go help some people out"
+        else:
+            for r in rows:
+                if r[0] == 1:  # If message is positive
+                    reputation_msg += "+ "
+                else:
+                    reputation_msg += "- "
+                reputation_msg += f"{r[1]}\n"
+
         display_name = member.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
         msg = f"```diff\nReputations: {display_name}\n__________________________\n{reputation_msg}```"
         await message.channel.send(msg)
+
+    def check_valid_time(self, conn, uniqueMemberID):
+        result = get_most_recent_time(conn, uniqueMemberID)
+        if result is None:
+            return True
+        time_sent = datetime.datetime.strptime(result, '%Y-%m-%d %H:%M:%S.%f')
+        if time.time() - time_sent.timestamp() > self.time_to_wait:
+            return True
+        return False
 
     async def add_rep(self, message, member, author):
         """
         Adds the reputation to the file
         """
-        if self.reputation[str(message.guild.id)]["last_rep_time"][str(author.id)] + self.TIME_TO_WAIT > time.time():
+        conn = self.get_connection()
+
+        # To avoid errors when commands are used in DMs
+        try:
+            guild_id = message.guild.id
+        except AttributeError:
+            guild_id = 0
+        uniqueID = handySQL.get_uniqueMemberID(conn, member.id, guild_id)
+
+        # Can the user rep yet?
+        authorUniqueID = handySQL.get_uniqueMemberID(conn, author.id, guild_id)
+        if not self.check_valid_time(conn, authorUniqueID):
             return False
 
-        self.reputation[str(message.guild.id)]["last_rep_time"][str(author.id)] = time.time()
-        msg = message.content.split(" ")
-        if len(msg) > 2:
-            self.reputation[str(message.guild.id)]["rep"][str(member.id)].append(" ".join(msg[2:]))
+        # Format the reputation message
+        msg_list = message.content.split(" ")
+        if len(msg_list) > 2:
+            msg = " ".join(msg_list[2:])
+        else:
+            return False
 
-        # SAVE FILE
-        try:
-            with open(self.reputation_filepath, "w") as f:
-                json.dump(self.reputation, f, indent=2)
-            log("SAVED REPUTATION", "REPUTATION")
-        except Exception:
-            log(f"Saving REPUTATION file failed:\n{traceback.format_exc()}", "REPUTATION")
-            user = self.bot.get_user(self.bot.owner_id)
-            await user.send(f"Saving REPUTATION file failed:\n{traceback.format_exc()}")
+        # Check if the rep is positive
+        if msg.startswith("-"):
+            isPositive = 0
+            msg = msg[1:].strip()
+        else:
+            isPositive = 1
+
+        # Add to DB
+        c = conn.cursor()
+        sql = """   INSERT INTO Reputations(
+                        UniqueMemberID,
+                        ReputationMessage,
+                        CreatedAt,
+                        AddedByUniqueMemberID,
+                        IsPositive
+                    )
+                    VALUES (?,?,?,?,?)"""
+        c.execute(sql, (uniqueID, msg, datetime.datetime.now(), authorUniqueID, isPositive))
+        conn.commit()
         return True
-
-    async def rep_checkup(self, guild_id, name):
-        # If the guild doesn't exist in reputation yet
-        if str(guild_id) not in self.reputation:
-            self.reputation[str(guild_id)] = {}
-
-        # If the categories don't exist in reputation yet
-        if "rep" not in self.reputation[str(guild_id)]:
-            self.reputation[str(guild_id)]["rep"] = {}
-            self.reputation[str(guild_id)]["last_rep_time"] = {}
-
-        # If the user doesn't exist in reputation yet
-        if str(name) not in self.reputation[str(guild_id)]["rep"]:
-            self.reputation[str(guild_id)]["rep"][str(name)] = []
-            self.reputation[str(guild_id)]["last_rep_time"][str(name)] = 0
 
 
 def setup(bot):

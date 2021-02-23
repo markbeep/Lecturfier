@@ -474,14 +474,15 @@ def create_all_tables(path):
                                     TempPoints integer,
                                     FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
                                     );"""
-    sql_create_bot_commands = """   CREATE TABLE IF NOT EXISTS BotCommands (
-                                    UniqueMemberID integer NOT NULL PRIMARY KEY,
-                                    BotPrefix text NOT NULL,
-                                    CommandName text NOT NULL,
-                                    CommandInfo text,
-                                    CommandAliases text,
-                                    CommandUsage text,
-                                    FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
+    sql_create_reputations = """    CREATE TABLE IF NOT EXISTS Reputations (
+                                    ReputationID integer NOT NULL PRIMARY KEY,
+                                    UniqueMemberID integer NOT NULL,
+                                    ReputationMessage text,
+                                    CreatedAt text,
+                                    AddedByUniqueMemberID integer,
+                                    IsPositive integer,
+                                    FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID),
+                                    FOREIGN KEY (AddedByUniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
                                     );"""
 
     conn = create_connection(database)
@@ -499,6 +500,7 @@ def create_all_tables(path):
         create_table(conn, sql_create_ServerQuotes)
         create_table(conn, sql_create_VoiceLevels)
         create_table(conn, sql_create_CovidGuessing)
+        create_table(conn, sql_create_reputations)
 
         conn.close()
     else:

@@ -146,7 +146,6 @@ class Owner(commands.Cog):
                         conn.commit()
                         count += 1
                     await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
-
             elif file == "statistics":
                 with open("./data/statistics.json", "r") as f:
                     statistics = json.load(f)
@@ -208,6 +207,36 @@ class Owner(commands.Cog):
                         if not reaction_result[0]:
                             print(f"Reaction {reaction_result[2]}")
                         if reaction_result[0] and msg_result[0]:
+                            count += 1
+                    await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
+            elif file == "reputations":
+                with open("./data/reputation.json", "r") as f:
+                    reputations = json.load(f)
+                for guild in reputations:
+                    guild_obj = self.bot.get_guild(int(guild))
+                    if guild_obj is None:
+                        print(f"Didn't find Guild with ID: {guild}")
+                        continue
+                    count = 0
+                    for member in reputations[guild]["rep"]:
+                        member_obj = guild_obj.get_member(int(member))
+                        if member_obj is None:
+                            print(f"Didn't find Member with ID: {member}")
+                            continue
+                        for message in reputations[guild]["rep"][member]:
+                            sql = """   INSERT INTO Reputations(
+                                            UniqueMemberID,
+                                            ReputationMessage,
+                                            IsPositive)
+                                        VALUES (?,?,?)"""
+                            uniqueID = handySQL.get_or_create_member(conn, member_obj, guild_obj)
+                            # Check if the rep is positive
+                            if message.startswith("-"):
+                                isPositive = 0
+                            else:
+                                isPositive = 1
+                            conn.execute(sql, (uniqueID, message, isPositive))
+                            conn.commit()
                             count += 1
                     await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
             else:
