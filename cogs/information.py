@@ -6,6 +6,7 @@ import time
 import random
 import string
 import hashlib
+from helper.lecture_scraper import scraper_test
 
 
 class Information(commands.Cog):
@@ -16,6 +17,31 @@ class Information(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         self.script_start = time.time()
+
+    @commands.command(aliases=["terms"])
+    async def terminology(self, ctx, word=None):
+        async with ctx.typing():
+            terms = await scraper_test.terminology()
+            if word is None:
+                embed = discord.Embed(title="PPROG Terminology")
+                cont = ""
+                for key in terms.keys():
+                    cont += f"**- {key}:** {terms[key]}\n"
+                if len(cont) > 2000:
+                    index = cont.rindex("\n", 0, 1900)
+                    cont = cont[0:index]
+                    cont += "\n..."
+                embed.description = cont
+                embed.set_footer(text="URL=https://cgl.ethz.ch/teaching/parallelprog21/pages/terminology.html")
+                await ctx.send(embed=embed)
+            else:
+                if word in terms.keys():
+                    cont = f"**{word}**:\n{terms[word]}"
+                    embed = discord.Embed(title="PPROG Terminology", description=cont)
+                    embed.set_footer(text="URL=https://cgl.ethz.ch/teaching/parallelprog21/pages/terminology.html")
+                    await ctx.send(embed=embed)
+                else:
+                    await ctx.send("Couldn't find word. soz...")
 
     @commands.command(usage="guild")
     async def guild(self, ctx):
