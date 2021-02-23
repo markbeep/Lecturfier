@@ -9,6 +9,7 @@ import json
 import traceback
 from helper.log import log
 from helper import handySQL
+from helper.lecture_scraper import scraper_test
 
 
 async def create_lecture_embed(subject_name, stream_url, zoom_url, subject_website_url, subject_room=None, color=discord.colour.Color.light_gray()):
@@ -49,6 +50,9 @@ class Updates(commands.Cog):
     def get_task(self):
         return self.task
 
+    def cancel_task(self):
+        self.task.cancel()
+
     def get_connection(self):
         """
         Retreives the current database connection
@@ -60,8 +64,11 @@ class Updates(commands.Cog):
 
     async def background_loop(self):
         await self.bot.wait_until_ready()
+        sent_updates = False
+        sent_covid = False
         while not self.bot.is_closed():
             self.time_heartbeat = time.time()
+            await asyncio.sleep(10)
             try:
                 channel = self.bot.get_channel(self.channel_to_post)
                 cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
@@ -69,12 +76,15 @@ class Updates(commands.Cog):
                     cur_time = "test"
                 if int(datetime.now(timezone("Europe/Zurich")).strftime("%M")) % 10 == 0:  # Only check updates every 10 minutes
                     await self.check_updates(channel, cur_time, self.lecture_updater_version)
-                if "10:00" in cur_time and "Sat" not in cur_time and "Sun" not in cur_time:
+                if not sent_covid and "10:00" in cur_time and "Sat" not in cur_time and "Sun" not in cur_time:
+                    sent_covid = True
                     general = self.bot.get_channel(747752542741725247)
                     await general.send("<@&770968106679926868> it's time to guess today's covid cases using `$g <guess>`!")
-                    await asyncio.sleep(30)
+                if "10:00" not in cur_time:
+                    sent_covid = False
                 minute = datetime.now().minute
-                if minute == 0:
+                if not sent_updates and minute == 0:
+                    sent_updates = True
                     subject = self.get_starting_subject()
                     if subject is not None:
                         await self.send_lecture_start(
@@ -85,40 +95,22 @@ class Updates(commands.Cog):
                             759615935496847412,  # Role to ping
                             subject["ZoomLink"],
                             subject["OnSiteLocation"])
-                        await asyncio.sleep(30)
-                await asyncio.sleep(40)
+                if minute != 0:
+                    sent_updates = False
+            except AttributeError as e:
+                print(f"ERROR in Lecture Updates Loop! Probably wrong channel ID | {e}")
             except Exception:
+                await asyncio.sleep(10)
                 user = self.bot.get_user(self.bot.owner_id)
                 await user.send(f"Error in background loop: {traceback.format_exc()}")
                 log(f"Error in background loop self.bot.py: {traceback.format_exc()}", "BACKGROUND")
-                await asyncio.sleep(10)
 
     @commands.command(usage="edit <message id> <livestream link>")
-    @commands.has_permissions(manage_messages=True)
-    async def edit(self, ctx, id: int = None, link=None):
-        """
-        *Does not work anymore*
-        Was used to edit the link of a lecture livestream if it was wrong.
-        Permissions: manage_messages
-        """
-        try:
-            await ctx.message.delete()
-            if id is None or link is None:
-                msg = await ctx.send("No link sent")
-                await asyncio.sleep(7)
-                await msg.delete()
-                return
-            room = self.get_room(link)
-            message = await ctx.channel.fetch_message(id)
-            title = message.embeds[0].title
-            embed = discord.Embed(title=f"{title} is starting soon!",
-                                  description=f"**Lecture is in {room}**\n[**>> Click here to view the livestream <<**]({link})\n---------------------\n",
-                                  timestamp=datetime.fromtimestamp(time.time()), color=discord.Color.light_grey())
-            embed.set_footer(text="(Edited)")
-            await message.edit(embed=embed)
-        except Exception:
-            user = self.bot.get_user(self.bot.owner_id)
-            await user.send(f"No lesson error: {traceback.format_exc()}")
+    async def testOnline(self, ctx):
+        if await self.bot.is_owner(ctx.author):
+            await scraper_test.scrape()
+        else:
+            raise discord.ext.commands.errors.NotOwner
 
     @commands.command(usage="testLecture <subject_id> <channel_id> <role_id>")
     async def testLecture(self, ctx, subject_id=None, channel_id=None, role_id=0, stream_url=None):
