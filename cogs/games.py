@@ -12,6 +12,7 @@ from helper import handySQL
 from sqlite3 import Error
 import io
 from colorthief import ColorThief
+from discord.ext.commands.cooldowns import BucketType
 
 
 def calculate_points(confirmed_cases, guess):
@@ -94,15 +95,16 @@ class Games(commands.Cog):
         if member.bot:
             return
         if member.guild_permissions.kick_members:
-            if str(reaction) == "<:checkmark:776717335242211329>":
-                await self.confirm_msg.delete()
-                self.confirm_msg = None
-                await self.send_message(reaction.message.channel, reaction.message.guild, self.confirmed_cases)
-            elif str(reaction) == "<:xmark:776717315139698720>":
-                await self.confirm_msg.delete()
-                self.confirm_msg = None
-                self.confirmed_cases = 0
-                await reaction.message.channel.send("Confirmed cases amount was stated as being wrong and was therefore deleted.")
+            if len(reaction.message.embeds) > 0 and reaction.message.embeds[0].title is not discord.Embed.Empty and "Covid Guesser Profile" in reaction.message.embeds[0].title:
+                if str(reaction) == "<:checkmark:776717335242211329>":
+                    await self.confirm_msg.delete()
+                    self.confirm_msg = None
+                    await self.send_message(reaction.message.channel, reaction.message.guild, self.confirmed_cases)
+                elif str(reaction) == "<:xmark:776717315139698720>":
+                    await self.confirm_msg.delete()
+                    self.confirm_msg = None
+                    self.confirmed_cases = 0
+                    await reaction.message.channel.send("Confirmed cases amount was stated as being wrong and was therefore deleted.")
 
     async def send_message(self, channel, guild, confirmed_cases):
         points_list = await self.point_distribute(guild, confirmed_cases)
@@ -229,6 +231,7 @@ class Games(commands.Cog):
                 embed = discord.Embed(title=f"Error", description="There are no covid guessing points yet", color=0xFF0000)
         await ctx.send(embed=embed)
 
+    @commands.cooldown(4, 10, BucketType.user)
     @commands.command(aliases=["g"], usage="guess [guess amount | lb | avg]")
     async def guess(self, ctx, number=None, confirmed_number=None):
         """
