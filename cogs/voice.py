@@ -6,6 +6,7 @@ from sqlite3 import Error
 import discord
 from discord.ext import commands
 from helper import handySQL
+from discord.ext.commands.cooldowns import BucketType
 
 
 def xpfier(n):
@@ -113,6 +114,7 @@ class Voice(commands.Cog):
         else:
             print("ERROR! conn was a None type")
 
+    @commands.cooldown(4, 10, BucketType.user)
     @commands.command(usage="rank [user]")
     async def rank(self, ctx, user=None):
         """
@@ -161,6 +163,7 @@ class Voice(commands.Cog):
                                                                f"Estimated Hours: `{round(experience / 3600, 1)}`", color=0x00FF00)
         await ctx.send(embed=embed)
 
+    @commands.cooldown(2, 10, BucketType.user)
     @commands.command(aliases=["lb", "ranks"], usage="leaderboard")
     async def leaderboard(self, ctx):
         """

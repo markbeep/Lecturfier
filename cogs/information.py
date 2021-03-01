@@ -1,12 +1,14 @@
 import discord
 from discord.ext import commands
 from datetime import datetime
+from pytz import timezone
 import psutil
 import time
 import random
 import string
 import hashlib
 from helper.lecture_scraper import scraper_test
+from discord.ext.commands.cooldowns import BucketType
 
 
 class Information(commands.Cog):
@@ -18,6 +20,7 @@ class Information(commands.Cog):
     async def on_ready(self):
         self.script_start = time.time()
 
+    @commands.cooldown(2, 10, BucketType.user)
     @commands.command(aliases=["terms"])
     async def terminology(self, ctx, word=None):
         async with ctx.typing():
@@ -43,6 +46,7 @@ class Information(commands.Cog):
                 else:
                     await ctx.send("Couldn't find word. soz...")
 
+    @commands.cooldown(4, 10, BucketType.user)
     @commands.command(usage="guild")
     async def guild(self, ctx):
         """
@@ -70,6 +74,7 @@ class Information(commands.Cog):
                                              f"{len(guild.roles)}")
         await ctx.send(embed=embed)
 
+    @commands.cooldown(4, 10, BucketType.user)
     @commands.command(aliases=["source", "code"], usage="info")
     async def info(self, ctx):
         """
@@ -84,15 +89,16 @@ class Information(commands.Cog):
             cont = f"**Instance uptime: **`{b_time}`\n" \
                    f"**Computer uptime: **`{s_time}`\n" \
                    f"**CPU: **`{round(cpu)}%` | **RAM: **`{round(ram.percent)}%`\n" \
-                   f"**Discord.py Rewrite Version:** `{discord.__version__}`\n" \
+                   f"**Discord.py Version:** `{discord.__version__}`\n" \
                    f"**Bot source code:** [Click here for source code](https://github.com/markbeep/Lecturfier)"
             embed = discord.Embed(title="Bot Information:", description=cont, color=0xD7D7D7,
-                                  timestamp=datetime.now())
+                                  timestamp=datetime.now(timezone("Europe/Zurich")))
             embed.set_footer(text=f"Called by {ctx.author.display_name}")
             embed.set_thumbnail(url=self.bot.user.avatar_url)
             embed.set_author(name=self.bot.user.display_name, icon_url=self.bot.user.avatar_url)
         await ctx.send(embed=embed)
 
+    @commands.cooldown(4, 10, BucketType.user)
     @commands.command(usage="token")
     async def token(self, ctx):
         """
@@ -102,6 +108,7 @@ class Information(commands.Cog):
         embed = discord.Embed(title="Bot Token", description=f"||`{token}`||")
         await ctx.send(embed=embed)
 
+    @commands.cooldown(4, 10, BucketType.user)
     @commands.command(aliases=["pong", "ding", "pingpong"], usage="ping")
     async def ping(self, ctx):
         """
@@ -129,6 +136,7 @@ class Information(commands.Cog):
                         f"❤ HEARTBEAT: `{round(self.bot.latency * 1000)}` ms")
         await ping.edit(embed=embed)
 
+    @commands.cooldown(4, 10, BucketType.user)
     @commands.command(aliases=["cypher"], usage="cipher <amount to displace> <msg>")
     async def cipher(self, ctx, amount=None, *msg):
         """
@@ -156,6 +164,7 @@ class Information(commands.Cog):
 
         await ctx.send(f"```{encoded_msg}```")
 
+    @commands.cooldown(4, 10, BucketType.user)
     @commands.command(usage="hash <OpenSSL algo> <msg>")
     async def hash(self, ctx, algo=None, *msg):
         """

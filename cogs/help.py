@@ -4,6 +4,7 @@ from helper import handySQL
 from helper import git_tools
 import json
 import os
+from discord.ext.commands.cooldowns import BucketType
 
 
 class Help(commands.Cog):
@@ -100,6 +101,7 @@ class Help(commands.Cog):
             json.dump(self.versions, f, indent=2)
         print("### Version updater done ###")
 
+    @commands.cooldown(4, 10, BucketType.user)
     @commands.command(aliases=["halp", "h"], usage="help <command>")
     async def help(self, ctx, specific_command=None):
         """

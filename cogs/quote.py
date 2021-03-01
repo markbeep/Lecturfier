@@ -7,6 +7,7 @@ import json
 from pytz import timezone
 import traceback
 from helper.log import log
+from discord.ext.commands.cooldowns import BucketType
 
 
 async def send_quote(ctx, quote, date, name, index=None):
@@ -54,6 +55,20 @@ class Quote(commands.Cog):
                 "olge",
                 "sorkine",
                 "sarkine"
+            ],
+            "burger": [
+
+            ],
+            "barbara": [
+
+            ],
+            "onur": [
+                "mutlu",
+                "mutu",
+                "multu"
+            ],
+            "lengler": [
+                "lenger"
             ]
         }
 
@@ -74,6 +89,7 @@ class Quote(commands.Cog):
             except KeyError:
                 log(f"Name does not exist in database: {name}", "QUOTE")
 
+    @commands.cooldown(4, 10, BucketType.user)
     @commands.command(aliases=["q", "quotes"], usage="quote [user] [quote/command] [index]")
     async def quote(self, ctx, name=None, *quote):
         """

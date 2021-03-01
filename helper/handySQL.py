@@ -1,6 +1,7 @@
 import sqlite3
 from sqlite3 import Error
 import random
+import re
 
 
 def create_connection(db_file):
@@ -47,7 +48,6 @@ def get_uniqueMemberID(conn, DiscordUserID, DiscordGuildID):
             return rows[0]
     except Error as e:
         print(e)
-
 
 def get_DiscordUserID(conn, uniqueID):
     try:
@@ -356,6 +356,38 @@ def increment_message_statistic(conn, user, guild, subjectID, statistic, table, 
         return False, -1, e
 
 
+def open_file(file_name):
+    with open(file_name, "r", encoding="utf8") as f:
+        word_file = f.read()
+        word_file = re.sub(r'\([^)]*\)', '', word_file)
+        word_file = re.findall(r"[\w']+", word_file)
+    return word_file
+
+
+def dictionary_to_db():
+    conn = create_connection("../data/discord.db")
+    c = conn.cursor()
+    dictionaries = {
+        "../data/german.txt": "german",
+        "../data/english.txt": "english"
+    }
+    for dictio in dictionaries.keys():
+        lang = dictionaries[dictio]
+        count = 0
+        word_file = open_file(dictio)
+        print(f"Word Count: {len(word_file)}")
+        for w in word_file:
+            try:
+                c.execute("INSERT INTO Dictionary(Word, WordLanguage) VALUES (?,?)", (w, lang))
+                count += 1
+
+                if count % 100 == 0:
+                    print(f"{lang} | {count}")
+            except Error as e:
+                print(e)
+        conn.commit()
+
+
 def create_all_tables(path):
     database = path
     sql_create_DiscordUsers = """ CREATE TABLE IF NOT EXISTS DiscordUsers (
@@ -484,6 +516,12 @@ def create_all_tables(path):
                                     FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID),
                                     FOREIGN KEY (AddedByUniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
                                     );"""
+    sql_create_dictionary = """     CREATE TABLE IF NOT EXISTS Dictionary (
+                                    WordID integer PRIMARY KEY,
+                                    Word text NOT NULL,
+                                    WordDefinition text,
+                                    WordLanguage text
+                                    );"""
 
     conn = create_connection(database)
 
@@ -501,6 +539,7 @@ def create_all_tables(path):
         create_table(conn, sql_create_VoiceLevels)
         create_table(conn, sql_create_CovidGuessing)
         create_table(conn, sql_create_reputations)
+        create_table(conn, sql_create_dictionary)
 
         conn.close()
     else:
@@ -509,7 +548,7 @@ def create_all_tables(path):
 
 def main():
     create_all_tables("../data/discord.db")
-
+    dictionary_to_db()
 
 if __name__ == "__main__":
     main()

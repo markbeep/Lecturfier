@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord.ext.commands import CommandOnCooldown
 from datetime import datetime
 import time
 import asyncio
@@ -7,6 +8,7 @@ from emoji import demojize
 import json
 from helper.git_backup import gitpush
 from helper import handySQL
+from discord.ext.commands.cooldowns import BucketType
 
 
 def is_in(word, list_to_check):
@@ -73,6 +75,9 @@ class Statistics(commands.Cog):
         if ctx.message.author.bot:
             return
         else:
+            if isinstance(error, CommandOnCooldown):
+                embed = discord.Embed(description=str(error), color=0x8F0000)
+                await ctx.send(embed=embed, delete_after=3)
             try:
                 await ctx.message.add_reaction("<:ERROR:792154973559455774>")
             except discord.errors.NotFound:
@@ -339,6 +344,7 @@ class Statistics(commands.Cog):
             embed.add_field(name=column, value=lb_msg)
         return embed
 
+    @commands.cooldown(4, 10, BucketType.user)
     @commands.command(aliases=["stats"], usage="statistics [user]")
     async def statistics(self, ctx, user=None):
         """

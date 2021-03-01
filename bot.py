@@ -24,7 +24,7 @@ async def on_message(message):
     await bot.process_commands(message)
 
 # Load the token
-with open("../LECTURFIERBETA.json", "r") as f:
+with open("../LECTURFIER.json", "r") as f:
     settings = json.load(f)
 if len(settings["token"]) == 0:
     print("NO TOKEN IN LECTURFIER.json! Stopping bot.", "TOKEN")

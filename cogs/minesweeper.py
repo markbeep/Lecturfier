@@ -3,6 +3,8 @@ from discord.ext import commands
 import random
 import time
 import asyncio
+from discord.ext.commands.cooldowns import BucketType
+
 
 class Minesweeper(commands.Cog):
     def __init__(self, bot):
@@ -84,6 +86,7 @@ class Minesweeper(commands.Cog):
                 break
         return field
 
+    @commands.cooldown(1, 5, BucketType.user)
     @commands.command(aliases=["ms"], usage="minesweeper [size] [amount of mines]")
     async def minesweeper(self, ctx, size="10", mines="10"):
         """

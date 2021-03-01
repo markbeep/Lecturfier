@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from pytz import timezone
 import time
 from helper.lecture_scraper.scrape import scraper
@@ -13,7 +13,7 @@ from helper.lecture_scraper import scraper_test
 
 
 async def create_lecture_embed(subject_name, stream_url, zoom_url, subject_website_url, subject_room=None, color=discord.colour.Color.light_gray()):
-    embed = discord.Embed(title=f"Lecture Starting: {subject_name}", color=color, timestamp=datetime.now())
+    embed = discord.Embed(title=f"Lecture Starting: {subject_name}", color=color, timestamp=datetime.now(timezone("Europe/Zurich")))
     if stream_url is not None:
         stream_url = f"[Click Here]({stream_url})"
     if subject_website_url is not None:
@@ -26,6 +26,22 @@ async def create_lecture_embed(subject_name, stream_url, zoom_url, subject_websi
                         f"**Subject Room:** {subject_room}\n" \
                         f"**Subject Website URL:** {subject_website_url}"
     return embed
+
+
+def get_formatted_time(rem):
+    if rem < 3600:
+        return f"{round(rem/60)}M"
+    if rem < 86400:
+        hours = rem//3600
+        return f"{hours}H {get_formatted_time(rem-hours*3600)}"
+    days = rem//86400
+    return f"{days}D {get_formatted_time(rem-days*86400)}"
+
+
+def get_month_day(dt, weekday):
+    days_until = (weekday - dt.weekday()) % 7
+    day = dt + timedelta(days_until)
+    return day
 
 
 class Updates(commands.Cog):
@@ -43,6 +59,7 @@ class Updates(commands.Cog):
         self.db_path = "./data/discord.db"
         self.conn = handySQL.create_connection(self.db_path)
         self.task = self.bot.loop.create_task(self.background_loop())
+        self.current_activity = ""
 
     def heartbeat(self):
         return self.time_heartbeat
@@ -62,6 +79,41 @@ class Updates(commands.Cog):
             self.conn = handySQL.create_connection(self.db_path)
         return self.conn
 
+    def get_time_till_next_lesson(self):
+        dt = datetime.now()
+        minute = dt.hour
+        hour = dt.hour
+        day = dt.weekday()
+        conn = self.get_connection()
+        c = conn.cursor()
+
+        # Display lectures that are about to start
+        greater_sign = ">"
+        if minute < 15:
+            greater_sign = ">="
+
+        sql = f"""  SELECT S.SubjectAbbreviation, WD.DayID, WD.TimeFrom
+                    FROM WeekDayTimes WD
+                    INNER JOIN Subject S on WD.SubjectID = S.SubjectID
+                    WHERE WD.TimeFrom{greater_sign}? AND WD.DayID==? OR WD.DayID>?
+                    ORDER BY WD.DayID, WD.TimeFrom"""
+        c.execute(sql, (hour, day, day))
+        result = c.fetchone()
+        if result is None:
+            # Probably weekend or friday, so no results
+            c.execute(sql, (0, 0, 0))
+            result = c.fetchone()
+            if result is None:
+                return "No Lesson"
+
+        # Calculate remaining time
+        subjectName = result[0]
+        date_of_subject = get_month_day(dt, int(result[1]))
+        subjectHour = int(result[2])
+        td = datetime(date_of_subject.year, date_of_subject.month, date_of_subject.day, subjectHour, 15) - dt
+        rem = int(td.total_seconds())
+        return f"{subjectName} in {get_formatted_time(rem)}"
+
     async def background_loop(self):
         await self.bot.wait_until_ready()
         sent_updates = False
@@ -74,14 +126,18 @@ class Updates(commands.Cog):
                 cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
                 if self.test_livestream_message:
                     cur_time = "test"
-                if int(datetime.now(timezone("Europe/Zurich")).strftime("%M")) % 10 == 0:  # Only check updates every 10 minutes
-                    await self.check_updates(channel, cur_time, self.lecture_updater_version)
+                # if int(datetime.now(timezone("Europe/Zurich")).strftime("%M")) % 10 == 0:  # Only check updates every 10 minutes
+                    # await self.check_updates(channel, cur_time, self.lecture_updater_version)
+
+                # Send the covid guesser notification
                 if not sent_covid and "10:00" in cur_time and "Sat" not in cur_time and "Sun" not in cur_time:
                     sent_covid = True
                     general = self.bot.get_channel(747752542741725247)
                     await general.send("<@&770968106679926868> it's time to guess today's covid cases using `$g <guess>`!")
                 if "10:00" not in cur_time:
                     sent_covid = False
+
+                # Check what lectures are starting
                 minute = datetime.now().minute
                 if not sent_updates and minute == 0:
                     sent_updates = True
@@ -97,6 +153,12 @@ class Updates(commands.Cog):
                             subject["OnSiteLocation"])
                 if minute != 0:
                     sent_updates = False
+
+                # Update activity status:
+                time_till_next = self.get_time_till_next_lesson()
+                if time_till_next != self.current_activity:
+                    await self.bot.change_presence(activity=discord.Activity(name=time_till_next, type=discord.ActivityType.watching))
+
             except AttributeError as e:
                 print(f"ERROR in Lecture Updates Loop! Probably wrong channel ID | {e}")
             except Exception:
