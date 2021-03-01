@@ -30,7 +30,7 @@ class MainBot(commands.Cog):
         print(f"Name: {self.bot.user.name}", "LOGIN")
         print(f"ID: {self.bot.user.id}", "LOGIN")
         print(f"Version: {discord.__version__}", "LOGIN")
-        await self.bot.change_presence(activity=discord.Activity(name=f'closely', type=discord.ActivityType.watching))
+        await self.bot.change_presence(activity=discord.Activity(name="myself startup", type=discord.ActivityType.watching))
         print("-------------")
         await self.load_all_extensions(self.startup_extensions)
         file_creator.createFiles()
@@ -51,7 +51,7 @@ class MainBot(commands.Cog):
     async def reload(self, ctx, cog=None):
         """
         Used to reload a cog. Does not load a cog if the cog is unloaded.
-
+        Permissions: Owner
         """
         if await self.bot.is_owner(ctx.author):
             if cog is None:
