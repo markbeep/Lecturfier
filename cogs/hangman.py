@@ -1,64 +1,65 @@
 import discord
 from discord.ext import commands
 import re
+from helper import handySQL
+import string
+from discord.ext.commands.cooldowns import BucketType
+
+
+def joinTuple(string_tuples) -> str:
+    return " ".join(string_tuples)
 
 
 class Hangman(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.sending = False
+        self.db_path = "./data/discord.db"
+        self.conn = handySQL.create_connection(self.db_path)
 
-    async def open_file(self, file_name):
+    def get_connection(self):
+        """
+        Retreives the current database connection
+        :return: Database Connection
+        """
+        if self.conn is None:
+            self.conn = handySQL.create_connection(self.db_path)
+        return self.conn
+
+    def open_file(self, file_name):
         with open(file_name, "r") as f:
             word_file = f.read()
             word_file = re.sub(r'\([^)]*\)', '', word_file)
             word_file = re.findall(r"[\w']+", word_file)
         return word_file
 
-    async def word_guesser(self, word_file, inputted_word, unused_letters=[]):
-        possible_words = []
+    def clean_string(self, inp):
+        inp = inp.lower()
+        valid = string.ascii_lowercase + "_äöüàéè"
+        corrected = ""
+        for s in inp:
+            if s in valid:
+                corrected += s
+        return corrected
 
-        word_length = len(inputted_word)
+    async def word_guesser(self, inputted_word, unused_letters="", language="english"):
+        conn = self.get_connection()
+        c = conn.cursor()
 
-        # Puts all words with the certain length in a list
-        for word in word_file:
-            if len(word) == word_length:
-                possible_words.append(word)
+        # Ununused letters
+        not_like_msg = ""
+        for l in unused_letters:
+            not_like_msg += f' AND NOT Word LIKE "%{l}%"'
 
-        letters = list(inputted_word)
+        c.execute(f"SELECT Word FROM Dictionary WHERE WordLanguage=? AND Word LIKE ? {not_like_msg} GROUP BY Word COLLATE NOCASE", (language, inputted_word))
 
-        fitting_words = []
-
-        # For every word, if one of the not-allowed letters is in the word, go to the next word
-        for word_index, word in enumerate(possible_words):
-            word = word.lower()
-            check_letters = True
-            for letter in unused_letters:
-                if letter in word:
-                    check_letters = False
-                    continue
-
-            # All the possible words, check if each letter lines up. If the last letter is reached and it fits, append
-            if check_letters:
-                for index, i in enumerate(letters):
-                    if i == '_':
-                        if index == len(letters) - 1:
-                            fitting_words.append(word)
-                        else:
-                            continue
-                    elif i == word[index]:
-                        if index == len(letters) - 1:
-                            fitting_words.append(word)
-                        else:
-                            continue
-                    else:
-                        break
+        # As results is a list of tuples, join them
+        fitting_words = list(map(joinTuple, c.fetchall()))
 
         alphabet = {'a': 0, 'b': 0, 'c': 0, 'd': 0, 'e': 0, 'f': 0, 'g': 0, 'h': 0, 'i': 0, 'j': 0, 'k': 0, 'l': 0,
                     'm': 0, 'n': 0, 'o': 0, 'p': 0, 'q': 0, 'r': 0, 's': 0, 't': 0, 'u': 0, 'v': 0, 'w': 0, 'x': 0,
                     'y': 0, 'z': 0, 'ä': 0, 'ö': 0, 'ü': 0, }
         total = 0
-        fitting_words = list(set(fitting_words))
 
         if len(fitting_words) == 0:
             return {'fitting_words': [], 'alphabet': alphabet, 'total': total}
@@ -83,8 +84,9 @@ class Hangman(commands.Cog):
                         alphabet[key] = count
             return {'fitting_words': fitting_words, 'alphabet': alphabet, 'total': total}
 
+    @commands.cooldown(1, 5, BucketType.user)
     @commands.command(aliases=["hm"], usage="hangman <word up till now> <wrong letters or 0> <language>")
-    async def hangman(self, ctx, inputted_word=None, unused_letters=None, language="e"):
+    async def hangman(self, ctx, inputted_word=None, unused_letters="", language="e"):
         """
         This is used to solve hangman the best way possible. It is not optimized, so take it easy with the usage.
         To use this command properly, you want to insert an underscore (\\_) for every unknown character and the known letters \
@@ -101,19 +103,18 @@ class Hangman(commands.Cog):
                 self.sending = True
                 inputted_word = inputted_word.lower()
                 if language.startswith('g'):
-                    file_name = './data/german.txt'
-                    print('Selected German.')
+                    language = "german"
                 else:
-                    file_name = './data/english.txt'
-                    print('Selected English.')
+                    language = "english"
 
-                if unused_letters == 0:
-                    unused_letters = ""
-
-                word_file = await self.open_file(file_name)
+                unused_letters = self.clean_string(unused_letters)
+                inputted_word = self.clean_string(inputted_word)
+                if len(inputted_word) == 0:
+                    await ctx.send("Invalid input word")
+                    return
 
                 # Sets up the variables
-                things = await self.word_guesser(word_file, inputted_word, unused_letters)
+                things = await self.word_guesser(inputted_word, unused_letters, language)
                 alphabet = things['alphabet']
                 fitting_words = things['fitting_words']
                 total = things['total']
@@ -131,11 +132,11 @@ class Hangman(commands.Cog):
                 if len(fitting_words) == 0:
                     message += 'No matching words.\n'
                 elif len(fitting_words) <= 20:
-                    message += f"\nWords:\n{'|'.join(fitting_words)}\n"
+                    message += f"\nWords:\n{' | '.join(fitting_words)}\n"
                 message += f'--- {len(fitting_words)} words ---\n\n'
                 message += text
                 self.sending = False
-                await ctx.send(message)
+            await ctx.send(message)
         elif self.sending:
             msg = await ctx.send("❗❗ Already working on a hangman. Hold on ❗❗", delete_after=7)
             raise discord.ext.commands.errors.BadArgument
