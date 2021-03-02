@@ -36,7 +36,7 @@ class Admin(commands.Cog):
         if member.bot:
             return
         if member.guild.id == 747752542741725244:  # if the server is the main server
-            channel = self.bot.get_channel(747794480517873685)
+            channel = self.bot.get_channel(815936830779555841)
             await self.send_welcome_message(channel, member, member.guild)
 
     @commands.Cog.listener()
@@ -44,16 +44,20 @@ class Admin(commands.Cog):
         if member.bot:
             return
         if member.guild.id == 747752542741725244:
-            channel = self.bot.get_channel(747794480517873685)
+            channel = self.bot.get_channel(815936830779555841)
             await self.send_leave_message(channel, member, member.guild)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
-        if payload.guild_id is None or payload.member is None:
+        if payload.guild_id is None or payload.channel_id is None or payload.member is None:
             return
         channel = self.bot.get_channel(payload.channel_id)
         guild = self.bot.get_guild(payload.guild_id)
-        message = await channel.fetch_message(payload.message_id)
+        try:
+            message = await channel.fetch_message(payload.message_id)
+        except discord.NotFound:
+            print("Did not find message to fetch")
+            return
         admin_log_channel = self.bot.get_channel(774322847812157450)
         if admin_log_channel is None:
             print("Have no access to admin log channel.")
@@ -64,59 +68,63 @@ class Admin(commands.Cog):
             return
         if message.author.id in (755781649643470868, 776713845238136843) and len(message.embeds) > 0 and message.embeds[0].title is not discord.Embed.Empty:
             # Needs to be either Lecturfier or Lecturfier Beta
-            if "Welcome" in message.embeds[0].title:
-                # If the reaction is on the welcome message
+            try:
+                if "Welcome" in message.embeds[0].title:
+                    # If the reaction is on the welcome message
 
-                # EXTERNAL reaction
-                if str(emoji) == "<:bach:764174568000192552>":
-                    role = discord.Object(767315361443741717)
-                    await member.add_roles(role, reason="Reaction role")
-                    embed = discord.Embed(description=f"Added **External** role to {member.mention}\n"
-                                                      f"ID: `{member.id}`", color=0xa52222)
+                    # EXTERNAL reaction
+                    if str(emoji) == "<:bach:764174568000192552>":
+                        role = discord.Object(767315361443741717)
+                        await member.add_roles(role, reason="Reaction role")
+                        embed = discord.Embed(description=f"Added **External** role to {member.mention}\n"
+                                                          f"ID: `{member.id}`", color=0xa52222)
+                        await admin_log_channel.send(embed=embed)
+
+                    # STUDENT reaction (is given to students and TAs)
+                    elif str(emoji) == "✏" or str(emoji) == "🧑‍🏫":
+                        role = discord.Object(747786383317532823)
+                        await member.add_roles(role, reason="Reaction role")
+                        embed = discord.Embed(description=f"Added **Student** role to {member.mention}\n"
+                                                          f"ID: `{member.id}`", color=0xff6c00)
+                        await admin_log_channel.send(embed=embed)
+
+                    # TA reaction
+                    if str(emoji) == "🧑‍🏫":
+                        staff_channel = self.bot.get_channel(747768907992924192)
+                        ta_embed = discord.Embed(
+                            title=f"TA|{member.id}",
+                            description=f"{member.mention} requests to be a TA\n"
+                                        f"<:checkmark:769279808244809798> to accept\n"
+                                        f"<:xmark:769279807916998728> to decline",
+                            color=discord.Color.gold())
+                        ta_msg = await staff_channel.send(embed=ta_embed)
+                        await ta_msg.add_reaction("<:checkmark:769279808244809798>")
+                        await ta_msg.add_reaction("<:xmark:769279807916998728>")
+                        embed = discord.Embed(description=f"{str(member)} requested to be a TA\n"
+                                                          f"ID: `{member.id}`", color=0x56aafd)
+                        await admin_log_channel.send(embed=embed)
+
+                elif "TA|" in message.embeds[0].title:
+                    # CHECKMARK reaction
+                    ta_id = int(message.embeds[0].title.split("|")[1])
+                    ta_user = guild.get_member(ta_id)
+                    if str(emoji) == "<:checkmark:769279808244809798>":
+                        embed = discord.Embed(description=f"Added **TA** role to {ta_user.mention}\n"
+                                                          f"Accepted by: {member.mention}", color=discord.Color.green())
+                        role = discord.Object(767084137361440819)
+                        await ta_user.add_roles(role, reason="Accepted TA role")
+                    elif str(emoji) == "<:xmark:769279807916998728>":
+                        embed = discord.Embed(description=f"Did **not** add TA role to {ta_user.mention}\n"
+                                                          f"Declined by: {member.mention}", color=discord.Color.red())
+                    else:
+                        return
+
                     await admin_log_channel.send(embed=embed)
-
-                # STUDENT reaction (is given to students and TAs)
-                elif str(emoji) == "✏" or str(emoji) == "🧑‍🏫":
-                    role = discord.Object(747786383317532823)
-                    await member.add_roles(role, reason="Reaction role")
-                    embed = discord.Embed(description=f"Added **Student** role to {member.mention}\n"
-                                                      f"ID: `{member.id}`", color=0xff6c00)
-                    await admin_log_channel.send(embed=embed)
-
-                # TA reaction
-                if str(emoji) == "🧑‍🏫":
-                    staff_channel = self.bot.get_channel(747768907992924192)
-                    ta_embed = discord.Embed(
-                        title=f"TA|{member.id}",
-                        description=f"{member.mention} requests to be a TA\n"
-                                    f"<:checkmark:769279808244809798> to accept\n"
-                                    f"<:xmark:769279807916998728> to decline",
-                        color=discord.Color.gold())
-                    ta_msg = await staff_channel.send(embed=ta_embed)
-                    await ta_msg.add_reaction("<:checkmark:769279808244809798>")
-                    await ta_msg.add_reaction("<:xmark:769279807916998728>")
-                    embed = discord.Embed(description=f"{str(member)} requested to be a TA\n"
-                                                      f"ID: `{member.id}`", color=0x56aafd)
-                    await admin_log_channel.send(embed=embed)
-
-            elif "TA|" in message.embeds[0].title:
-                # CHECKMARK reaction
-                ta_id = int(message.embeds[0].title.split("|")[1])
-                ta_user = guild.get_member(ta_id)
-                if str(emoji) == "<:checkmark:769279808244809798>":
-                    embed = discord.Embed(description=f"Added **TA** role to {ta_user.mention}\n"
-                                                      f"Accepted by: {member.mention}", color=discord.Color.green())
-                    role = discord.Object(767084137361440819)
-                    await ta_user.add_roles(role, reason="Accepted TA role")
-                elif str(emoji) == "<:xmark:769279807916998728>":
-                    embed = discord.Embed(description=f"Did **not** add TA role to {ta_user.mention}\n"
-                                                      f"Declined by: {member.mention}", color=discord.Color.red())
-                else:
-                    return
-
-                await admin_log_channel.send(embed=embed)
-                await channel.send(embed=embed)
-                await message.delete()
+                    await channel.send(embed=embed)
+                    await message.delete()
+            except discord.NotFound:
+                print("Did not find the role to give to the new member")
+                return
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
@@ -218,25 +226,32 @@ class Admin(commands.Cog):
 
     @commands.command(usage="sendWelcome")
     async def sendWelcome(self, ctx):
-        embed = discord.Embed(
-            title="Welcome!",
-            description=f"**To get the full experience of the server press one of the following reactions:**\n"
-                        f"*(If you have any issues, private message one of the admins or the moderator and they can help)*\n\n"
-                        f"🧑‍🏫   if you're a TA (press the TA reaction before the student)\n"
-                        f"✏   if you're a **D-INFK** student.\n"
-                        f"<:bach:764174568000192552>   if you're external.",
-            color=0xadd8e6
-        )
-        message = await ctx.send(embed=embed)
-        await message.add_reaction("🧑‍🏫")
-        await message.add_reaction("✏")
-        await message.add_reaction("<:bach:764174568000192552>")
+        """
+        Sends the welcome message for the #newcomers channel
+        Permissions: Owner
+        """
+        if await self.bot.is_owner(ctx.author):
+            embed = discord.Embed(
+                title="Welcome!",
+                description=f"**To get the full experience of the server press one of the following reactions:**\n"
+                            f"*(If you have any issues, private message one of the admins or the moderator and they can help)*\n\n"
+                            f"🧑‍🏫   if you're a TA (press the TA reaction before the student)\n"
+                            f"✏   if you're a **D-INFK** student.\n"
+                            f"<:bach:764174568000192552>   if you're external.",
+                color=0xadd8e6
+            )
+            message = await ctx.send(embed=embed)
+            await message.add_reaction("🧑‍🏫")
+            await message.add_reaction("✏")
+            await message.add_reaction("<:bach:764174568000192552>")
+        else:
+            raise discord.ext.commands.errors.NotOwner
 
     @commands.command(usage="testWelcome")
     async def testWelcome(self, ctx):
         """
-        Is used to test the welcome message when a new member joins the server.
-        Permissions: Administrator
+        Is used to test the welcome message when a new member joins or leaves the server.
+        Permissions: Owner
         """
         if await self.bot.is_owner(ctx.author):
             await self.send_welcome_message(ctx, ctx.author, ctx.message.guild)
