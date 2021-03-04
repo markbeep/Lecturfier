@@ -122,7 +122,6 @@ class Updates(commands.Cog):
             self.time_heartbeat = time.time()
             await asyncio.sleep(10)
             try:
-                channel = self.bot.get_channel(self.channel_to_post)
                 cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
                 if self.test_livestream_message:
                     cur_time = "test"
@@ -149,6 +148,24 @@ class Updates(commands.Cog):
                             subject["StreamLink"],
                             self.channel_to_post,
                             759615935496847412,  # Role to ping
+                            subject["ZoomLink"],
+                            subject["OnSiteLocation"])
+                        # Send in #lecture-distractions without ping
+                        await self.send_lecture_start(
+                            subject["SubjectName"],
+                            subject["SubjectLink"],
+                            subject["StreamLink"],
+                            755339832917491722,
+                            0,  # Role to ping
+                            subject["ZoomLink"],
+                            subject["OnSiteLocation"])
+                        # send in #lecture-questions without ping
+                        await self.send_lecture_start(
+                            subject["SubjectName"],
+                            subject["SubjectLink"],
+                            subject["StreamLink"],
+                            813397356837863454,
+                            0,  # Role to ping
                             subject["ZoomLink"],
                             subject["OnSiteLocation"])
                 if minute != 0:
@@ -228,7 +245,10 @@ class Updates(commands.Cog):
         if channel is None:
             raise discord.ext.commands.CommandError("Invalid ChannelID")
         embed = await create_lecture_embed(subject_name, stream_url, zoom_url, website_url, subject_room)
-        await channel.send(f"<@&{role_id}>", embed=embed)
+        ping_msg = f"<@&{role_id}>"
+        if role_id == 0:
+            ping_msg = ""
+        await channel.send(ping_msg, embed=embed)
 
     async def check_updates(self, channel, cur_time, version):
         start = time.time()
