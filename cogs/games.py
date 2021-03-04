@@ -277,10 +277,9 @@ class Games(commands.Cog):
                             buffer = io.BytesIO(await r.read())
                     color_thief = ColorThief(buffer)
                     dominant_color = color_thief.get_palette(color_count=2, quality=10)[0]
+                    hex_color = int('0x%02x%02x%02x' % dominant_color, 0)
                 except UnidentifiedImageError as e:
-                    await ctx.send(f"Whoops, something went wrong. Try again.\nError msg: `{e}`", delete_after=7)
-                    return
-                hex_color = '0x%02x%02x%02x' % dominant_color
+                    hex_color = 0x808080
                 if row[1] != 0:
                     avg = round(row[0] / row[1])
                     acc = round(avg/10, 2)
@@ -294,7 +293,7 @@ class Games(commands.Cog):
                                                   f"**Average:** `{avg}`\n"
                                                   f"**Accuracy:** `{acc}`%\n"
                                                   f"**Next Guess:** `{row[2]}`",
-                                      color=int(hex_color, 0))
+                                      color=hex_color)
                 embed.set_thumbnail(url=image_url)
             await ctx.send(embed=embed, delete_after=7)
         else:
