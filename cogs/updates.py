@@ -138,7 +138,7 @@ class Updates(commands.Cog):
 
                 # Check what lectures are starting
                 minute = datetime.now().minute
-                if not sent_updates and minute == 0:
+                if not sent_updates and minute <= 5:
                     sent_updates = True
                     subject = self.get_starting_subject()
                     if subject is not None:
@@ -168,7 +168,7 @@ class Updates(commands.Cog):
                             0,  # Role to ping
                             subject["ZoomLink"],
                             subject["OnSiteLocation"])
-                if minute != 0:
+                if minute > 5:
                     sent_updates = False
 
                 # Update activity status:
