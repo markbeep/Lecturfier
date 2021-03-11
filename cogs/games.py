@@ -130,7 +130,6 @@ class Games(commands.Cog):
         lb_messages = []
         rank = 1
         for row in conn.execute("SELECT UniqueMemberID, NextGuess FROM CovidGuessing WHERE NextGuess IS NOT NULL"):
-            print(row)
             conn.execute("UPDATE CovidGuessing SET TempPoints=? WHERE UniqueMemberID=?", (int(calculate_points(confirmed_cases, row[1])), row[0]))
             conn.commit()
         for row in conn.execute(""" SELECT
@@ -145,7 +144,6 @@ class Games(commands.Cog):
                                         on CG.UniqueMemberID=DM.UniqueMemberID
                                     WHERE CG.NextGuess IS NOT NULL AND DM.DiscordGuildID=?
                                     ORDER BY CG.TempPoints DESC""", (guild.id,)):
-            print(row)
             msg = f"**{rank}:** <@{row[0]}> got {row[3]} points *(guess: {row[2]})*"
             rank += 1
             lb_messages.append(msg)
