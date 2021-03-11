@@ -9,18 +9,6 @@ import time
 from discord.ext.commands.cooldowns import BucketType
 
 
-def get_ending(number):
-    number = str(number)
-    last_digit = int(number[len(number)-1])
-    if last_digit == 1:
-        return "st"
-    if last_digit == 2:
-        return "nd"
-    if last_digit == 3:
-        return "rd"
-    return "th"
-
-
 class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -262,9 +250,10 @@ class Admin(commands.Cog):
     async def send_welcome_message(self, channel, user, guild):
         embed = discord.Embed(description=f"{user.mention} joined the server. **Welcome!**", color=0xadd8e6)
         memb_amt = len(guild.members)
-        embed.set_footer(text=f"You are the {memb_amt}{get_ending(memb_amt)} member")
+        embed.set_footer(text=f"There are now {memb_amt} members")
         embed.set_author(name=user.display_name, icon_url=user.avatar_url)
         message = await channel.send(embed=embed)
+        await message.add_reaction("<:yay:778745219733520426>")
 
     async def send_leave_message(self, channel, user, guild):
         embed = discord.Embed(description=f"{user.mention} left the server.", color=0x84001B)
@@ -272,6 +261,7 @@ class Admin(commands.Cog):
         embed.set_footer(text=f"There are now {memb_amt} members")
         embed.set_author(name=user.display_name, icon_url=user.avatar_url)
         message = await channel.send(embed=embed)
+        await message.add_reaction("<:pepelovebroken:817095825237737482>")
 
     @commands.cooldown(1, 5, BucketType.user)
     @commands.command(usage="ban <user>")
