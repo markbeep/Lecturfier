@@ -27,51 +27,6 @@ class Help(commands.Cog):
     async def on_message(self, message):
         if message.author.bot:
             return
-        if message.content.startswith("<@!755781649643470868>"):
-            args = message.content.split(" ")
-            args.pop(0)
-            if len(args) == 0:
-                return
-            found_command = False
-            command_name = ""
-
-            modifier_booleans = {"bot": False}
-            values = []
-            modifiers = []
-            for a in args:
-                if a.startswith("-"):
-                    # a is a modifier keyword
-                    # Next word is the modifier phrase
-                    if a[1:] == "b":
-                        modifier_booleans["bot"] = True
-                elif not found_command:
-                    command_name = a
-                    found_command = True
-                elif modifier_booleans["bot"]:
-                    modifier_booleans["bot"] = False
-                    modifiers.append("AND DM.DiscordUserID=?")
-                    values.append(a)
-
-            values.insert(0, command_name.lower())
-
-            if command_name == "":
-                await message.channel.send("No command given")
-                return
-
-            conn = handySQL.create_connection(self.db_path)
-            c = conn.cursor()
-
-            modifiers_msg = " ".join(modifiers)
-
-            sql = f"""  SELECT DM.DiscordUserID, BC.BotPrefix, BC.CommandName, BC.CommandInfo
-                        FROM BotCommands BC
-                        INNER JOIN DiscordMembers DM on DM.UniqueMemberID=BC.UniqueMemberID
-                        WHERE CommandName=? {modifiers_msg}"""
-            c.execute(sql, values)
-            cont = f"Bots with command: `{command_name}`\n"
-            for row in c.fetchall():
-                cont += f"<@{row[0]}> | {row[1]} | {row[3][0:30]}...\n"
-            await message.channel.send(cont)
 
     @commands.command(usage="doTheThing")
     async def doTheThing(self, ctx):
@@ -156,7 +111,6 @@ class Help(commands.Cog):
         return [specific_command, sorted_commands]
 
     async def command_help(self, specific_command):
-        print(type(specific_command) == str)
         if type(specific_command) == str or specific_command.help is None:
             return ""
         help_msg = specific_command.help
@@ -178,7 +132,6 @@ class Help(commands.Cog):
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Aliases =\n{aliases_msg}```")
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Permissions =\n{permissions}```")
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Usage =\n{self.prefix}{usage}```", inline=False)
-        embed.set_thumbnail(url=self.bot.user.avatar_url)
         return embed
 
     def sort_by_com_name(self, inp):
