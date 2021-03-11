@@ -522,6 +522,24 @@ def create_all_tables(path):
                                     WordDefinition text,
                                     WordLanguage text
                                     );"""
+    sql_create_events = """     CREATE TABLE IF NOT EXISTS Events (
+                                        EventID integer PRIMARY KEY,
+                                        EventName text NOT NULL,
+                                        EventCreatedAt text,
+                                        EventStartingAt text,
+                                        EventDescription text,
+                                        UniqueMemberID integer,
+                                        FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
+                                        );"""
+
+    sql_create_eventjoinedusers = """   CREATE TABLE IF NOT EXISTS "EventJoinedUsers" (
+                                        "EventJoinedID"	INTEGER PRIMARY KEY,
+                                        "EventID"	INTEGER,
+                                        "UniqueMemberID"	INTEGER,
+                                        "JoinedAt"	TEXT DEFAULT CURRENT_TIMESTAMP,
+                                        "IsHost"	INTEGER DEFAULT 0,
+                                        FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID")
+                                        );"""
 
     conn = create_connection(database)
 
@@ -540,6 +558,8 @@ def create_all_tables(path):
         create_table(conn, sql_create_CovidGuessing)
         create_table(conn, sql_create_reputations)
         create_table(conn, sql_create_dictionary)
+        create_table(conn, sql_create_events)
+        create_table(conn, sql_create_eventjoinedusers)
 
         conn.close()
     else:
@@ -548,7 +568,6 @@ def create_all_tables(path):
 
 def main():
     create_all_tables("../data/discord.db")
-    dictionary_to_db()
 
 if __name__ == "__main__":
     main()
