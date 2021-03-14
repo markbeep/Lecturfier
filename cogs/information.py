@@ -290,13 +290,17 @@ class Information(commands.Cog):
         - The event command is used to keep track of upcoming events. Each user can add a maximum of two events (this might get changed).
         - When creating an event, the **event name** has to be in quotes if there are multiple words and it can be a maximum of 50 characters, \
         any more and the name gets cut off with "...".
-        - The same thing goes for the **description**. The description can be a maximum of 700 characters, any more and it gets cut off with "...".
-        - **Date** needs to be in the format `DD.MM.YYYY` or `DD.MM.YY` or `DD-MM-YYYY` or `DD-MM-YY`. Some examples are `13-03-2021` and `20.4.25`.
+        - The description can be a maximum of 700 characters, any more and it gets cut off with "...".
+        - **Date** needs to be in the format `DD.MM.YYYY` or `DD.MM.YY` or `DD-MM-YYYY` or `DD-MM-YY`.
         - **Time** needs to be in the format `HH:MM`.
+
+        Events can also be joined/left with the `join` and `leave` keywords , so you can see how many would even be up for an event. \
+        In the future you will also get a ping when the event starts.
 
         Some examples:
         - `$event add "My Birthday" 13.03.2021 00:00 This day is my birthday hehe :)`
         - `$event add 420BlazeIt 20.4.21 4:20 Send me a dm if you wanna join this event!`
+        - `$event join 420BlazeIt`
         """
         conn = self.get_connection()
         c = conn.cursor()
@@ -317,7 +321,7 @@ class Information(commands.Cog):
                         FROM Events E
                         INNER JOIN DiscordMembers DM on DM.UniqueMemberID = E.UniqueMemberID
                         WHERE DM.DiscordGuildID=?
-                        ORDER BY E.EventCreatedAt"""
+                        ORDER BY E.EventStartingAt"""
             c.execute(sql, (guild_id,))
             results = c.fetchall()
             i = 0
@@ -419,9 +423,11 @@ class Information(commands.Cog):
                 embed = discord.Embed(title="Indepth Event View", color=0xFCF4A3)
                 if len(results) > 2:
                     embed.add_field(name="NOTICE",
-                                    value="There are more than 2 matches with that event name. Only showing the two closest events.",
+                                    value="*There are more than 2 matches with that event name. Only showing the two closest matching events.*",
                                     inline=False)
+                    embed.add_field(name="\u200b", value="``` ```", inline=False)
                 i = 1
+                MAX_EVENTS = 2  # max amount of events to send per view command
                 for e in results:
                     # creates a list of all joined members
                     sql = """   SELECT D.DiscordUserID
@@ -447,9 +453,12 @@ class Information(commands.Cog):
                     embed.add_field(name="Event Description", value=e[3])
 
                     # if not last field, add a spacer
-                    if i < len(results):
+                    if i < MAX_EVENTS and i < len(results):
                         embed.add_field(name="\u200b", value="``` ```", inline=False)
                     i += 1
+                    if i > MAX_EVENTS:
+                        break
+                embed.set_footer(text="Join an event with $event join <event name>")
                 await ctx.send(embed=embed)
         elif command.lower() == "delete":
             # delete the entry
@@ -510,7 +519,11 @@ class Information(commands.Cog):
                 # Joins the user to the event
                 c.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID) VALUES (?,?)", (event_result[0], uniqueID))
                 conn.commit()
-                embed = discord.Embed(title="Joined Event", description=f"Added {ctx.message.author.mention} to event `{event_result[1]}`.", color=0xFCF4A3)
+                embed = discord.Embed(
+                    title="Joined Event",
+                    description=f"Added {ctx.message.author.mention} to event `{event_result[1]}`."
+                                f"You can leave the event with `$event leave \"{event_result[1]}\"`",
+                    color=0xFCF4A3)
                 await ctx.send(embed=embed)
             elif command.lower() == "leave":
                 if res is None:
@@ -526,7 +539,11 @@ class Information(commands.Cog):
                 c.execute("DELETE FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_result[0], uniqueID))
                 conn.commit()
 
-                embed = discord.Embed(title="Left Event", description=f"Removed {ctx.message.author.mention} from event `{event_result[1]}`.", color=0xffa500)
+                embed = discord.Embed(
+                    title="Left Event",
+                    description=f"Removed {ctx.message.author.mention} from event `{event_result[1]}`."
+                                f"You can rejoin the event with `$event join \"{event_result[1]}\"`",
+                    color=0xffa500)
                 await ctx.send(embed=embed)
 
         else:
