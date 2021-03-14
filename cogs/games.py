@@ -173,13 +173,17 @@ class Games(commands.Cog):
                 except AttributeError:
                     guild_id = 0
                 if average:
+                    # gets the max guess count of the server
+                    c.execute("SELECT MAX(GuessCount) FROM CovidGuessing CG INNER JOIN DiscordMembers DM on CG.UniqueMemberID=DM.UniqueMemberID WHERE DM.DiscordGuildID=?", (guild_id,))
+                    maxCount = c.fetchone()[0]
+
                     title = "Average"
-                    sql = """   SELECT DM.DiscordUserID, CG.TotalPointsAmount, CG.GuessCount
+                    sql = """   SELECT DM.DiscordUserID, CG.TotalPointsAmount, CG.GuessCount, cast(CG.TotalPointsAmount as Float)/CG.GuessCount - (?-CG.GuessCount)*2
                                 FROM CovidGuessing CG
                                 INNER JOIN DiscordMembers DM on CG.UniqueMemberID=DM.UniqueMemberID
                                 WHERE DM.DiscordGuildID=?
-                                ORDER BY TotalPointsAmount/GuessCount DESC"""
-                    c.execute(sql, (guild_id,))
+                                ORDER BY cast(CG.TotalPointsAmount as Float)/CG.GuessCount - (?-CG.GuessCount)*2 DESC"""
+                    c.execute(sql, (maxCount, guild_id, maxCount))
                     user_rows = c.fetchall()
                 else:
                     title = "'rona"
@@ -208,10 +212,11 @@ class Games(commands.Cog):
 
                     if average:
                         if profile[2] != 0:
-                            avg = round(profile[1] / profile[2])
+                            avg = round(profile[1] / profile[2], 2)
+                            decay = round(profile[3], 2)
                         else:
                             avg = 0
-                        cont += f"**{i}.** <@{profile[0]}> | AVG Points: {avg}\n\n"
+                        cont += f"**{i}.** <@{profile[0]}> | AVG Points: **{avg}** *({decay})*\n\n"
 
                     else:
                         cont += f"**{i}.** <@{profile[0]}> | Points: {profile[1]}\n\n"
@@ -225,6 +230,8 @@ class Games(commands.Cog):
                 embed = discord.Embed(
                     title=f"Top {title} Guessers: **{guild_name}** <:coronavirus:767839970303410247>",
                     description=cont, color=0x00FF00)
+                if average:
+                    embed.set_footer(text="Ordered by decay (value to the right). Left is actual average.")
             except KeyError:
                 embed = discord.Embed(title=f"Error", description="There are no covid guessing points yet", color=0xFF0000)
         await ctx.send(embed=embed)
