@@ -102,8 +102,6 @@ class Statistics(commands.Cog):
     async def on_message(self, message):
         # Creates a connection with the DB
         conn = self.get_connection()
-        # Adds the message to the DB
-        handySQL.create_message_entry(conn, message, message.channel, message.guild)
         try:
             # This is in case a message is a direct message
             guild_obj = message.guild
@@ -169,9 +167,6 @@ class Statistics(commands.Cog):
     async def on_message_delete(self, message):
         # Update messages to be "deleted"
         conn = self.get_connection()
-        c = conn.cursor()
-        c.execute("UPDATE DiscordMessages SET IsDeleted=1, DeletedAt=? WHERE DiscordMessageID=?", (datetime.now(), message.id))
-        conn.commit()
 
         try:
             # This is in case a message is a direct message
@@ -192,12 +187,6 @@ class Statistics(commands.Cog):
         if before.content == message.content:
             return
         conn = self.get_connection()
-        c = conn.cursor()
-        c.execute("SELECT IsEdited FROM DiscordMessages WHERE DiscordMessageID=? ORDER BY IsEdited DESC", (message.id,))
-        result = c.fetchone()
-        if result is not None:
-            IsEdited = result[0]
-            handySQL.create_message_entry(conn, message, message.channel, message.guild, IsEdited + 1)
 
         try:
             # This is in case a message is a direct message

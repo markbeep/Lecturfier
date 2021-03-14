@@ -240,69 +240,6 @@ def create_voice_level_entry(conn, MemberObject, GuildObject):
     return insert(conn, (uniqueID,), ("UniqueMemberID",), "VoiceLevels")
 
 
-def create_message_entry(conn, MessageObject, ChannelObject, GuildObject, IsEdited=0):
-    # Incase there is no Guild, as it's a private message
-    guild_id, guild_name, guild_region, guild_channel_count, guild_member_count, guild_role_count = fix_guild(GuildObject)
-    channel_id, channel_name, channel_type, channel_position = fix_channel(ChannelObject)
-    # Update/Add DiscordUser
-    c = conn.cursor()
-    try:
-        c.execute("SELECT * FROM DiscordUsers WHERE DiscordUserID=?", (MessageObject.author.id,))
-        if c.fetchone() is None:
-            # Add user
-            isBot = 0
-            if MessageObject.author.bot:
-                isBot = 1
-            create_discord_user(conn, MessageObject.author.id, MessageObject.author.name, MessageObject.author.discriminator, isBot, str(MessageObject.author.avatar_url), str(MessageObject.author.created_at))
-        else:
-            # Update user
-            c.execute("UPDATE DiscordUsers SET DisplayName=?, Discriminator=?, AvatarURL=? WHERE DiscordUserID=?", (MessageObject.author.name, MessageObject.author.discriminator, str(MessageObject.author.avatar_url), MessageObject.author.id))
-            conn.commit()
-    except Error as e:
-        print(e)
-    # Update/Add DiscordGuild
-    try:
-        c.execute("SELECT * FROM DiscordGuilds WHERE DiscordGuildID=?", (guild_id,))
-        if c.fetchone() is None:
-            # Add guild
-            create_discord_guild(conn, guild_id, guild_name, guild_region, guild_channel_count, guild_member_count, guild_role_count)
-        else:
-            # Update guild
-            c.execute("UPDATE DiscordGuilds SET GuildName=?, GuildRegion=?, GuildChannelCount=?,"
-                      "GuildMemberCount=?, GuildRoleCount=? WHERE DiscordGuildID=?",
-                      (guild_name, guild_region, guild_channel_count,
-                       guild_member_count, guild_role_count, guild_id))
-            conn.commit()
-    except Error as e:
-        print(e)
-    # Update/Add DiscordChannel
-    try:
-        c.execute("SELECT * FROM DiscordChannels WHERE DiscordChannelID=?", (channel_id,))
-        if c.fetchone() is None:
-            # Add channel
-            create_discord_channel(conn, ChannelObject)
-        else:
-            # Update channel
-            c.execute("UPDATE DiscordChannels SET ChannelName=?, ChannelType=?, ChannelPosition=? WHERE DiscordChannelID=?", (channel_name, channel_type, channel_position, ChannelObject.id))
-            conn.commit()
-    except Error as e:
-        print(e)
-    # Update/Add DiscordMember
-    try:
-        create_simple_discord_member(conn, MessageObject.author.id, guild_id, MessageObject.author.joined_at, MessageObject.author.nick)
-    except AttributeError:
-        create_simple_discord_member(conn, MessageObject.author.id, guild_id)
-    # Add message into entry
-    try:
-        sql = "INSERT INTO DiscordMessages(DiscordMessageID, UniqueMemberID, DiscordChannelID, Content, IsEdited, CreatedAt, EditedAt) VALUES(?,?,?,?,?,?,?)"
-        uniqueID = get_uniqueMemberID(conn, MessageObject.author.id, guild_id)
-        c.execute(sql, (MessageObject.id, uniqueID, channel_id, MessageObject.content, IsEdited, str(MessageObject.created_at), MessageObject.edited_at))
-        conn.commit()
-    except Error as e:
-        print(e)
-    conn.commit()
-
-
 def get_or_create_member(conn, user, guild):
     if guild is None:
         guild_id = 0
@@ -424,20 +361,6 @@ def create_all_tables(path):
                                         ChannelPosition integer,
                                         FOREIGN KEY (DiscordGuildID) REFERENCES DiscordGuilds(DiscordGuildID)
                                         );"""
-    sql_create_DiscordMessages = """ CREATE TABLE IF NOT EXISTS DiscordMessages (
-                                        UniqueMessageID integer NOT NULL PRIMARY KEY,
-                                        DiscordMessageID integer NOT NULL,
-                                        UniqueMemberID integer NOT NULL,
-                                        DiscordChannelID integer NOT NULL,
-                                        Content text,
-                                        IsEdited integer DEFAULT 0,
-                                        IsDeleted integer DEFAULT 0,
-                                        CreatedAt text,
-                                        EditedAt text,
-                                        DeletedAt text,
-                                        FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID),
-                                        FOREIGN KEY (DiscordChannelID) REFERENCES DiscordChannels(DiscordChannelID)
-                                        );"""
     sql_create_Subject = """ CREATE TABLE IF NOT EXISTS Subject (
                             SubjectID integer NOT NULL PRIMARY KEY,
                             SubjectName text,
@@ -548,7 +471,6 @@ def create_all_tables(path):
         create_table(conn, sql_create_DiscordUsers)
         create_table(conn, sql_create_DiscordMembers)
         create_table(conn, sql_create_DiscordChannels)
-        create_table(conn, sql_create_DiscordMessages)
         create_table(conn, sql_create_Subject)
         create_table(conn, sql_create_WeekDayTimes)
         create_table(conn, sql_create_UserReactionStatistic)
