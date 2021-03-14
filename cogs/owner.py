@@ -1,3 +1,4 @@
+import aiohttp
 import discord
 from discord.ext import commands
 import random
@@ -11,6 +12,18 @@ from helper import handySQL
 from sqlite3 import Error
 import sqlite3
 from tabulate import tabulate
+from PIL import Image
+import PIL
+import io
+
+
+def rgb2hex(r, g, b):
+    return '#{:02x}{:02x}{:02x}'.format(r, g, b)
+
+
+def loading_bar_draw(a, b):
+    prog = int(10*a/b)
+    return "<:green_box:764901465948684289>"*prog + (10-prog)*"<:grey_box:764901465592037388>"
 
 
 def loading_bar(bars, max_length=None, failed=None):
@@ -25,11 +38,31 @@ def loading_bar(bars, max_length=None, failed=None):
         return "<:green_box:764901465948684289>"*bars  # Green square
 
 
+def draw_desc(x1, y1, step, xMax, yMax, amt_of_pixels, blacks, delta_pixels, delta_time):
+    if yMax > 1:
+        yMax = yMax-1
+    remaining_pixels = int(xMax * yMax / step)-blacks - amt_of_pixels
+    if delta_time > 0:
+        rem_time = round(remaining_pixels*delta_pixels/(delta_time*60), 2)
+    else:
+        rem_time = "∞"
+    return f"X: {x1} | Y: {y1} | Step: {step}\n" \
+           f"Width: {xMax} | Height: {yMax}\n" \
+           f"Pixel Total: {int(xMax * yMax / step)}\n" \
+           f"Pixels to draw: {remaining_pixels}\n" \
+           f"Pixels drawn: {amt_of_pixels}\n"\
+           f"Transparent: {blacks}\n"\
+           f"{loading_bar_draw(amt_of_pixels, int(xMax * yMax / step)-blacks)}  {round(100 * amt_of_pixels/(xMax * yMax / step -blacks), 2)}%\n" \
+           f"Time Remaining: {rem_time} mins\n" \
+           f"`dev.place zoom {x1} {y1} {max(xMax, yMax)}` to see the progress."
+
+
 class Owner(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.db_path = "./data/discord.db"
         self.conn = handySQL.create_connection(self.db_path)
+        self.cancel_draw = False
 
     def get_connection(self):
         """
@@ -241,6 +274,144 @@ class Owner(commands.Cog):
                     await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
             else:
                 await ctx.send("Unknown file")
+        else:
+            raise discord.ext.commands.errors.NotOwner
+
+    @commands.command(usage="draw <command> <x1> <x2> <y1> <y2> <step> <color/channel>")
+    async def draw(self, ctx, command=None, x1=None, x2=None, y1=None, y2=None, step=1, color="#FFFFFF"):
+        """
+        Draws a picture using battle's place command.
+        Commands:
+        - image: Draws the attached image and automatically resizes the image to the given dimensions. Channel ID is optional to send the progress \
+        in a separate channel.
+        - box: Draws a one color box with the given dimensions. Color has to be in format #FFFFFF.
+        - cancel: Cancels all currently going on drawings.
+        Permissions: Owner
+        """
+        if await self.bot.is_owner(ctx.author):
+            if command is None:
+                await ctx.send("No command given")
+                raise discord.ext.commands.errors.BadArgument
+            elif command == "cancel":
+                self.cancel_draw = True
+                return
+            elif command == "image":
+                if len(ctx.message.attachments) == 0:
+                    await ctx.send("No image given")
+                    raise discord.ext.commands.errors.BadArgument
+                async with aiohttp.ClientSession() as cs:
+                    async with cs.get(ctx.message.attachments[0].url) as r:
+                        buffer = io.BytesIO(await r.read())
+                im = Image.open(buffer)
+                x1 = int(x1)
+                x2 = int(x2)
+                y1 = int(y1)
+                y2 = int(y2)
+                im = im.resize((x2-x1, y2-y1), PIL.Image.NEAREST)
+                xMax, yMax = im.size
+                pixels = im.convert('RGBA').load()
+                curX = x1
+                odd = False
+                msgs = []
+                self.cancel_draw = False
+                amt_of_pixels = 0
+                blacks = 0  # amount of transparent/skipped pixels
+
+                # Get channel
+                try:
+                    channel = self.bot.get_channel(int(color))
+                    if channel is None:
+                        raise ValueError
+                except ValueError:
+                    channel = ctx.channel
+
+                # Timer
+                pixel_clock = 0
+                cur_time = time.time()
+
+                # Creates embed to see overview of image
+                desc = draw_desc(x1, y1, step, xMax, yMax, amt_of_pixels, blacks, amt_of_pixels-pixel_clock, time.time()-cur_time)
+                embed = discord.Embed(title="Drawing Image", description=desc)
+                prog_msg = await channel.send(embed=embed)
+                for x in range(0, xMax, step):
+                    if odd and step > 1:
+                        start = step+int(step/2)
+                        curY = y1 + int(step/2)
+                        odd = False
+                    else:
+                        start = step
+                        curY = y1
+                        odd = True
+                    for y in range(start, yMax, step):
+                        if self.cancel_draw:
+                            await ctx.send("Canceling draw")
+                            desc = draw_desc(x1, y1, step, xMax, yMax, amt_of_pixels, blacks, amt_of_pixels - pixel_clock, time.time()-cur_time)
+                            embed = discord.Embed(title="CANCELED Drawing Image", description=desc, color=0xFF0000)
+                            await prog_msg.edit(embed=embed)
+                            if len(msgs) > 0:
+                                await ctx.channel.delete_messages(msgs)
+                            raise discord.ext.commands.errors.BadArgument
+                        r, g, b, a = pixels[x, y]
+                        hex_color = rgb2hex(r, g, b)
+
+                        # ignores black pixels / acts like they are transparent
+                        if a != 0:
+                            msgs.append(await ctx.send(f"dev.place setpixel {curX} {curY} {hex_color}"))
+                            amt_of_pixels += 1
+                        else:
+                            blacks += 1
+                        curY += step
+                    curX += step
+                    if len(msgs) >= 20:
+                        await ctx.channel.delete_messages(msgs)
+                        msgs = []
+                        desc = draw_desc(x1, y1, step, xMax, yMax, amt_of_pixels, blacks, amt_of_pixels-pixel_clock, time.time()-cur_time)
+                        pixel_clock = amt_of_pixels
+                        cur_time = time.time()
+                        embed = discord.Embed(title="Drawing Image", description=desc)
+                        await prog_msg.edit(embed=embed)
+                if len(msgs) > 0:
+                    await ctx.channel.delete_messages(msgs)
+                desc = draw_desc(x1, y1, step, xMax, yMax, amt_of_pixels, blacks, amt_of_pixels-pixel_clock, time.time()-cur_time)
+                embed = discord.Embed(title="DONE Drawing Image", description=desc, color=0x00FF00)
+                await prog_msg.edit(embed=embed)
+
+            elif command == "square":
+                try:
+                    if x1 is None or x2 is None or y1 is None or y2 is None:
+                        raise discord.ext.commands.errors.BadArgument
+                    x1 = int(x1)
+                    x2 = int(x2)
+                    y1 = int(y1)
+                    y2 = int(y2)
+                except (ValueError, discord.ext.commands.errors.BadArgument):
+                    await ctx.send("Incorrect arguments. `draw <x1/cancel> <x2> <y1> <y2> [color in # hex] [step]`")
+                msgs = []
+                self.cancel_draw = False
+                odd = False
+                y1_start = y1
+                for x in range(x1, x2, step):
+                    # alternating placing pattern to fill a space faster
+                    if odd and step > 1:
+                        y1_start = y1+int(step/2)
+                        odd = False
+                    elif step > 1:
+                        y1_start = y1
+                        odd = True
+
+                    for y in range(y1_start, y2, step):
+                        if self.cancel_draw:
+                            await ctx.send("Canceling draw")
+                            raise discord.ext.commands.errors.BadArgument
+                        msgs.append(await ctx.send(f"dev.place setpixel {x} {y} {color}"))
+                        if len(msgs) >= 20:
+                            await ctx.channel.delete_messages(msgs)
+                            msgs = []
+                if len(msgs) > 0:
+                    await ctx.channel.delete_messages(msgs)
+
+            else:
+                await ctx.send("Command not found. Right now only `cancel`, `image` and `square` exist.")
         else:
             raise discord.ext.commands.errors.NotOwner
 
