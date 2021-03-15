@@ -38,23 +38,27 @@ def loading_bar(bars, max_length=None, failed=None):
         return "<:green_box:764901465948684289>"*bars  # Green square
 
 
-def draw_desc(x1, y1, step, xMax, yMax, amt_of_pixels, blacks, delta_pixels, delta_time):
-    if yMax > 1:
-        yMax = yMax-1
-    remaining_pixels = int(xMax * yMax / step)-blacks - amt_of_pixels
-    if delta_time > 0:
+def draw_desc(topleft, step, xMax, yMax, amt_of_pixels, transparent, total_pixels, delta_pixels, delta_time):
+    remaining_pixels = total_pixels - amt_of_pixels
+    if len(topleft) == 0:
+        x1 = 0
+        y1 = 0
+    else:
+        x1 = topleft[0]
+        y1 = topleft[1]
+    if delta_time > 2:
         rem_time = round(remaining_pixels*delta_pixels/(delta_time*60), 2)
     else:
         rem_time = "∞"
     return f"X: {x1} | Y: {y1} | Step: {step}\n" \
-           f"Width: {xMax} | Height: {yMax}\n" \
-           f"Pixel Total: {int(xMax * yMax / step)}\n" \
+           f"Width: {xMax-x1} | Height: {yMax-y1}\n" \
+           f"Pixel Total: {total_pixels}\n" \
            f"Pixels to draw: {remaining_pixels}\n" \
            f"Pixels drawn: {amt_of_pixels}\n"\
-           f"Transparent: {blacks}\n"\
-           f"{loading_bar_draw(amt_of_pixels, int(xMax * yMax / step)-blacks)}  {round(100 * amt_of_pixels/(xMax * yMax / step -blacks), 2)}%\n" \
+           f"Transparent: {transparent}\n"\
+           f"{loading_bar_draw(amt_of_pixels, total_pixels)}  {round(100 * amt_of_pixels / total_pixels, 2)}%\n" \
            f"Time Remaining: {rem_time} mins\n" \
-           f"`dev.place zoom {x1} {y1} {max(xMax, yMax)}` to see the progress."
+           f"`dev.place zoom {x1} {y1} {max(xMax-x1, yMax-y1)}` to see the progress."
 
 
 class Owner(commands.Cog):
@@ -307,7 +311,7 @@ class Owner(commands.Cog):
                 x2 = int(x2)
                 y1 = int(y1)
                 y2 = int(y2)
-                im = im.resize((x2-x1, y2-y1), PIL.Image.NEAREST)
+                im = im.resize((x2+1-x1, y2+1-y1), PIL.Image.NEAREST)
                 xMax, yMax = im.size
                 pixels = im.convert('RGBA').load()
                 curX = x1
@@ -315,7 +319,28 @@ class Owner(commands.Cog):
                 msgs = []
                 self.cancel_draw = False
                 amt_of_pixels = 0
-                blacks = 0  # amount of transparent/skipped pixels
+                transparent = 0  # amount of transparent/skipped pixels
+                total_pixels = 0
+                topleft = ()
+                countX = 0
+                countY = 0
+
+                # count pixels beforehand
+                for x in range(0, xMax, step):
+                    if odd and step > 1:
+                        start = step+int(step/2)
+                        odd = False
+                    else:
+                        start = step
+                        odd = True
+                    for y in range(start, yMax, step):
+                        r, g, b, a = pixels[x, y]
+                        if a != 0:
+                            if len(topleft) == 0:
+                                topleft = (x, y)
+                            total_pixels += 1
+                            countY = y
+                            countX = x
 
                 # Get channel
                 try:
@@ -330,22 +355,22 @@ class Owner(commands.Cog):
                 cur_time = time.time()
 
                 # Creates embed to see overview of image
-                desc = draw_desc(x1, y1, step, xMax, yMax, amt_of_pixels, blacks, amt_of_pixels-pixel_clock, time.time()-cur_time)
+                desc = draw_desc(topleft, step, countX, countY, amt_of_pixels, transparent, total_pixels, amt_of_pixels-pixel_clock, time.time()-cur_time)
                 embed = discord.Embed(title="Drawing Image", description=desc)
                 prog_msg = await channel.send(embed=embed)
                 for x in range(0, xMax, step):
                     if odd and step > 1:
-                        start = step+int(step/2)
+                        start = int(step/2)
                         curY = y1 + int(step/2)
                         odd = False
                     else:
-                        start = step
+                        start = 0
                         curY = y1
                         odd = True
                     for y in range(start, yMax, step):
                         if self.cancel_draw:
                             await ctx.send("Canceling draw")
-                            desc = draw_desc(x1, y1, step, xMax, yMax, amt_of_pixels, blacks, amt_of_pixels - pixel_clock, time.time()-cur_time)
+                            desc = draw_desc(topleft, step, countX, countY, amt_of_pixels, transparent, total_pixels, amt_of_pixels-pixel_clock, time.time()-cur_time)
                             embed = discord.Embed(title="CANCELED Drawing Image", description=desc, color=0xFF0000)
                             await prog_msg.edit(embed=embed)
                             if len(msgs) > 0:
@@ -359,20 +384,21 @@ class Owner(commands.Cog):
                             msgs.append(await ctx.send(f"dev.place setpixel {curX} {curY} {hex_color}"))
                             amt_of_pixels += 1
                         else:
-                            blacks += 1
+                            transparent += 1
+                        if len(msgs) >= 20:
+                            await ctx.channel.delete_messages(msgs)
+                            msgs = []
+                            desc = draw_desc(topleft, step, countX, countY, amt_of_pixels, transparent, total_pixels, amt_of_pixels - pixel_clock,
+                                             time.time() - cur_time)
+                            pixel_clock = amt_of_pixels
+                            cur_time = time.time()
+                            embed = discord.Embed(title="Drawing Image", description=desc)
+                            await prog_msg.edit(embed=embed)
                         curY += step
                     curX += step
-                    if len(msgs) >= 20:
-                        await ctx.channel.delete_messages(msgs)
-                        msgs = []
-                        desc = draw_desc(x1, y1, step, xMax, yMax, amt_of_pixels, blacks, amt_of_pixels-pixel_clock, time.time()-cur_time)
-                        pixel_clock = amt_of_pixels
-                        cur_time = time.time()
-                        embed = discord.Embed(title="Drawing Image", description=desc)
-                        await prog_msg.edit(embed=embed)
                 if len(msgs) > 0:
                     await ctx.channel.delete_messages(msgs)
-                desc = draw_desc(x1, y1, step, xMax, yMax, amt_of_pixels, blacks, amt_of_pixels-pixel_clock, time.time()-cur_time)
+                desc = draw_desc(topleft, step, countX, countY, amt_of_pixels, transparent, total_pixels, amt_of_pixels-pixel_clock, time.time()-cur_time)
                 embed = discord.Embed(title="DONE Drawing Image", description=desc, color=0x00FF00)
                 await prog_msg.edit(embed=embed)
 
