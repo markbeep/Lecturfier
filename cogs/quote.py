@@ -153,6 +153,7 @@ class Quote(commands.Cog):
 
                             for i in range(len(self.quotes[guild_id][name])):
                                 quote_to_add = self.quotes[guild_id][name][i][1].replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "")
+                                quote_to_add = quote_to_add[:150] + " [...]"
                                 quote_list += f"\n**{[i]}:** {quote_to_add}"
 
                             # If there are no quotes for the given person;
