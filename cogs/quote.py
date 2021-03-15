@@ -153,6 +153,8 @@ class Quote(commands.Cog):
 
                             for i in range(len(self.quotes[guild_id][name])):
                                 quote_to_add = self.quotes[guild_id][name][i][1].replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "")
+                                if len(quote_to_add) > 150:
+                                    quote_to_add = quote_to_add[:150] + "**[...]**"
                                 quote_list += f"\n**{[i]}:** {quote_to_add}"
 
                             # If there are no quotes for the given person;
@@ -160,28 +162,39 @@ class Quote(commands.Cog):
                                 await ctx.send(f"{name} doesn't have any quotes yet.")
                                 raise discord.ext.commands.errors.BadArgument
 
-                            embed = discord.Embed(title=f"All quotes from {name}", color=0x404648)
-                            # if the quote is too long:
-                            splitted_lines = quote_list.split("\n")
-                            msg = ""
-                            counter = 1
-                            msg_length = 0
-                            for line in splitted_lines:
-                                if msg_length >= 5000:
-                                    await ctx.send(embed=embed)
-                                    embed = discord.Embed(color=0x404648)
-                                    msg_length = 0
-                                    msg = ""
-                                if len(line) + len(msg) < 1000:
-                                    msg += "\n" + line
+                            # better splitting method
+                            remaining_quotes = quote_list
+                            embeds_to_send = []
+                            message_count = 1
+                            page_count = 1
+                            while len(remaining_quotes) > 0:
+                                # split quotes into multiple chunks of max 6000 chars
+                                if len(remaining_quotes) >= 5900:
+                                    rind = remaining_quotes.rindex("\n", 0, 5900)
                                 else:
-                                    embed.add_field(name=f"Page {counter}", value=msg)
-                                    msg_length += len(msg)
-                                    msg = line
-                                    counter += 1
-                            embed.add_field(name=f"Page {counter}", value=msg)
+                                    rind = len(remaining_quotes)
+                                single_msg = remaining_quotes[0:rind]
+                                remaining_quotes = remaining_quotes[rind:]
+                                embed = discord.Embed(title=f"All quotes from {name}", description=f"`Message {message_count}`", color=0x404648)
+                                message_count += 1
+                                embeds_to_send.append(embed)
+                                while len(single_msg) > 0:
+                                    # split quotes into multiple fields of max 1000 chars
+                                    if len(single_msg) >= 1000:
+                                        rind2 = single_msg.rindex("\n", 0, 1000)
+                                        if rind2 == 0:
+                                            # one quote is more than 1000 chars
+                                            rind2 = single_msg.rindex(" ", 0, 1000)
+                                    else:
+                                        rind2 = len(single_msg)
+                                    embed.add_field(name=f"Page {page_count}", value=single_msg[0:rind2])
+                                    single_msg = single_msg[rind2:]
+                                    page_count += 1
 
-                            await ctx.send(embed=embed)
+                            for e in embeds_to_send:
+                                # sends all embeds messages
+                                await ctx.send(embed=e)
+
                         elif quote.lower().split(" ")[0] == "del":  # Command to delete quotes
                             if not await self.bot.is_owner(ctx.author):
                                 raise discord.ext.commands.errors.NotOwner
