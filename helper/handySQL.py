@@ -456,12 +456,14 @@ def create_all_tables(path):
                                         );"""
 
     sql_create_eventjoinedusers = """   CREATE TABLE IF NOT EXISTS "EventJoinedUsers" (
-                                        "EventJoinedID"	INTEGER PRIMARY KEY,
+                                        "EventJoinedID"	INTEGER,
                                         "EventID"	INTEGER,
                                         "UniqueMemberID"	INTEGER,
                                         "JoinedAt"	TEXT DEFAULT CURRENT_TIMESTAMP,
                                         "IsHost"	INTEGER DEFAULT 0,
-                                        FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID")
+                                        FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID"),
+                                        PRIMARY KEY("EventJoinedID"),
+                                        FOREIGN KEY("EventID") REFERENCES "Events"("EventID") ON DELETE CASCADE
                                         );"""
 
     conn = create_connection(database)

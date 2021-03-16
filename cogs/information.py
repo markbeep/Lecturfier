@@ -23,7 +23,7 @@ def get_formatted_time(rem):
     return f"{int(days)} days {get_formatted_time(rem - days * 86400)}"
 
 
-def format_input_date(date):
+def format_input_date(date, time_inp):
     # Splits the date either on . or -
     res = date.split(".")
     if len(res) < 3:
@@ -35,32 +35,38 @@ def format_input_date(date):
         date_dict["day"] = int(res[0])
         date_dict["month"] = int(res[1])
         date_dict["year"] = int(res[2])
-        if not is_valid_date(date_dict):
+        if not is_valid_date(date_dict, time_inp):
             return False
         return date_dict
     except ValueError:
         return False
 
 
-def is_valid_date(date):
+def is_valid_date(date, time_inp):
     # checks if a date hasnt passed yet
-    if date["year"] < datetime.now().year:
+    cur_year = datetime.now().year
+    cur_month = datetime.now().month
+    cur_day = datetime.now().day
+    if date["year"] < cur_year:
         # Year is passed
-        if datetime.now().year + 5 >= date["year"] + 2000 >= datetime.now().year:
+        if cur_year + 5 >= date["year"] + 2000 >= cur_year:
             date["year"] = date["year"]+2000
         else:
             return False
-    if date["year"] == datetime.now().year:
-        if date["month"] < datetime.now().month or date["month"] > 12:
+    if date["year"] == cur_year:
+        if date["month"] < cur_month or date["month"] > 12:
             return False
-        if date["month"] == datetime.now().month:
+        if date["month"] == cur_month:
             try:
                 max_days = monthrange(date["year"], date["month"])[1]
             except ValueError:
                 return False
-            if date["day"] <= datetime.now().day or datetime.now().day > max_days:
+            if date["day"] == cur_day:
+                if not format_input_time(time_inp):
+                    return False
+            if date["day"] < cur_day > max_days:
                 return False
-    if date["year"] > datetime.now().year + 5:
+    if date["year"] > cur_year + 5:
         return False
     return True
 
@@ -83,7 +89,11 @@ def format_input_time(time_inp):
 
 def is_valid_time(time_dict):
     # checks if a time hasnt passed yet
+    cur_hour = datetime.now().hour
+    cur_minute = datetime.now().minute
     if 0 <= time_dict["hour"] < 24 and 0 <= time_dict["minute"] < 60:
+        if time_dict["hour"] == cur_hour:
+            return cur_minute < time_dict["minute"]
         return True
     return False
 
@@ -108,6 +118,10 @@ class Information(commands.Cog):
         """
         if self.conn is None:
             self.conn = handySQL.create_connection(self.db_path)
+        c = self.conn.cursor()
+        c.execute('PRAGMA foreign_keys = ON;')
+        self.conn.commit()
+        c.close()
         return self.conn
 
     @commands.Cog.listener()
@@ -350,17 +364,16 @@ class Information(commands.Cog):
                     await ctx.send("ERROR! Incorrect arguments given. Check `$help event` to get more "
                                    f"info about the event command.", delete_after=10)
                     raise discord.ext.commands.errors.BadArgument
-                date = format_input_date(date)
+                date = format_input_date(date, event_time)
                 if not date:
                     await ctx.send("ERROR! Incorrect date format given or date is passed. Should be `DD.MM.YYYY` or `DD-MM-YYYY`. Check `$help event` to get more "
-                                   f"info about the event command.", delete_after=10)
+                                   f"info about the event command. Event has to start minimum the next minute.", delete_after=10)
                     raise discord.ext.commands.errors.BadArgument
                 event_time = format_input_time(event_time)
                 if not event_time:
                     await ctx.send("ERROR! Incorrect time format given. Should be `HH:MM`. Check `$help event` to get more "
                                    f"info about the event command.", delete_after=10)
                     raise discord.ext.commands.errors.BadArgument
-
                 # Adds the entry to the sql db
                 event_description = " ".join(event_info)
                 if len(event_description) > 700:
@@ -458,7 +471,7 @@ class Information(commands.Cog):
                     i += 1
                     if i > MAX_EVENTS:
                         break
-                embed.set_footer(text="Join an event with $event join <event name>")
+                embed.set_footer(text="Join an event with $event join \"<event name>\"")
                 await ctx.send(embed=embed)
         elif command.lower() == "delete":
             # delete the entry
