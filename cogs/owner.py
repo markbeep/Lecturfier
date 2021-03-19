@@ -484,7 +484,8 @@ class Owner(commands.Cog):
                 "Lecture Updates Loop": self.bot.get_cog("Updates").heartbeat(),
                 "Git Backup Loop": self.bot.get_cog("Statistics").heartbeat(),
                 "Voice XP track Loop": self.bot.get_cog("Voice").heartbeat(),
-                "COVID Web Scraper": self.bot.get_cog("Games").heartbeat()
+                "COVID Web Scraper": self.bot.get_cog("Games").heartbeat(),
+                "Events Updates": self.bot.get_cog("Information").heartbeat()
             }
 
             msg = ""

@@ -91,7 +91,8 @@ class MainBot(commands.Cog):
             "updates": self.bot.get_cog("Updates").get_task(),
             "statistics": self.bot.get_cog("Statistics").get_task(),
             "voice": self.bot.get_cog("Voice").get_task(),
-            "games": self.bot.get_cog("Games").get_task()
+            "games": self.bot.get_cog("Games").get_task(),
+            "information": self.bot.get_cog("Information").get_task()
         }
         if task in all_loops:
             return all_loops[task].cancel()
