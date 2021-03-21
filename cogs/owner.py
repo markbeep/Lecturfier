@@ -53,7 +53,7 @@ def draw_desc(ID, topleft, step, bottomright, amt_of_pixels, missed_pixels, tota
         botX = bottomright[0]
         botY = bottomright[1]
     if delta_time > 2:
-        rem_time = round(remaining_pixels*delta_pixels/(delta_time*60), 2)
+        rem_time = round(remaining_pixels*delta_pixels/((0.1+delta_time)*60), 2)
     else:
         rem_time = "∞"
     return f"ID: {ID}\n" \
@@ -468,11 +468,10 @@ class Owner(commands.Cog):
                             await asyncio.sleep(10)
                             missed_pixels += 1
 
-                    desc = draw_desc(topleft, step, bottomright, amt_of_pixels, missed_pixels, total_pixels, amt_of_pixels-pixel_clock, time.time()-cur_time)
+                    desc = draw_desc(ID, topleft, step, bottomright, amt_of_pixels, missed_pixels, total_pixels, amt_of_pixels-pixel_clock, time.time()-cur_time)
                     embed = discord.Embed(title="DONE Drawing Image", description=desc, color=0x00FF00)
                 except Exception as e:
-                    desc = draw_desc(topleft, step, bottomright, amt_of_pixels, missed_pixels, total_pixels, amt_of_pixels - pixel_clock,
-                                     time.time() - cur_time)
+                    desc = draw_desc(ID, topleft, step, bottomright, amt_of_pixels, missed_pixels, total_pixels, amt_of_pixels - pixel_clock, time.time() - cur_time)
                     embed = discord.Embed(title="ERROR Drawing Image", description=desc, color=0x00FF00)
                     embed.add_field(name="Error Message", value=str(e)[:1000])
 
