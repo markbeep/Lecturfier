@@ -46,6 +46,7 @@ def get_uniqueMemberID(conn, DiscordUserID, DiscordGuildID):
         rows = c.fetchone()
         if rows is not None:
             return rows[0]
+        return -1
     except Error as e:
         print(e)
 
@@ -254,10 +255,6 @@ def get_or_create_member(conn, user, guild):
 
 
 def create_covid_guessing_entry(conn, member, guild):
-    if guild is None:
-        guild_id = 0
-    else:
-        guild_id = guild.id
     uniqueID = get_or_create_member(conn, member, guild)
     return insert(conn, (uniqueID,), ("UniqueMemberID",), "CovidGuessing")
 
@@ -406,16 +403,6 @@ def create_all_tables(path):
                                         FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID),
                                         FOREIGN KEY (SubjectID) REFERENCES Subject(SubjectID)
                                         );"""
-    sql_create_ServerQuotes = """ CREATE TABLE IF NOT EXISTS ServerQuotes (
-                                    ServerQuoteID integer NOT NULL PRIMARY KEY,
-                                    QuoteContent text,
-                                    DateAdded text,
-                                    AddedByID integer,
-                                    -- UniqueMemberID does not exist for Prof. quotes
-                                    UniqueMemberID integer,
-                                    FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID),
-                                    FOREIGN KEY (AddedByID) REFERENCES DiscordMembers(UniqueMemberID)
-                                    );"""
     sql_create_VoiceLevels = """ CREATE TABLE IF NOT EXISTS VoiceLevels (
                                     UniqueMemberID integer NOT NULL PRIMARY KEY,
                                     ExperienceAmount integer DEFAULT 0,
@@ -465,6 +452,17 @@ def create_all_tables(path):
                                         PRIMARY KEY("EventJoinedID"),
                                         FOREIGN KEY("EventID") REFERENCES "Events"("EventID") ON DELETE CASCADE
                                         );"""
+    sql_create_quotes = """   CREATE TABLE IF NOT EXISTS "Quotes" (
+                                        "QuoteID" INTEGER PRIMARY KEY,
+                                        "Quote" INTEGER,
+                                        "Name" TEXT, -- name of who the quote is from
+                                        "UniqueMemberID" INTEGER, -- uniqueID if it exists
+                                        "CreatedAt"	TEXT DEFAULT CURRENT_TIMESTAMP,
+                                        "AddedByUniqueMemberID" INTEGER,
+                                        "DiscordGuildID" INTEGER,
+                                        FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID"),
+                                        FOREIGN KEY("DiscordGuildID") REFERENCES "DiscordGuilds"("DiscordGuildID")
+                                        );"""
 
     conn = create_connection(database)
 
@@ -477,13 +475,13 @@ def create_all_tables(path):
         create_table(conn, sql_create_WeekDayTimes)
         create_table(conn, sql_create_UserReactionStatistic)
         create_table(conn, sql_create_UserMessageStatistic)
-        create_table(conn, sql_create_ServerQuotes)
         create_table(conn, sql_create_VoiceLevels)
         create_table(conn, sql_create_CovidGuessing)
         create_table(conn, sql_create_reputations)
         create_table(conn, sql_create_dictionary)
         create_table(conn, sql_create_events)
         create_table(conn, sql_create_eventjoinedusers)
+        create_table(conn, sql_create_quotes)
 
         conn.close()
     else:

@@ -1,3 +1,4 @@
+from datetime import datetime
 import aiohttp
 import discord
 from discord.ext import commands
@@ -24,6 +25,15 @@ def rgb2hex(r, g, b):
 def loading_bar_draw(a, b):
     prog = int(10*a/b)
     return "<:green_box:764901465948684289>"*prog + (10-prog)*"<:grey_box:764901465592037388>"
+
+
+def isascii(s):
+    total = 0
+    for t in s:
+        q = len(t.encode('utf-8'))
+        if q > 2:
+            total += q
+    return total < 300
 
 
 def loading_bar(bars, max_length=None, failed=None):
@@ -110,7 +120,7 @@ class Owner(commands.Cog):
                     channel = self.bot.get_channel(819966095070330950)
                     if channel is None:
                         channel = self.bot.get_channel(402563165247766528)
-                    await channel.send(f".place setpixel {x} {y} {color}")
+                    await channel.send(f".place setpixel {x} {y} {color} | COUNTERING {message.author.name}")
 
     @commands.command(usage="sql <command>")
     async def sql(self, ctx, *, sql):
@@ -305,6 +315,49 @@ class Owner(commands.Cog):
                             conn.commit()
                             count += 1
                     await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
+            elif file == "quotes":
+                with open("./data/quotes.json", "r") as f:
+                    quotes = json.load(f)
+                for guild_id in quotes:
+                    finished = []
+                    total_count = 0
+                    count = 0
+                    guild_obj = self.bot.get_guild(int(guild_id))
+                    if guild_obj is None:
+                        print(f"Didn't find Guild with ID: {guild_id}")
+                        continue
+                    for name in quotes[guild_id]:
+                        if len(quotes[guild_id][name]) == 0:
+                            continue
+                        try:
+                            member = discord.utils.find(lambda m: m.name.lower() == name, guild_obj.members)
+                        except discord.ext.commands.errors.UserNotFound:
+                            member = None
+                        uniqueID = None
+                        quoted_name = name
+                        if member is not None:
+                            uniqueID = handySQL.get_uniqueMemberID(conn, member.id, guild_id)
+                            quoted_name = member.name
+                        for q in quotes[guild_id][name]:
+                            if not isascii(q[1]):
+                                continue
+                            date = datetime.strptime(q[0], "%d/%m/%Y").strftime("%Y-%m-%d %H:%M:%S")
+                            sql = """   INSERT INTO Quotes(Quote, Name, UniqueMemberID, DiscordGuildID, CreatedAt)
+                                        VALUES(?,?,?,?,?)"""
+                            conn.execute(sql, (q[1], quoted_name, uniqueID, guild_id, date))
+                            conn.commit()
+                            count += 1
+                            total_count += 1
+                        finished.append(quoted_name)
+
+                        if count >= 200:
+                            await ctx.send(f"{count} successful DB entry transfers for names:\n`{', '.join(finished)}`")
+                            finished = []
+                            count = 0
+                    if len(finished) > 0:
+                        await ctx.send(f"{count} successful DB entry transfers for names:\n`{', '.join(finished)}`")
+                    await ctx.send(f"{total_count} successful DB entry transfers on guild `{guild_obj.name}`")
+
             else:
                 await ctx.send("Unknown file")
         else:
@@ -431,7 +484,7 @@ class Owner(commands.Cog):
                             if a != 0:
                                 try:
                                     amt_of_pixels += 1
-                                    msgs.append(await ctx.send(f".place setpixel {curX} {curY} {hex_color}"))
+                                    msgs.append(await ctx.send(f".place setpixel {curX} {curY} {hex_color} | PROJECT {ID}"))
                                 except Exception:
                                     await asyncio.sleep(5)
                                     missed_pixels += 1
@@ -463,7 +516,7 @@ class Owner(commands.Cog):
                     for pix in missed:
                         try:
                             amt_of_pixels += 1
-                            msgs.append(await ctx.send(f".place setpixel {pix[0]} {pix[1]} {pix[2]}"))
+                            msgs.append(await ctx.send(f".place setpixel {pix[0]} {pix[1]} {pix[2]} | PROJECT {ID}"))
                         except Exception:
                             await asyncio.sleep(10)
                             missed_pixels += 1
@@ -472,7 +525,7 @@ class Owner(commands.Cog):
                     embed = discord.Embed(title="DONE Drawing Image", description=desc, color=0x00FF00)
                 except Exception as e:
                     desc = draw_desc(ID, topleft, step, bottomright, amt_of_pixels, missed_pixels, total_pixels, amt_of_pixels - pixel_clock, time.time() - cur_time)
-                    embed = discord.Embed(title="ERROR Drawing Image", description=desc, color=0x00FF00)
+                    embed = discord.Embed(title="ERROR Drawing Image", description=desc, color=0xFF0000)
                     embed.add_field(name="Error Message", value=str(e)[:1000])
 
                 await prog_msg.delete()
@@ -481,6 +534,10 @@ class Owner(commands.Cog):
 
                 if x1 is not None and x1.lower() == "clear":
                     self.image = None
+                    try:
+                        os.remove("place.png")
+                    except FileNotFoundError:
+                        pass
                     await ctx.send("Cleared image to keep track of")
                     return
 
