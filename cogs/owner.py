@@ -497,15 +497,7 @@ class Owner(commands.Cog):
                                 pixel_clock = amt_of_pixels
                                 cur_time = time.time()
                                 embed = discord.Embed(title="Drawing Image", description=desc)
-
-                                # checks who the last message in the channel is by
-                                if channel.last_message_id == prog_msg.id:
-                                    # edits the message if the last message is by the bot
-                                    await prog_msg.edit(embed=embed)
-                                else:
-                                    # resends the message in that channel
-                                    await prog_msg.delete()
-                                    prog_msg = await channel.send(embed=embed)
+                                await prog_msg.edit(embed=embed)
                             curY += step
                         curX += step
                     if len(msgs) > 0:
