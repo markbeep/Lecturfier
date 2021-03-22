@@ -156,7 +156,7 @@ class Quote(commands.Cog):
                             FROM Quotes Q
                             WHERE Q.DiscordGuildID=?
                             GROUP BY Q.Name
-                            ORDER BY Q.UniqueMemberID DESC, Q.Name"""
+                            ORDER BY COUNT(*) DESC"""
                 c.execute(sql, (guild_id,))
                 res = c.fetchall()
 
@@ -298,6 +298,10 @@ class Quote(commands.Cog):
                             embeds_to_send = []
                             message_count = 1
                             page_count = 1
+
+                            quoted_name = name
+                            if member is not None:
+                                quoted_name = member.name
                             while len(remaining_quotes) > 0:
                                 # split quotes into multiple chunks of max 6000 chars
                                 if len(remaining_quotes) >= 5900:
@@ -306,7 +310,7 @@ class Quote(commands.Cog):
                                     rind = len(remaining_quotes)
                                 single_msg = remaining_quotes[0:rind]
                                 remaining_quotes = remaining_quotes[rind:]
-                                embed = discord.Embed(title=f"All quotes from {name}", description=f"`Message {message_count}`", color=0x404648)
+                                embed = discord.Embed(title=f"All quotes from {quoted_name}", description=f"`Message {message_count}`", color=0x404648)
                                 message_count += 1
                                 embeds_to_send.append(embed)
                                 while len(single_msg) > 0:
