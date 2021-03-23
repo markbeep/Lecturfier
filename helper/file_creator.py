@@ -10,7 +10,7 @@ def createFiles():
     :return: None
     """
     keyword = "FILE"
-    file_list = ["quotes", "reputation", "ignored_users", "ignored_channels", "covid_points", "bot_prefix", "guesses", "versions"]
+    file_list = ["ignored_users", "ignored_channels", "bot_prefix", "versions"]
     website_list = ["ad", "dm", "ep", "la"]
     stop = False
 
@@ -22,32 +22,6 @@ def createFiles():
         "lecture": 111111111111111111111,
         "test": 111111111111111111111,
         "prefix": "$"
-    }
-
-    schedule_default = {
-        "eprog": {
-            "Mon:04:20": "FILLER",
-            "Tue:04:20": "FILLER",
-            "url": "FILLER"
-        },
-        "diskmat": {
-            "Wed:04:20": "FILLER",
-            "Thu:04:20": "FILLER",
-            "url": "FILLER"
-        },
-        "linalg": {
-            "Fri:04:20": "FILLER",
-            "Sat:04:20": "FILLER",
-            "url": "FILLER"
-        },
-        "and": {
-            "Sun:04:20": "FILLER",
-            "url": "FILLER"
-        },
-        "test": {
-            "test": "TEST MESSAGE",
-            "url": "This is the url to the website"
-        }
     }
 
     # This is the file that stores the token
@@ -74,12 +48,6 @@ def createFiles():
             stop = True
             with open(f"./data/{file}.json", "w") as f:
                 f.write("{}")
-
-    if not os.path.exists("./data/schedule.json"):
-        log("Creating schedule.json", keyword)
-        stop = True
-        with open("./data/schedule.json", "w") as f:
-            json.dump(schedule_default, f, indent=2)
 
     for link in website_list:
         if not os.path.exists(f"./websites/{link}.html"):
