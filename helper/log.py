@@ -14,19 +14,12 @@ def log(text, keyword=None):
         text = f"{keyword} | {text}"
     date = datetime.now(timezone("Europe/Zurich")).strftime("%Y-%m-%d")
     time = datetime.now(timezone("Europe/Zurich")).strftime("%H:%M:%S")
-    if not os.path.exists(f"logs/{date}.log"):
-        print(f"logs/{date}.log")
-        with open(f"logs/{date}.log", "w") as f:
-            f.write(f"[{time}] -- {text}")
-    else:
-        try:
-            with open(f"logs/{date}.log", "r") as f:
-                existing_log = f.read()
-            with open(f"logs/{date}.log", "w") as f:
-                f.write(f"{existing_log}\n[{time}] -- {text}")
-        except UnicodeEncodeError:
-            with open(f"logs/{date}.log", "w") as f:
-                text = text.encode('UTF-8')
-                print("!!!-----UnicodeEncodeError while logging-----!!!")
-                f.write(f"{existing_log}\n\n#############UnicodeEncodeError#############\n\n[{time}] -- {text}")
+    try:
+        with open(f"logs/{date}.log", "a") as f:
+            f.write(f"[{time}] -- {text}\n")
+    except UnicodeEncodeError:
+        with open(f"logs/{date}.log", "a") as f:
+            text = text.encode('UTF-8')
+            print("!!!-----UnicodeEncodeError while logging-----!!!")
+            f.write(f"{existing_log}\n\n#############UnicodeEncodeError#############\n\n[{time}] -- {text}\n")
     print(f"Logged: {text}")
