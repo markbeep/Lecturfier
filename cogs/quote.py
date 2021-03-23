@@ -26,9 +26,11 @@ def isascii(s):
 async def send_quote(ctx, quote, date, name, index=None):
     embed = discord.Embed(description=quote, color=0x404648)
     footer_txt = ""
+    local_tz = timezone("Europe/Zurich")
+    dt = datetime.datetime.strptime(date, "%Y-%m-%d %H:%M:%S").astimezone(local_tz).strftime("%d.%b %Y").lstrip("0")
     if index is not None:
-        footer_txt += f"| Quote ID: {index}"
-    embed.set_footer(text=f"-{name}, {date}" + footer_txt)
+        footer_txt += f" | Quote ID: {index}"
+    embed.set_footer(text=f"-{name}, {dt}" + footer_txt)
     await ctx.send(embed=embed)
 
 
@@ -215,7 +217,7 @@ class Quote(commands.Cog):
                         if member is not None:
                             c.execute("SELECT Quote, QuoteID, Name, CreatedAt FROM Quotes WHERE UniqueMemberID=? AND DiscordGuildID=? ORDER BY RANDOM() LIMIT 1", (uniqueID, ctx.message.guild.id))
                         else:
-                            c.execute("SELECT Quote, QuoteID, Name, CreatedAt FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=? ORDER BY RANDOM() LIMIT 1", (f"%{name}%", ctx.message.guild.id))
+                            c.execute("SELECT Quote, QuoteID, Name, CreatedAt FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=? ORDER BY RANDOM() LIMIT 1", (name, ctx.message.guild.id))
                         res = c.fetchone()
 
                     if res is None:
@@ -239,7 +241,7 @@ class Quote(commands.Cog):
                         if member is not None:
                             c.execute("SELECT * FROM Quotes WHERE UniqueMemberID=? AND DiscordGuildID=?", (uniqueID, guild_id))
                         else:
-                            c.execute("SELECT * FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=?", (f"%{name}%", guild_id))
+                            c.execute("SELECT * FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=?", (name, guild_id))
                         res = c.fetchall()
                         amt = len(res)
                         if amt == 0:
@@ -254,7 +256,7 @@ class Quote(commands.Cog):
                         if member is not None:
                             c.execute("SELECT Quote, Name, CreatedAt, QuoteID FROM Quotes WHERE UniqueMemberID=? AND DiscordGuildID=? ORDER BY QuoteID LIMIT 1 OFFSET ?", (uniqueID, guild_id, index))
                         else:
-                            c.execute("SELECT Quote, Name, CreatedAt, QuoteID FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=? ORDER BY QuoteID LIMIT 1 OFFSET ?", (f"%{name}%", guild_id, index))
+                            c.execute("SELECT Quote, Name, CreatedAt, QuoteID FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=? ORDER BY QuoteID LIMIT 1 OFFSET ?", (name, guild_id, index))
                         res = c.fetchone()
                         if res is None:
                             embed = discord.Embed(
@@ -276,7 +278,7 @@ class Quote(commands.Cog):
                             if member is not None:
                                 c.execute("SELECT Quote, Name, CreatedAt, QuoteID FROM Quotes WHERE UniqueMemberID=? AND DiscordGuildID=? ORDER BY QuoteID", (uniqueID, guild_id))
                             else:
-                                c.execute("SELECT Quote, Name, CreatedAt, QuoteID FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=? ORDER BY QuoteID", (f"%{name}%", guild_id))
+                                c.execute("SELECT Quote, Name, CreatedAt, QuoteID FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=? ORDER BY QuoteID", (name, guild_id))
                             res = c.fetchall()
 
                             # If there are no quotes for the given person;
