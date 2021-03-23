@@ -23,14 +23,12 @@ bot.load_extension("cogs.help")
 async def on_message(message):
     await bot.process_commands(message)
 
-
 # Load the token
-try:
-    with open("../LECTURFIER.json", "r") as f:
-        settings = json.load(f)
-    token = settings["token"]
-    bot.run(token)
-except (FileNotFoundError, KeyError):
-    print("NO TOKEN IN LECTURFIER.json or file doesn't exist! Stopping bot.")
-except discord.errors.LoginFailure:
-    print("Improper token has been passed.")
+with open("../LECTURFIER.json", "r") as f:
+    settings = json.load(f)
+
+if len(settings["token"]) == 0:
+    print("NO TOKEN IN LECTURFIER.json! Stopping bot.")
+    exit()
+
+bot.run(settings["token"])
