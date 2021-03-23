@@ -122,7 +122,8 @@ class Games(commands.Cog):
                 c = 0
         if c != 0:
             embed.add_field(name=f"Top {len(points_list)}", value=msg, inline=False)
-        await channel.send(content="<@&770968106679926868>",embed=embed)
+        # Pings the Covid Guesser Role on sending the leaderboard message
+        await channel.send(content="<@&770968106679926868>", embed=embed)
 
     async def point_distribute(self, guild, confirmed_cases):
         log(f"Starting COVID points distribution", "COVID")
