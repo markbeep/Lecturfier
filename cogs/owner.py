@@ -153,7 +153,7 @@ class Owner(commands.Cog):
                 values = []
                 for r in rows:
                     values.append(list(dict(r).values()))
-                table = tabulate(values, header, tablefmt="presto")
+                table = tabulate(values, header, tablefmt="plain")
                 table = table.replace("```", "")
                 row_count = len(rows)
             else:
