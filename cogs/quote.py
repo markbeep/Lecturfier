@@ -40,9 +40,6 @@ class Quote(commands.Cog):
         self.time = 0
         with open("./data/ignored_users.json") as f:
             self.ignored_users = json.load(f)
-        self.quotes_filepath = "./data/quotes.json"
-        with open(self.quotes_filepath, "r") as f:
-            self.quotes = json.load(f)
         self.aliases = {
             "püschel": [
                 "pueschel",
@@ -387,15 +384,6 @@ class Quote(commands.Cog):
                 await ctx.send(embed=embed)
                 raise discord.ext.commands.errors.BadArgument
             await send_quote(ctx, res[0], res[3], res[2], res[1])
-
-    async def user_checkup(self, guild_id, name):
-        # If the guild doesnt exist in quotes yet
-        if str(guild_id) not in self.quotes:
-            self.quotes[str(guild_id)] = {}
-
-        # If the user doesnt exist in quotes yet
-        if str(name) not in self.quotes[str(guild_id)]:
-            self.quotes[str(guild_id)][name] = []
 
 
 def setup(bot):
