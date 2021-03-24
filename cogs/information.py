@@ -16,7 +16,7 @@ import asyncio
 
 def get_formatted_time(rem):
     if rem < 0:
-        return f"Passed {get_formatted_time(-rem)} ago."
+        return f"*Passed*"
     if rem < 3600:
         return f"{round(rem / 60)} minutes"
     if rem < 86400:
@@ -125,18 +125,30 @@ def add_event_fields(embed, ID, name, host, joined_users, date, start, created, 
     embed.add_field(name="Event Name", value=name)
     embed.add_field(name="Host", value=f"<@{host}>")
     embed.add_field(name="Joined Users", value=joined_users)
-    embed.add_field(name="Date", value=date)
+    embed.add_field(name="Event Date", value=format_date_string(date))
     embed.add_field(name="Starting in", value=starting_in(start))
-    embed.add_field(name="Created on", value=created)
+    embed.add_field(name="Created", value=format_date_string(created))
     embed.add_field(name="Event Description", value=desc)
 
 
-def get_event_details(c, event_id, guild_id):
-    sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID, E.UpdatedMessageID, E.UpdatedChannelID
-                FROM Events E
-                INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
-                WHERE E.EventID=? AND DM.DiscordGuildID=?"""
-    c.execute(sql, (event_id, guild_id))
+def format_date_string(dt):
+    return datetime.strptime(str(dt), "%Y-%m-%d %H:%M:%S").strftime("%H:%M on %d.%b %Y")
+
+
+def get_event_details(c, event_id, guild_id=None):
+    # guild_id is only given if its important to limit events to a guild
+    if guild_id is not None:
+        sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID, E.UpdatedMessageID, E.UpdatedChannelID
+                    FROM Events E
+                    INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
+                    WHERE E.EventID=? AND DM.DiscordGuildID=?"""
+        c.execute(sql, (event_id, guild_id))
+    else:
+        sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID, E.UpdatedMessageID, E.UpdatedChannelID
+                    FROM Events E
+                    INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
+                    WHERE E.EventID=?"""
+        c.execute(sql, (event_id,))
     res = c.fetchone()
     return res
 
@@ -154,7 +166,8 @@ def create_event_embed(c, res):
     for row in users:
         joined_users_msg += f"\n> <@{row[0]}>"
         if counter >= 5:
-            joined_users_msg += "\n> ..."
+            joined_users_msg += "\n> . . ."
+            break
         counter += 1
 
     # Creates and returns the embed message
@@ -201,17 +214,55 @@ class Information(commands.Cog):
             c = conn.cursor()
 
             # iterates through all update messages
-            c.execute("SELECT EventID, UpdatedMessageID, UpdatedChannelID FROM Events WHERE UpdatedMessageID IS NOT NULL AND UpdatedChannelID IS NOT NULL")
+            c.execute("SELECT EventID, UpdatedMessageID, UpdatedChannelID, EventStartingAt FROM Events WHERE IsDone=0")
             result = c.fetchall()
+            dt = str(datetime.now(timezone("Europe/Zurich")))
             for row in result:
-                try:
-                    channel = self.bot.get_channel(int(row[2]))
-                    msg = await channel.fetch_message(int(row[1]))
-                    res = get_event_details(c, row[0], channel.guild.id)
-                    embed = create_event_embed(c, res)
-                    await msg.edit(embed=embed)
-                except discord.NotFound:
-                    continue
+                if row[1] is not None and row[2] is not None:
+                    try:
+                        # updates the event message
+                        channel = self.bot.get_channel(int(row[2]))
+                        msg = await channel.fetch_message(int(row[1]))
+                        res = get_event_details(c, row[0], channel.guild.id)
+                        embed = create_event_embed(c, res)
+                        await msg.edit(embed=embed)
+                    except discord.NotFound:
+                        continue
+
+                # ping users if event starts
+                if row[3] < dt:
+                    # gets the users to ping
+                    sql = """   SELECT D.DiscordUserID
+                                FROM EventJoinedUsers E 
+                                INNER JOIN DiscordMembers D on D.UniqueMemberID = E.UniqueMemberID
+                                WHERE E.EventID=?"""
+                    c.execute(sql, (row[0],))
+                    result = c.fetchall()
+
+                    # creates the embed for the starting event
+                    # E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID, E.UpdatedMessageID, E.UpdatedChannelID
+                    event_res = get_event_details(c, row[0])
+                    embed = discord.Embed(
+                        title="Event Starting!",
+                        description=f"`{event_res[0]}` is starting! Here just a few details of the event:",
+                        color=0xFCF4A3)
+                    embed.add_field(name="Event ID", value=row[0])
+                    embed.add_field(name="Host", value=f"<@{event_res[4]}>")
+                    embed.add_field(name="Description", value=event_res[3])
+
+                    for user_row in result:
+                        user = self.bot.get_user(user_row[0])
+                        if user is None:
+                            print(f"Did not find user with ID {user_row[0]}")
+                            continue
+                        try:
+                            await user.send(embed=embed)
+                        except discord.Forbidden:
+                            print(f"Can't dm {user.name}")
+
+            # Marks all older events as done
+            c.execute("Update Events SET IsDone=1 WHERE EventStartingAt < ?", (dt,))
+            conn.commit()
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -414,10 +465,6 @@ class Information(commands.Cog):
             guild_id = 0
             guild_name = "Direct Message"
 
-        # Marks all older events as done
-        c.execute("Update Events SET IsDone=1 WHERE EventStartingAt < ?", (str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")), ))
-        conn.commit()
-
         if command is None:
             # list all upcoming events sorted by upcoming order
             sql = """   SELECT E.EventName, E.EventStartingAt, E.EventID
@@ -496,9 +543,10 @@ class Information(commands.Cog):
 
                 # Creates and sends the embed message
                 embed = discord.Embed(title="Added New Event", color=0xFCF4A3)
+                embed.add_field(name="Event ID", value=event_id)
                 embed.add_field(name="Event Name", value=event_name, inline=False)
                 embed.add_field(name="Event Host", value=ctx.message.author.mention, inline=False)
-                embed.add_field(name="Event Starting At", value=str(dt), inline=False)
+                embed.add_field(name="Event Date", value=format_date_string(dt), inline=False)
                 embed.add_field(name="Event Description", value=event_description, inline=False)
                 await ctx.send(embed=embed)
             else:
@@ -516,7 +564,7 @@ class Information(commands.Cog):
                             FROM Events E
                             INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
                             WHERE (E.EventName LIKE ? OR E.EventID=?) AND DM.DiscordGuildID=?
-                            ORDER BY E.EventStartingAt"""
+                            ORDER BY IsDone, E.EventStartingAt"""
                 c.execute(sql, (f"%{event_name}%", event_name, guild_id))
                 results = c.fetchall()
                 if len(results) == 0:
