@@ -589,10 +589,11 @@ class Information(commands.Cog):
                     c.execute(sql, (e[5],))
                     res = c.fetchall()
                     joined_users_msg = f"Total: {len(res)}"
-                    counter = 0
+                    counter = 1
                     for row in res:
                         joined_users_msg += f"\n> <@{row[0]}>"
-                        if counter >= 10:
+                        if counter >= 5:
+                            joined_users_msg += "\n> . . ."
                             break
                         counter += 1
 
