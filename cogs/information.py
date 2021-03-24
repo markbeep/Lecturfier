@@ -439,7 +439,7 @@ class Information(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
 
     @commands.command(aliases=["events"], usage="event [add/view/edit/delete/join/leave] [event name/event ID] [date] [time] [description]")
-    async def event(self, ctx, command=None, event_name=None, date=None, event_time=None, *event_info):
+    async def event(self, ctx, command=None, event_name=None, date=None, event_time=None, *, event_info="*[n/a]*"):
         """
         - The event command is used to keep track of upcoming events. Each user can add a maximum of two events (this might get changed).
         - When creating an event, the **event name** has to be in quotes if there are multiple words and it can be a maximum of 50 characters, \
@@ -514,7 +514,7 @@ class Information(commands.Cog):
                     await ctx.message.delete(delay=10)
                     raise discord.ext.commands.errors.BadArgument
                 # Adds the entry to the sql db
-                event_description = " ".join(event_info)
+                event_description = event_info
                 if len(event_description) > 700:
                     event_description = event_description[0: 700] + "..."
                 if len(event_name) > 50:

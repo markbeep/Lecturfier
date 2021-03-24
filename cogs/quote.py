@@ -117,7 +117,7 @@ class Quote(commands.Cog):
 
     @commands.cooldown(4, 10, BucketType.user)
     @commands.command(aliases=["q", "quotes"], usage="quote [user] [quote/command/index]")
-    async def quote(self, ctx, name=None, *quote):
+    async def quote(self, ctx, name=None, *, quote=""):
         """
         Sends a completely random quote from the server if all parameters are empty. \
         If only a name is given, it sends a random quote from that user.
@@ -228,8 +228,6 @@ class Quote(commands.Cog):
 
                 else:
                     # if theres something behind the name
-                    # this makes the array of parameters into a string
-                    quote = " ".join(quote)
 
                     try:
                         # Checks if the quote is a quote index
@@ -287,6 +285,10 @@ class Quote(commands.Cog):
                             i = 0
                             for row in res:
                                 quote_to_add = row[0].replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "")
+                                if quote_to_add.count("\n") > 2:
+                                    # makes multiline quotes not show too much
+                                    split_lines = quote_to_add.split("\n")
+                                    quote_to_add = "\n".join(split_lines[:2]) + "\n **[...]**"
                                 if len(quote_to_add) > 150:
                                     quote_to_add = quote_to_add[:150] + "**[...]**"
                                 quote_list += f"\n**#{i}:** {quote_to_add} `[ID: {row[3]}]`"
