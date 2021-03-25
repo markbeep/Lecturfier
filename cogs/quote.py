@@ -144,6 +144,14 @@ class Quote(commands.Cog):
         # creates the db connection
         conn = self.get_connection()
         c = conn.cursor()
+
+        # if message is a reply, add the replied message as a quote
+        reply = ctx.message.reference
+        if reply is not None and name is None and len(quote) == 0:
+            reply_message = await ctx.message.channel.fetch_message(reply.message_id)
+            name = str(reply_message.author.id)
+            quote = reply_message.content
+
         if name is not None:
             if name.lower() in ["del", "all"]:
                 embed = discord.Embed(title="Quote Error", description=f"Can't use `all` or `del` as names. Did you mean to do `$quote <user> {name.lower()}`?", color=0xFF0000)
@@ -375,7 +383,7 @@ class Quote(commands.Cog):
                             c.execute(sql, (quote, quoted_name, uniqueID, addedByUniqueID, guild_id))
                             conn.commit()
 
-                            embed = discord.Embed(title="Added Quote", description=f"Added quote for {name}", color=0x00FF00)
+                            embed = discord.Embed(title="Added Quote", description=f"Added quote for {quoted_name}", color=0x00FF00)
                             await ctx.send(embed=embed)
         else:
             # If $quote is written on its own, send a random quote from any user
