@@ -239,14 +239,28 @@ class Admin(commands.Cog):
             await ctx.send("Not possible in DMs")
             raise discord.ext.commands.BadArgument
 
+        conn = self.get_connection()
+
         msg = await ctx.send("```[ ] Fetching Users\n"
                              "[ ] Saved JSON File\n"
                              "[ ] Sent JSON File\n"
                              "[ ] Cleaned up```")
         with ctx.typing():
             members = []
+            cur = 0
+            max = len(guild.members)
             for mem in guild.members:
+                handySQL.get_or_create_member(conn, mem, guild)
+
                 members.append({"id": mem.id, "nick": mem.nick, "top_role_name": mem.top_role.name, "top_role_id": mem.top_role.id})
+
+                cur += 1
+                if cur % 150 == 0:
+                    await msg.edit(content=f"```[ ] Fetching Users {round(100*cur/max, 2)}%\n"
+                                           "[ ] Saved JSON File\n"
+                                           "[ ] Sent JSON File\n"
+                                           "[ ] Cleaned up```")
+
             await msg.edit(content="```[x] Fetching Users\n"
                            "[ ] Saved JSON File\n"
                            "[ ] Sent JSON File\n"
