@@ -247,7 +247,7 @@ def get_or_create_member(conn, user, guild):
     else:
         guild_id = guild.id
     uniqueID = get_uniqueMemberID(conn, user.id, guild_id)
-    if uniqueID is None:
+    if uniqueID == -1:
         create_discord_member(conn, user, guild)
         return get_uniqueMemberID(conn, user.id, guild_id)
     else:

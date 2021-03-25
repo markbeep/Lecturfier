@@ -1,12 +1,13 @@
 import discord
 from discord.ext import commands
 import asyncio
-from helper.log import log
+from helper import handySQL
 from datetime import datetime
 from pytz import timezone
 import json
 import time
 from discord.ext.commands.cooldowns import BucketType
+import os
 
 
 class Admin(commands.Cog):
@@ -18,9 +19,24 @@ class Admin(commands.Cog):
         with open(self.bot_prefix_path, "r") as f:
             self.all_prefix = json.load(f)
         self.secret_channels = {}
+        self.db_path = "./data/discord.db"
+        self.conn = handySQL.create_connection(self.db_path)
+
+    def get_connection(self):
+        """
+        Retreives the current database connection
+        :return: Database Connection
+        """
+        if self.conn is None:
+            self.conn = handySQL.create_connection(self.db_path)
+        return self.conn
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
+        # adds the user to the db
+        conn = self.get_connection()
+        handySQL.get_or_create_member(conn, member, member.guild)
+
         if member.bot:
             return
         if member.guild.id == 747752542741725244:  # if the server is the main server
@@ -211,6 +227,52 @@ class Admin(commands.Cog):
         if ctx.message.channel.id in self.secret_channels:
             self.secret_channels.pop(ctx.message.channel.id)
             await ctx.send("<:elthision:787256721508401152>\n"+"<:this:747783377662378004>"*10+"\nMessages are not Elthision anymore.")
+
+    @commands.cooldown(1, 5, BucketType.user)
+    @commands.command(usage="users")
+    @commands.has_permissions(administrator=True)
+    async def users(self, ctx):
+        """Sends a json. ||Rest is a secret hehe||"""
+        try:
+            guild = ctx.message.guild
+        except AttributeError:
+            await ctx.send("Not possible in DMs")
+            raise discord.ext.commands.BadArgument
+
+        msg = await ctx.send("```[ ] Fetching Users\n"
+                             "[ ] Saved JSON File\n"
+                             "[ ] Sent JSON File\n"
+                             "[ ] Cleaned up```")
+        with ctx.typing():
+            members = []
+            for mem in guild.members:
+                members.append({"id": mem.id, "nick": mem.nick, "top_role_name": mem.top_role.name, "top_role_id": mem.top_role.id})
+            await msg.edit(content="```[x] Fetching Users\n"
+                           "[ ] Saved JSON File\n"
+                           "[ ] Sent JSON File\n"
+                           "[ ] Cleaned up```")
+
+            # saves the json
+            with open("./user_nick_roles.json", "w") as f:
+                json.dump(members, f, indent=2)
+
+            await msg.edit(content="```[x] Fetching Users\n"
+                           "[x] Saved JSON File\n"
+                           "[ ] Sent JSON File\n"
+                           "[ ] Cleaned up```")
+
+        file = discord.File("./user_nick_roles.json")
+        await ctx.send(file=file)
+        await msg.edit(content="```[x] Fetching Users\n"
+                       "[x] Saved JSON File\n"
+                       "[x] Sent JSON File\n"
+                       "[ ] Cleaned up```")
+
+        os.remove("./user_nick_roles.json")
+        await msg.edit(content="```[x] Fetching Users\n"
+                       "[x] Saved JSON File\n"
+                       "[x] Sent JSON File\n"
+                       "[x] Cleaned up```")
 
     @commands.command(usage="sendWelcome")
     async def sendWelcome(self, ctx):
