@@ -68,7 +68,7 @@ class Statistics(commands.Cog):
 
             await asyncio.sleep(10)
 
-    @commands.Cog.listener()
+    """@commands.Cog.listener()
     async def on_command_error(self, ctx, error):
         if "is not found" in str(error):
             return
@@ -82,7 +82,7 @@ class Statistics(commands.Cog):
                 await ctx.message.add_reaction("<:ERROR:792154973559455774>")
             except discord.errors.NotFound:
                 pass
-            print(f"ERROR: {str(error)}")
+            print(f"ERROR: {str(error)}")"""
 
     @commands.Cog.listener()
     async def on_command_completion(self, ctx):

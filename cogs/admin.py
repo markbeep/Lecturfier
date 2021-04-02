@@ -228,66 +228,6 @@ class Admin(commands.Cog):
             self.secret_channels.pop(ctx.message.channel.id)
             await ctx.send("<:elthision:787256721508401152>\n"+"<:this:747783377662378004>"*10+"\nMessages are not Elthision anymore.")
 
-    @commands.cooldown(1, 5, BucketType.user)
-    @commands.command(usage="users")
-    @commands.has_permissions(administrator=True)
-    async def users(self, ctx):
-        """Sends a json. ||Rest is a secret hehe||"""
-        try:
-            guild = ctx.message.guild
-        except AttributeError:
-            await ctx.send("Not possible in DMs")
-            raise discord.ext.commands.BadArgument
-
-        conn = self.get_connection()
-
-        msg = await ctx.send("```[ ] Fetching Users\n"
-                             "[ ] Saved JSON File\n"
-                             "[ ] Sent JSON File\n"
-                             "[ ] Cleaned up```")
-        with ctx.typing():
-            members = []
-            cur = 0
-            max = len(guild.members)
-            for mem in guild.members:
-                handySQL.get_or_create_member(conn, mem, guild)
-
-                members.append({"id": mem.id, "nick": mem.nick, "top_role_name": mem.top_role.name, "top_role_id": mem.top_role.id})
-
-                cur += 1
-                if cur % 150 == 0:
-                    await msg.edit(content=f"```[ ] Fetching Users {round(100*cur/max, 2)}%\n"
-                                           "[ ] Saved JSON File\n"
-                                           "[ ] Sent JSON File\n"
-                                           "[ ] Cleaned up```")
-
-            await msg.edit(content="```[x] Fetching Users\n"
-                           "[ ] Saved JSON File\n"
-                           "[ ] Sent JSON File\n"
-                           "[ ] Cleaned up```")
-
-            # saves the json
-            with open("./user_nick_roles.json", "w") as f:
-                json.dump(members, f, indent=2)
-
-            await msg.edit(content="```[x] Fetching Users\n"
-                           "[x] Saved JSON File\n"
-                           "[ ] Sent JSON File\n"
-                           "[ ] Cleaned up```")
-
-        file = discord.File("./user_nick_roles.json")
-        await ctx.send(file=file)
-        await msg.edit(content="```[x] Fetching Users\n"
-                       "[x] Saved JSON File\n"
-                       "[x] Sent JSON File\n"
-                       "[ ] Cleaned up```")
-
-        os.remove("./user_nick_roles.json")
-        await msg.edit(content="```[x] Fetching Users\n"
-                       "[x] Saved JSON File\n"
-                       "[x] Sent JSON File\n"
-                       "[x] Cleaned up```")
-
     @commands.command(usage="sendWelcome")
     async def sendWelcome(self, ctx):
         """
