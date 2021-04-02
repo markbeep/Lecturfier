@@ -1,9 +1,14 @@
+import asyncio
+
 import discord
 from discord.ext import commands
 import re
 from helper import handySQL
 import string
 from discord.ext.commands.cooldowns import BucketType
+import threading
+import time
+import concurrent.futures
 
 
 def joinTuple(string_tuples) -> str:
@@ -16,6 +21,14 @@ class Hangman(commands.Cog):
         self.sending = False
         self.db_path = "./data/discord.db"
         self.conn = handySQL.create_connection(self.db_path)
+
+    def dict_query(self, not_like_msg, language, inputted_word):
+        conn = handySQL.create_connection(self.db_path)
+        c = conn.cursor()
+        c.execute(f"SELECT Word FROM Dictionary WHERE WordLanguage=? AND Word LIKE ? {not_like_msg} GROUP BY Word COLLATE NOCASE",
+                  (language, inputted_word))
+        # As results is a list of tuples, join them
+        return list(map(joinTuple, c.fetchall()))
 
     def get_connection(self):
         """
@@ -43,18 +56,19 @@ class Hangman(commands.Cog):
         return corrected
 
     async def word_guesser(self, inputted_word, unused_letters="", language="english"):
-        conn = self.get_connection()
-        c = conn.cursor()
-
         # Ununused letters
         not_like_msg = ""
         for l in unused_letters:
             not_like_msg += f' AND NOT Word LIKE "%{l}%"'
 
-        c.execute(f"SELECT Word FROM Dictionary WHERE WordLanguage=? AND Word LIKE ? {not_like_msg} GROUP BY Word COLLATE NOCASE", (language, inputted_word))
+        # sql query takes up the most time, so its performed in a separate thread to prevent the whole bot from blocking
+        event_loop = asyncio.get_event_loop()
+        blocking_task = [event_loop.run_in_executor(concurrent.futures.ThreadPoolExecutor(max_workers=1), self.dict_query, not_like_msg, language, inputted_word)]
+        completed, pending = await asyncio.wait(blocking_task)
 
-        # As results is a list of tuples, join them
-        fitting_words = list(map(joinTuple, c.fetchall()))
+        fitting_words = []
+        for t in completed:
+            fitting_words.extend(t.result())
 
         alphabet = {'a': 0, 'b': 0, 'c': 0, 'd': 0, 'e': 0, 'f': 0, 'g': 0, 'h': 0, 'i': 0, 'j': 0, 'k': 0, 'l': 0,
                     'm': 0, 'n': 0, 'o': 0, 'p': 0, 'q': 0, 'r': 0, 's': 0, 't': 0, 'u': 0, 'v': 0, 'w': 0, 'x': 0,
