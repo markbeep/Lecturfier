@@ -164,10 +164,10 @@ def create_event_embed(c, res):
     joined_users_msg = f"Total: {len(users)}"
     counter = 1
     for row in users:
-        joined_users_msg += f"\n> <@{row[0]}>"
-        if counter >= 5:
+        if counter > 5:
             joined_users_msg += "\n> . . ."
             break
+        joined_users_msg += f"\n> <@{row[0]}>"
         counter += 1
 
     # Creates and returns the embed message
@@ -560,13 +560,26 @@ class Information(commands.Cog):
                 await ctx.message.delete(delay=10)
                 raise discord.ext.commands.errors.BadArgument
             else:
-                sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID
-                            FROM Events E
-                            INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
-                            WHERE (E.EventName LIKE ? OR E.EventID=?) AND DM.DiscordGuildID=?
-                            ORDER BY IsDone, E.EventStartingAt"""
-                c.execute(sql, (f"%{event_name}%", event_name, guild_id))
-                results = c.fetchall()
+                try:
+                    # checks if the inputted value is an integer and maby an eventID
+                    int(event_name)
+                    sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID
+                                FROM Events E
+                                INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
+                                WHERE E.EventID=? AND DM.DiscordGuildID=?
+                                ORDER BY IsDone, E.EventStartingAt"""
+                    c.execute(sql, (event_name, guild_id))
+                    results = c.fetchall()
+                    if len(results) == 0:
+                        raise ValueError
+                except ValueError:
+                    sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID
+                                FROM Events E
+                                INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
+                                WHERE E.EventName LIKE ? AND DM.DiscordGuildID=?
+                                ORDER BY IsDone, E.EventStartingAt"""
+                    c.execute(sql, (f"%{event_name}%", guild_id))
+                    results = c.fetchall()
                 if len(results) == 0:
                     await ctx.send("ERROR! There is no event with a similar name. Simply type `$event` to get a list of upcoming events.", delete_after=10)
                     await ctx.message.delete(delay=10)
