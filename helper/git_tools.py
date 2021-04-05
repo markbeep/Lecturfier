@@ -1,5 +1,6 @@
 import os
-import aiohttp
+import datetime
+
 
 def version_format(year, month, day):
     d = "{0:0=2d}".format(int(day))  # d is the day as an int
@@ -18,16 +19,14 @@ def check_dir(fdir, sub_path=""):
     return all_files
 
 
-async def get_versions(fdir):
+def get_versions(fdir):
     version_result = {}
     files = check_dir(fdir)
     for f in files:
-        async with aiohttp.ClientSession() as s:
-            async with s.get(f"https://api.github.com/repos/markbeep/Lecturfier/commits?path={f}") as r:
-                result = await r.json()
+        last_modified = os.stat(f).st_mtime
+        dt = datetime.datetime.fromtimestamp(last_modified)
         try:
-            date = result[0]["commit"]["author"]["date"].split("T")[0].split("-")
-            version_result[f.split("/")[-1]] = ({"path": f, "version": version_format(date[0], date[1], date[2]), "status": True})
+            version_result[f.split("/")[-1]] = ({"path": f, "version": version_format(dt.year, dt.month, dt.day), "status": True})
         except IndexError:
             version_result[f.split("/")[-1]] = ({"path": f, "version": "FileNotFound", "status": False})
         except KeyError:

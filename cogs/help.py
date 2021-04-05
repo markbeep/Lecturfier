@@ -11,17 +11,10 @@ class Help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.help_message_ids = {}
-        with open("./data/versions.json", "r") as f:
-            self.versions = json.load(f)
         with open("./data/settings.json", "r") as f:
             self.prefix = json.load(f)["prefix"]
         self.db_path = "./data/discord.db"
 
-    @commands.Cog.listener()
-    async def on_ready(self):
-        pass
-        # Not needed right now
-        # await self.update_versions()
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -39,23 +32,6 @@ class Help(commands.Cog):
         else:
             raise discord.ext.commands.errors.NotOwner
 
-    async def update_versions(self):
-        """
-        Goes through all file versions and updates them accordingly, adding them to the versions.json file
-        """
-        print("### Running version updater ###")
-        updated_versions = await git_tools.get_versions(os.getcwd())
-        for v in updated_versions.keys():
-            if updated_versions[v]["status"]:
-                if v not in self.versions:
-                    print(f"--- {v} is a newly committed file ---")
-                elif updated_versions[v]["version"] != self.versions[v]:
-                    print(f"--- {v} version was updated ---")
-                self.versions[v] = updated_versions[v]["version"]
-        with open("./data/versions.json", "w") as f:
-            json.dump(self.versions, f, indent=2)
-        print("### Version updater done ###")
-
     @commands.cooldown(4, 10, BucketType.user)
     @commands.command(aliases=["halp", "h"], usage="help <command>")
     async def help(self, ctx, specific_command=None):
@@ -71,15 +47,15 @@ class Help(commands.Cog):
             embed = discord.Embed(color=0xcbd3d7)
 
             sorted_commands = self.sort_by_dict_size(sorted_commands)
+
+            updated_versions = git_tools.get_versions(os.getcwd())
             for key in sorted_commands.keys():
                 sorted_commands[key] = self.sort_by_com_name(sorted_commands[key])
                 version = "v00.0.0.0"
                 version_key = str(key).lower() + ".py"
-                if version_key in self.versions:
-                    version = self.versions[version_key]
-                msg = ""
-                # msg += f"```asciidoc\n= {key} =\n{version}\n=======\n" # old
-                msg += f"```asciidoc\n"
+                if version_key in updated_versions:
+                    version = updated_versions[version_key]["version"]
+                msg = f"```asciidoc\n"
                 for com in sorted_commands[key]:
                     if com.help is None:
                         prefix = "-"
@@ -87,7 +63,7 @@ class Help(commands.Cog):
                         prefix = "*"
                     msg += f"{prefix} {com}\n"
                 msg += "```"
-                embed.add_field(name=key, value=msg)
+                embed.add_field(name=f"{key} | *{version}*", value=msg)
                 embed.set_footer(text="Commands with a star (*) have extra info when viewed with $help <command>")
             await ctx.send(file=file, embed=embed)
         else:
