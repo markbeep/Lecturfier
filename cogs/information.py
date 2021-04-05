@@ -269,8 +269,12 @@ class Information(commands.Cog):
         self.script_start = time.time()
 
     @commands.cooldown(2, 10, BucketType.user)
-    @commands.command(aliases=["terms"])
+    @commands.command(aliases=["terms"], usage="$terminology [word]")
     async def terminology(self, ctx, word=None):
+        """
+        Fetches the terms from the PPROG site. This command has been neglected \
+        as it barely serves a purpose.
+        """
         async with ctx.typing():
             terms = await scraper_test.terminology()
             if word is None:

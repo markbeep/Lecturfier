@@ -23,6 +23,11 @@ class Help(commands.Cog):
 
     @commands.command(usage="doTheThing")
     async def doTheThing(self, ctx):
+        """
+        Used to transfer all current commands to the slash command-manual \
+        we have set up on the server.
+        Permissions: Owner
+        """
         if await self.bot.is_owner(ctx.author):
             for cog in self.bot.cogs:
                 all_commands = self.bot.get_cog(cog).get_commands()
