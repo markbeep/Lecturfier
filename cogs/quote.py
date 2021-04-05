@@ -292,7 +292,7 @@ class Quote(commands.Cog):
 
                             i = 0
                             for row in res:
-                                quote_to_add = row[0].replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "")
+                                quote_to_add = row[0].replace("*", "").replace("~", "").replace("\\", "").replace("`", "")
                                 if quote_to_add.count("\n") > 2:
                                     # makes multiline quotes not show too much
                                     split_lines = quote_to_add.split("\n")
