@@ -306,12 +306,13 @@ class Information(commands.Cog):
             conn = self.get_connection()
             c = conn.cursor()
             # checks if this is an updated message
-            c.execute("SELECT EventID, EventName FROM Events WHERE UpdatedMessageID=?", (payload.message_id,))
+            c.execute("SELECT EventID, EventName, SpecificChannel FROM Events WHERE UpdatedMessageID=?", (payload.message_id,))
             res = c.fetchone()
             if res is None:
                 return
             event_id = res[0]
             event_name = res[1]
+            specific_channel = res[2]
             uniqueID = handySQL.get_uniqueMemberID(conn, payload.member.id, payload.guild_id)
             c.execute("SELECT * FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_id, uniqueID))
             res = c.fetchone()
@@ -320,6 +321,7 @@ class Information(commands.Cog):
                 # Joins the user to the event
                 c.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID) VALUES (?,?)", (event_id, uniqueID))
                 conn.commit()
+                await self.set_event_channel_perms(payload.member, specific_channel, "join")
                 try:
                     await payload.member.send(f"Added you to the event **{event_name}**")
                 except discord.Forbidden:
@@ -333,18 +335,22 @@ class Information(commands.Cog):
         if payload.user_id == self.bot.user.id:
             return
         if self.emote in str(payload.emoji):
+            guild = self.bot.get_guild(payload.guild_id)
+            member = guild.get_member(payload.user_id)
             conn = self.get_connection()
             c = conn.cursor()
             # checks if this is an updated message
-            c.execute("SELECT EventID, EventName FROM Events WHERE UpdatedMessageID=?", (payload.message_id,))
+            c.execute("SELECT EventID, EventName, SpecificChannel FROM Events WHERE UpdatedMessageID=?", (payload.message_id,))
             res = c.fetchone()
             if res is None:
                 return
             event_id = res[0]
             event_name = res[1]
+            specific_channel = res[2]
             uniqueID = handySQL.get_uniqueMemberID(conn, payload.user_id, payload.guild_id)
             c.execute("SELECT * FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_id, uniqueID))
             res = c.fetchone()
+            await self.set_event_channel_perms(member, specific_channel, "leave")
             # Removing part
             if res is not None:
                 # Removes the user from the event
