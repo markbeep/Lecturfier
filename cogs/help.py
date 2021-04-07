@@ -45,7 +45,7 @@ class Help(commands.Cog):
         You can get more detailed information about a command by using $help <command> on any command.
         """
 
-        specific_command, sorted_commands, sub_commands = await self.get_specific_com(given_command)
+        specific_command, sorted_commands, sub_commands, command_type = await self.get_specific_com(given_command)
         if specific_command is None:
             file = discord.File("./images/help_page.gif")
             embed = discord.Embed(color=0xcbd3d7)
@@ -73,7 +73,7 @@ class Help(commands.Cog):
         else:
             # if a subcommand is called, we have the command object, but it could be wrong if there
             # are multiple subcommands with the same name. So we don't show it.
-            if specific_command.name != given_command:
+            if command_type == "subcommand":
                 await ctx.send(f"The command `{given_command}` only exists as a subcommand.")
                 return
 
@@ -94,6 +94,7 @@ class Help(commands.Cog):
     async def get_specific_com(self, specific_command):
         sorted_commands = {}
         sub_commands = {}
+        command_type = "normal"
         for cog in self.bot.cogs:
             sorted_commands[cog] = []
             all_commands = self.bot.get_cog(cog).get_commands()
@@ -106,14 +107,23 @@ class Help(commands.Cog):
                         if specific_command == sub_com.name:
                             # makes the specific command be the group command
                             specific_command = com
+                            command_type = "subcommand"
+                        for alias in sub_com.aliases:
+                            if specific_command == alias:
+                                # makes the specific command be the group command
+                                specific_command = com
+                                command_type = "subcommand"
                 except AttributeError:
                     pass
                 if specific_command == com.name:
                     specific_command = com
+                for alias in com.aliases:
+                    if specific_command == alias:
+                        specific_command = com
                 sorted_commands[cog].append(com)
             if len(sorted_commands[cog]) == 0:
                 sorted_commands.pop(cog)
-        return [specific_command, sorted_commands, sub_commands]
+        return [specific_command, sorted_commands, sub_commands, command_type]
 
     async def get_recursive_command(self, specific_command, args, command_chain=""):
         """
