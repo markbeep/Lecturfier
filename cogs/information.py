@@ -189,7 +189,7 @@ async def check_join_leave_condition(c, command, conn, ctx, event_name, guild_id
             f"info about the event command.", delete_after=10)
         await ctx.message.delete(delay=10)
         raise discord.ext.commands.errors.BadArgument
-    sql = """   SELECT E.EventID, E.EventName
+    sql = """   SELECT E.EventID, E.EventName, E.SpecificChannel
                 FROM Events E
                 INNER JOIN DiscordMembers D on D.UniqueMemberID = E.UniqueMemberID
                 WHERE (E.EventName LIKE ? OR E.EventID=?) AND D.DiscordGuildID=? AND E.IsDone=0"""
@@ -757,6 +757,13 @@ class Information(commands.Cog):
             color=0xFCF4A3)
         await ctx.send(embed=embed)
 
+        try:
+            await self.set_event_channel_perms(ctx.message.author, event_result[2], "join")
+        except discord.Forbidden:
+            await ctx.send("Couldn't add you to the channel. Best to tag Mark.")
+        except AttributeError:
+            await ctx.send("I can't see the event channel anymore. Can't add you :'(\nBest to tag Mark.")
+
     @event.command(usage="leave <event name / ID>")
     async def leave(self, ctx, event_name=None):
         """
@@ -794,6 +801,13 @@ class Information(commands.Cog):
                         f"You can rejoin the event with `$event join {event_result[0]}`",
             color=0xffa500)
         await ctx.send(embed=embed)
+
+        try:
+            await self.set_event_channel_perms(ctx.message.author, event_result[2], "leave")
+        except discord.Forbidden:
+            await ctx.send("Couldn't remove your perms from the channel. Best to tag Mark.")
+        except AttributeError:
+            await ctx.send("I can't see the event channel anymore. Can't add you :'(\nBest to tag Mark.")
 
     @event.command(usage="update <event ID>")
     @has_permissions(kick_members=True)
@@ -848,6 +862,87 @@ class Information(commands.Cog):
         conn.commit()
         await ctx.send("Successfully added updating event to DB.", delete_after=3)
         await ctx.message.delete()
+
+    @event.command(usage="channel <event ID> <channel ID>")
+    @has_permissions(kick_members=True)
+    async def channel(self, ctx, event_id=None, channel_id=None):
+        """
+        Link a channel to an event, so that when a user joins an event, they get access to the channel.
+        Giving no channel ID as parameter clears the channel for that event. This should always be done \
+        to avoid any unecessary errors when joining/leaving an event.
+
+        Permissions: kick_members
+        """
+        conn = self.get_connection()
+        c = conn.cursor()
+        try:
+            guild_id = ctx.message.guild.id
+        except AttributeError:
+            guild_id = 0
+
+        # parsing user input
+        if guild_id == 0:
+            await ctx.send("Can't create an event channel in DMs", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+        if event_id is None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to create an updating message for.",
+                           delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        # Checks if the Event exists
+        res = get_event_details(c, event_id, guild_id)
+        if res is None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        # if no channel is given, clears the channel
+        if channel_id is None:
+            c.execute("UPDATE Events SET SpecificChannel=NULL WHERE EventID=?", (event_id,))
+            conn.commit()
+            await ctx.send(f"Successfully cleared the linked channel for event {event_id}.")
+            return
+
+        try:
+            channel_id = int(channel_id)
+        except ValueError:
+            await ctx.send("ERROR! Channel ID is not a valid integer.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+        # Gets the channel and makes sure the ID is valid
+        channel = self.bot.get_channel(channel_id)
+        if channel is None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, the channel ID you specified is invalid or I don't have access to the channel.",
+                           delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        # Checks own permissions in that channel
+        permissions = channel.permissions_for(ctx.message.guild.me)
+        if not permissions.manage_channels:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, I don't have the permissions to change permissions on that channel.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        c.execute("UPDATE Events SET SpecificChannel=? WHERE EventID=?", (channel_id, event_id))
+        conn.commit()
+
+        await ctx.send(f"Successfully linked channel with event {event_id}.")
+
+    async def set_event_channel_perms(self, member, channel_id, command):
+        """
+        Adds users to a channel if they join an event or leave it.
+        """
+        if channel_id is None:
+            return
+        channel = self.bot.get_channel(channel_id)
+        # add user to channel perms
+        if command == "join":
+            await channel.set_permissions(member, read_messages=True, reason="User joined event")
+        elif command == "leave":
+            await channel.set_permissions(member, overwrite=None, reason="User left event")
 
 
 def setup(bot):
