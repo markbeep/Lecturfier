@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ext.commands import CommandOnCooldown
 from datetime import datetime
 import time
@@ -25,16 +25,16 @@ class Statistics(commands.Cog):
         self.waiting = False
         self.time_counter = 0  # So statistics dont get saved every few seconds, and instead only every 2 mins
         self.bot_changed_to_yesterday = {}
-        self.time_heartbeat = 0
         self.db_path = "./data/discord.db"
         self.conn = handySQL.create_connection(self.db_path)
-        self.task = self.bot.loop.create_task(self.background_git_backup())
+        self.background_git_backup.start()
+        self.sent_file = False
 
     def heartbeat(self):
-        return self.time_heartbeat
+        return self.background_git_backup.is_running()
 
     def get_task(self):
-        return self.task
+        return self.background_git_backup
 
     def get_connection(self):
         """
@@ -45,28 +45,24 @@ class Statistics(commands.Cog):
             self.conn = handySQL.create_connection(self.db_path)
         return self.conn
 
+    @tasks.loop(seconds=10)
     async def background_git_backup(self):
-        sent_file = False
         await self.bot.wait_until_ready()
-        while not self.bot.is_closed():
-            self.time_heartbeat = time.time()
 
-            # Backs up all files every 2 hours
-            if not sent_file and datetime.now().hour % 2 == 0:
-                # Backs the data files up to github
-                with open("./data/settings.json", "r") as f:
-                    settings = json.load(f)
-                if settings["upload to git"]:
-                    sent_file = True
-                    output = gitpush("./data")
-                    user = self.bot.get_user(self.bot.owner_id)
-                    await user.send("Updated GIT\n"
-                                    f"Commit: `{output[0]}`\n"
-                                    f"Push: `{output[1]}`")
-            if datetime.now().hour % 2 != 0:
-                sent_file = False
-
-            await asyncio.sleep(10)
+        # Backs up all files every 2 hours
+        if not self.sent_file and datetime.now().hour % 2 == 0:
+            # Backs the data files up to github
+            with open("./data/settings.json", "r") as f:
+                settings = json.load(f)
+            if settings["upload to git"]:
+                sent_file = True
+                output = gitpush("./data")
+                user = self.bot.get_user(self.bot.owner_id)
+                await user.send("Updated GIT\n"
+                                f"Commit: `{output[0]}`\n"
+                                f"Push: `{output[1]}`")
+        if datetime.now().hour % 2 != 0:
+            self.sent_file = False
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):

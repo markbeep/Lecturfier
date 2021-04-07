@@ -4,7 +4,7 @@ import random
 import time
 from sqlite3 import Error
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from helper import handySQL
 from discord.ext.commands.cooldowns import BucketType
 
@@ -34,15 +34,13 @@ class Voice(commands.Cog):
 
         self.db_path = "./data/discord.db"
         self.conn = handySQL.create_connection(self.db_path)
-        self.time_heartbeat = 0
-
-        self.task = self.bot.loop.create_task(self.background_save_levels())
+        self.background_save_levels.start()
 
     def heartbeat(self):
-        return self.time_heartbeat
+        return self.background_save_levels.is_running()
 
     def get_task(self):
-        return self.task
+        return self.background_save_levels
 
     def get_connection(self):
         """
@@ -60,12 +58,10 @@ class Voice(commands.Cog):
         # add xp to user
         await self.add_xp(message.guild, message.author, 3, 5)
 
+    @tasks.loop(seconds=10)
     async def background_save_levels(self):
         await self.bot.wait_until_ready()
-        while not self.bot.is_closed():
-            self.time_heartbeat = time.time()
-            await self.give_users_xp(9, 12)
-            await asyncio.sleep(10)
+        await self.give_users_xp(9, 12)
 
     async def give_users_xp(self, amount_min, amount_max):
         """

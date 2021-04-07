@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from datetime import datetime
 import time
 from helper.log import log
@@ -35,15 +35,14 @@ class Games(commands.Cog):
             self.cases_today = int(f.read())
         self.db_path = "./data/discord.db"
         self.conn = handySQL.create_connection(self.db_path)
-        self.time_heartbeat = 0
         self.time_since_task_start = time.time()
-        self.task = self.bot.loop.create_task(self.background_check_cases())
+        self.background_check_cases.start()
 
     def heartbeat(self):
-        return self.time_heartbeat
+        return self.background_check_cases.is_running()
 
     def get_task(self):
-        return self.task
+        return self.background_check_cases
 
     def get_connection(self):
         """
@@ -54,25 +53,22 @@ class Games(commands.Cog):
             self.conn = handySQL.create_connection(self.db_path)
         return self.conn
 
+    @tasks.loop(seconds=10)
     async def background_check_cases(self):
-        counter = 0
         await self.bot.wait_until_ready()
-        while not self.bot.is_closed():
-            self.time_heartbeat = time.time()
-            async with aiohttp.ClientSession() as cs:
-                async with cs.get("https://www.covid19.admin.ch/en/overview") as r:
-                    response = await r.read()
-            soup = bs(response.decode('utf-8'), "html.parser")
-            new_cases = int(soup.find_all("span", class_="bag-key-value-list__entry-value")[0].get_text().replace(" ", ""))
-            if self.cases_today != new_cases:
-                self.cases_today = new_cases
-                with open("./data/covid19.txt", "w") as f:
-                    f.write(str(new_cases))
-                log("Daily cases have been updated", "COVID")
-                guild = self.bot.get_guild(747752542741725244)
-                channel = guild.get_channel(747752542741725247)
-                await self.send_message(channel, guild, new_cases)
-            await asyncio.sleep(10)
+        async with aiohttp.ClientSession() as cs:
+            async with cs.get("https://www.covid19.admin.ch/en/overview") as r:
+                response = await r.read()
+        soup = bs(response.decode('utf-8'), "html.parser")
+        new_cases = int(soup.find_all("span", class_="bag-key-value-list__entry-value")[0].get_text().replace(" ", ""))
+        if self.cases_today != new_cases:
+            self.cases_today = new_cases
+            with open("./data/covid19.txt", "w") as f:
+                f.write(str(new_cases))
+            log("Daily cases have been updated", "COVID")
+            guild = self.bot.get_guild(747752542741725244)
+            channel = guild.get_channel(747752542741725247)
+            await self.send_message(channel, guild, new_cases)
 
     @commands.Cog.listener()
     async def on_message(self, message):

@@ -632,13 +632,10 @@ class Owner(commands.Cog):
             msg = ""
             cur_time = time.time()
             for name in all_loops.keys():
-                seconds_elapsed = cur_time - all_loops[name]
-                if seconds_elapsed <= 120:
-                    msg += f"\n**{name}:** <:checkmark:776717335242211329> | Last Heartbeat: `{int(round(seconds_elapsed))}` seconds ago"
-                elif all_loops[name] == 0:
-                    msg += f"\n**{name}:** <:xmark:776717315139698720> | Last Heartbeat: **background task never even started**"
+                if all_loops[name]:
+                    msg += f"\n**{name}:** <:checkmark:776717335242211329>"
                 else:
-                    msg += f"\n**{name}:** <:xmark:776717315139698720> | Last Heartbeat: `{int(round(seconds_elapsed))}` seconds ago"
+                    msg += f"\n**{name}:** <:xmark:776717315139698720>"
             await ctx.send(msg)
         else:
             raise discord.ext.commands.errors.NotOwner

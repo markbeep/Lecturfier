@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import asyncio
 from datetime import datetime, timedelta
 from pytz import timezone
@@ -55,20 +55,18 @@ class Updates(commands.Cog):
         self.test_livestream_message = self.settings["test_livestream_message"]
         self.send_message_to_finn = self.settings["send_message_to_finn"]
         self.lecture_updater_version = "v2.4"
-        self.time_heartbeat = 0
         self.db_path = "./data/discord.db"
         self.conn = handySQL.create_connection(self.db_path)
-        self.task = self.bot.loop.create_task(self.background_loop())
+        self.background_loop.start()
         self.current_activity = ""
+        self.sent_updates = False
+        self.sent_covid = False
 
     def heartbeat(self):
-        return self.time_heartbeat
+        return self.background_loop.is_running()
 
     def get_task(self):
-        return self.task
-
-    def cancel_task(self):
-        self.task.cancel()
+        return self.background_loop
 
     def get_connection(self):
         """
@@ -114,75 +112,71 @@ class Updates(commands.Cog):
         rem = int(td.total_seconds())
         return f"{subjectName} in {get_formatted_time(rem)}"
 
+    @tasks.loop(seconds=10)
     async def background_loop(self):
         await self.bot.wait_until_ready()
-        sent_updates = False
-        sent_covid = False
-        while not self.bot.is_closed():
-            self.time_heartbeat = time.time()
+        try:
+            cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
+            if self.test_livestream_message:
+                cur_time = "test"
+            # if int(datetime.now(timezone("Europe/Zurich")).strftime("%M")) % 10 == 0:  # Only check updates every 10 minutes
+                # await self.check_updates(channel, cur_time, self.lecture_updater_version)
+
+            # Send the covid guesser notification
+            if not self.sent_covid and "10:00" in cur_time and "Sat" not in cur_time and "Sun" not in cur_time:
+                self.sent_covid = True
+                general = self.bot.get_channel(747752542741725247)
+                await general.send("<@&770968106679926868> it's time to guess today's covid cases using `$g <guess>`!")
+            if "10:00" not in cur_time:
+                self.sent_covid = False
+
+            # Check what lectures are starting
+            minute = datetime.now().minute
+            if not self.sent_updates and minute <= 5:
+                self.sent_updates = True
+                subject = self.get_starting_subject()
+                if subject is not None:
+                    await self.send_lecture_start(
+                        subject["SubjectName"],
+                        subject["SubjectLink"],
+                        subject["StreamLink"],
+                        self.channel_to_post,
+                        759615935496847412,  # Role to ping
+                        subject["ZoomLink"],
+                        subject["OnSiteLocation"])
+                    # Send in #lecture-distractions without ping
+                    await self.send_lecture_start(
+                        subject["SubjectName"],
+                        subject["SubjectLink"],
+                        subject["StreamLink"],
+                        755339832917491722,
+                        0,  # Role to ping
+                        subject["ZoomLink"],
+                        subject["OnSiteLocation"])
+                    # send in #lecture-questions without ping
+                    await self.send_lecture_start(
+                        subject["SubjectName"],
+                        subject["SubjectLink"],
+                        subject["StreamLink"],
+                        813397356837863454,
+                        0,  # Role to ping
+                        subject["ZoomLink"],
+                        subject["OnSiteLocation"])
+            if minute > 5:
+                self.sent_updates = False
+
+            # Update activity status:
+            time_till_next = self.get_time_till_next_lesson()
+            if time_till_next != self.current_activity:
+                await self.bot.change_presence(activity=discord.Activity(name=time_till_next, type=discord.ActivityType.watching))
+
+        except AttributeError as e:
+            print(f"ERROR in Lecture Updates Loop! Probably wrong channel ID | {e}")
+        except Exception:
             await asyncio.sleep(10)
-            try:
-                cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
-                if self.test_livestream_message:
-                    cur_time = "test"
-                # if int(datetime.now(timezone("Europe/Zurich")).strftime("%M")) % 10 == 0:  # Only check updates every 10 minutes
-                    # await self.check_updates(channel, cur_time, self.lecture_updater_version)
-
-                # Send the covid guesser notification
-                if not sent_covid and "10:00" in cur_time and "Sat" not in cur_time and "Sun" not in cur_time:
-                    sent_covid = True
-                    general = self.bot.get_channel(747752542741725247)
-                    await general.send("<@&770968106679926868> it's time to guess today's covid cases using `$g <guess>`!")
-                if "10:00" not in cur_time:
-                    sent_covid = False
-
-                # Check what lectures are starting
-                minute = datetime.now().minute
-                if not sent_updates and minute <= 5:
-                    sent_updates = True
-                    subject = self.get_starting_subject()
-                    if subject is not None:
-                        await self.send_lecture_start(
-                            subject["SubjectName"],
-                            subject["SubjectLink"],
-                            subject["StreamLink"],
-                            self.channel_to_post,
-                            759615935496847412,  # Role to ping
-                            subject["ZoomLink"],
-                            subject["OnSiteLocation"])
-                        # Send in #lecture-distractions without ping
-                        await self.send_lecture_start(
-                            subject["SubjectName"],
-                            subject["SubjectLink"],
-                            subject["StreamLink"],
-                            755339832917491722,
-                            0,  # Role to ping
-                            subject["ZoomLink"],
-                            subject["OnSiteLocation"])
-                        # send in #lecture-questions without ping
-                        await self.send_lecture_start(
-                            subject["SubjectName"],
-                            subject["SubjectLink"],
-                            subject["StreamLink"],
-                            813397356837863454,
-                            0,  # Role to ping
-                            subject["ZoomLink"],
-                            subject["OnSiteLocation"])
-                if minute > 5:
-                    sent_updates = False
-
-                # Update activity status:
-                time_till_next = self.get_time_till_next_lesson()
-                if time_till_next != self.current_activity:
-                    await self.bot.change_presence(activity=discord.Activity(name=time_till_next, type=discord.ActivityType.watching))
-
-            except AttributeError as e:
-                print(f"ERROR in Lecture Updates Loop! Probably wrong channel ID | {e}")
-            except Exception:
-                await asyncio.sleep(10)
-                user = self.bot.get_user(self.bot.owner_id)
-                await user.send(f"Error in background loop: {traceback.format_exc()}")
-                log(f"Error in background loop self.bot.py: {traceback.format_exc()}", "BACKGROUND")
+            user = self.bot.get_user(self.bot.owner_id)
+            await user.send(f"Error in background loop: {traceback.format_exc()}")
+            log(f"Error in background loop self.bot.py: {traceback.format_exc()}", "BACKGROUND")
 
     @commands.command(usage="edit <message id> <livestream link>")
     async def testOnline(self, ctx):

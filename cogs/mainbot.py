@@ -95,7 +95,8 @@ class MainBot(commands.Cog):
             "information": self.bot.get_cog("Information").get_task()
         }
         if task in all_loops:
-            return all_loops[task].cancel()
+            all_loops[task].cancel()
+            return True
         return False
 
 
