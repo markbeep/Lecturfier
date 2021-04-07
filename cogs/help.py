@@ -139,7 +139,7 @@ class Help(commands.Cog):
     async def command_help(self, specific_command, command_chain):
         help_msg = specific_command.help
         aliases = specific_command.aliases
-        usage = specific_command.usage
+        usage = command_chain + specific_command.usage
 
         # if the command has subcommands
         sub_commands = []
