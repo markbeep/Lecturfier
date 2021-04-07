@@ -321,7 +321,10 @@ class Information(commands.Cog):
                 # Joins the user to the event
                 c.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID) VALUES (?,?)", (event_id, uniqueID))
                 conn.commit()
-                await self.set_event_channel_perms(payload.member, specific_channel, "join")
+                try:
+                    await self.set_event_channel_perms(payload.member, specific_channel, "join")
+                except discord.Forbidden:
+                    pass
                 try:
                     await payload.member.send(f"Added you to the event **{event_name}**")
                 except discord.Forbidden:
@@ -350,7 +353,10 @@ class Information(commands.Cog):
             uniqueID = handySQL.get_uniqueMemberID(conn, payload.user_id, payload.guild_id)
             c.execute("SELECT * FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_id, uniqueID))
             res = c.fetchone()
-            await self.set_event_channel_perms(member, specific_channel, "leave")
+            try:
+                await self.set_event_channel_perms(member, specific_channel, "leave")
+            except discord.Forbidden:
+                pass
             # Removing part
             if res is not None:
                 # Removes the user from the event
