@@ -931,6 +931,66 @@ class Information(commands.Cog):
 
         await ctx.send(f"Successfully linked channel with event {event_id}.")
 
+        # goes through all users to add their correct perms to the channel
+        sql = """   SELECT U.DiscordUserID
+                    FROM EventJoinedUsers E
+                    INNER JOIN DiscordMembers U on E.UniqueMemberID = U.UniqueMemberID
+                    WHERE E.EventID=?"""
+        c.execute(sql, (event_id,))
+        result = c.fetchall()
+
+        for row in result:
+            member = ctx.message.guild.get_member(row[0])
+            await self.set_event_channel_perms(member, channel_id, "join")
+
+        await ctx.send(f"Successfully added the perms for all joined users for the event {event_id}.", delete_after=3)
+
+    @commands.cooldown(1, 120, BucketType.guild)
+    @event.command(usage="ping <event ID>")
+    async def ping(self, ctx, event_id=None):
+        """
+        Ping all users that joined the event. This can only be called if the user themselves joined the event.
+        """
+        if event_id is None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to create an updating message for.",
+                           delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        conn = self.get_connection()
+        c = conn.cursor()
+        try:
+            guild_id = ctx.message.guild.id
+        except AttributeError:
+            guild_id = 0
+
+        sql = """   SELECT U.DiscordUserID, E2.EventName
+                            FROM EventJoinedUsers E
+                            INNER JOIN DiscordMembers U on E.UniqueMemberID = U.UniqueMemberID
+                            INNER JOIN Events E2 on E.EventID = E2.EventID
+                            WHERE E.EventID=?"""
+        c.execute(sql, (event_id,))
+        result = c.fetchall()
+
+        if len(result) == 0:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID or the event has no joined users.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        ping_msg = ""
+        event_name = ""
+        for row in result:
+            event_name = row[1]
+            ping_msg += f"<@{row[0]}> "
+
+        if str(ctx.message.author.id) not in ping_msg:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, you are not in the event. Can't ping it then.",
+                           delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        await ctx.send(f"Mass event ping by {ctx.message.author.mention} for the event **{event_name}**\n||{ping_msg}||")
+
     async def set_event_channel_perms(self, member, channel_id, command):
         """
         Adds users to a channel if they join an event or leave it.
