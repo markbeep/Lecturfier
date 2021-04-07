@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
 from datetime import datetime
+
+from discord.ext.commands import has_permissions
 from pytz import timezone
 import psutil
 import time
@@ -175,6 +177,34 @@ def create_event_embed(c, res):
     embed.set_footer(text=f"Join this event with $event join {res[5]}")
     add_event_fields(embed, res[5], res[0], res[4], joined_users_msg, res[2], res[2], res[1], res[3])
     return embed
+
+
+async def check_join_leave_condition(c, command, conn, ctx, event_name, guild_id):
+    """
+    Used for the event join and leave commands to check whether the event exists and there only exists one result
+    """
+    if event_name is None:
+        await ctx.send(
+            f"ERROR! {ctx.message.author.mention}, you did not specify what event to {command}. Check `$help event` to get more "
+            f"info about the event command.", delete_after=10)
+        await ctx.message.delete(delay=10)
+        raise discord.ext.commands.errors.BadArgument
+    sql = """   SELECT E.EventID, E.EventName
+                FROM Events E
+                INNER JOIN DiscordMembers D on D.UniqueMemberID = E.UniqueMemberID
+                WHERE (E.EventName LIKE ? OR E.EventID=?) AND D.DiscordGuildID=? AND E.IsDone=0"""
+    c.execute(sql, (f"%{event_name}%", event_name, guild_id))
+    event_result = c.fetchall()
+    if len(event_result) == 0:
+        await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an upcoming event with that name/ID.", delete_after=10)
+        await ctx.message.delete(delay=10)
+        raise discord.ext.commands.errors.BadArgument
+    event_result = event_result[0]
+    # Checks if the user already joined the event
+    uniqueID = handySQL.get_uniqueMemberID(conn, ctx.message.author.id, guild_id)
+    c.execute("SELECT IsHost FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_result[0], uniqueID))
+    res = c.fetchone()
+    return event_result, res, uniqueID
 
 
 class Information(commands.Cog):
@@ -442,23 +472,12 @@ class Information(commands.Cog):
             await ctx.send("Invalid hash type. Most OpenSSL algorithms are supported. Usage: `$hash <hash algo> <msg>`")
             raise discord.ext.commands.errors.BadArgument
 
-    @commands.command(aliases=["events"], usage="event [add/view/edit/delete/join/leave] [event name/event ID] [date] [time] [description]")
-    async def event(self, ctx, command=None, event_name=None, date=None, event_time=None, *, event_info="*[n/a]*"):
+    @commands.group(aliases=["events"], usage="event [add/view/edit/delete/join/leave] [event name/event ID] [date] [time] [description]", invoke_without_command=True)
+    async def event(self, ctx, command=None):
         """
-        - The event command is used to keep track of upcoming events. Each user can add a maximum of two events (this might get changed).
-        - When creating an event, the **event name** has to be in quotes if there are multiple words and it can be a maximum of 50 characters, \
-        any more and the name gets cut off with "...".
-        - The description can be a maximum of 700 characters, any more and it gets cut off with "...".
-        - **Date** needs to be in the format `DD.MM.YYYY` or `DD.MM.YY` or `DD-MM-YYYY` or `DD-MM-YY`.
-        - **Time** needs to be in the format `HH:MM`.
+        The event command is used to keep track of upcoming events. Each user can add a maximum of two events.
 
-        Events can also be joined/left with the `join` and `leave` keywords , so you can see how many would even be up for an event. \
-        In the future you will also get a ping when the event starts.
-
-        Some examples:
-        - `$event add "My Birthday" 13.03.2021 00:00 This day is my birthday hehe :)`
-        - `$event add 420BlazeIt 20.4.21 4:20 Send me a dm if you wanna join this event!`
-        - `$event join 420BlazeIt`
+        Command specific help pages have been moved to their own pages with viewable with `{prefix}event <subcommand>`.
         """
         conn = self.get_connection()
         c = conn.cursor()
@@ -492,260 +511,343 @@ class Information(commands.Cog):
             if len(results) == 0:
                 embed.description = "-- There are no upcoming events --"
             await ctx.send(embed=embed)
-        elif command.lower() == "add":
-            # check if uniquememberid already exists in db
-            uniqueID = handySQL.get_uniqueMemberID(conn, ctx.message.author.id, guild_id)
-            c.execute("SELECT EventName FROM Events WHERE UniqueMemberID=? AND IsDone=0", (uniqueID,))
-            result = c.fetchall()
-            if len(result) < 2:
-                # add the event to the db
-                # Make sure the inputs are correct
-                if event_name is None or date is None or event_time is None:
-                    await ctx.send("ERROR! Incorrect arguments given. Check `$help event` to get more "
-                                   f"info about the event command.", delete_after=10)
-                    await ctx.message.delete(delay=10)
-                    raise discord.ext.commands.errors.BadArgument
-                date = format_input_date(date, event_time)
-                if not date:
-                    await ctx.send("ERROR! Incorrect date format given or date is passed. Should be `DD.MM.YYYY` or `DD-MM-YYYY`. Check `$help event` to get more "
-                                   f"info about the event command. Event has to start minimum the next minute.", delete_after=10)
-                    await ctx.message.delete(delay=10)
-                    raise discord.ext.commands.errors.BadArgument
-                event_time = format_input_time(event_time)
-                if not event_time:
-                    await ctx.send("ERROR! Incorrect time format given. Should be `HH:MM`. Check `$help event` to get more "
-                                   f"info about the event command.", delete_after=10)
-                    await ctx.message.delete(delay=10)
-                    raise discord.ext.commands.errors.BadArgument
-                # Adds the entry to the sql db
-                event_description = event_info
-                if len(event_description) > 700:
-                    event_description = event_description[0: 700] + "..."
-                if len(event_name) > 50:
-                    event_name = event_name[0: 50] + "..."
-
-                try:
-                    dt = datetime(date["year"], date["month"], date["day"], event_time["hour"], event_time["minute"])
-                except ValueError:
-                    await ctx.send(
-                        "ERROR! Incorrect date format given or date is passed. Should be `DD.MM.YYYY` or `DD-MM-YYYY`. Check `$help event` to get more "
-                        f"info about the event command.", delete_after=10)
-                    await ctx.message.delete(delay=10)
-                    raise discord.ext.commands.errors.BadArgument
-
-                # Inserts event into event database
-                c.execute("INSERT INTO Events(EventName, EventCreatedAt, EventStartingAt, EventDescription, UniqueMemberID) VALUES (?,?,?,?,?)",
-                          (event_name, str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")), str(dt), event_description, uniqueID))
-                conn.commit()
-
-                # Inserts user as host to EventJoinedUsers for the newly added event
-                row_id = c.lastrowid
-                c.execute("SELECT EventID FROM Events WHERE ROWID=?", (row_id,))
-                event_id = c.fetchone()[0]
-                c.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID, IsHost) VALUES (?,?,?)", (event_id, uniqueID, 1))
-                conn.commit()
-
-                # Creates and sends the embed message
-                embed = discord.Embed(title="Added New Event", color=0xFCF4A3)
-                embed.add_field(name="Event ID", value=event_id)
-                embed.add_field(name="Event Name", value=event_name, inline=False)
-                embed.add_field(name="Event Host", value=ctx.message.author.mention, inline=False)
-                embed.add_field(name="Event Date", value=format_date_string(dt), inline=False)
-                embed.add_field(name="Event Description", value=event_description, inline=False)
-                await ctx.send(embed=embed)
-            else:
-                await ctx.send("ERROR! Each member can only add **two** events. (Might get changed in the future)", delete_after=10)
-                await ctx.message.delete(delay=10)
-                raise discord.ext.commands.errors.BadArgument
-        elif command.lower() == "view":
-            if event_name is None:
-                await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to view. Check `$help event` to get more "
-                               f"info about the event command.", delete_after=10)
-                await ctx.message.delete(delay=10)
-                raise discord.ext.commands.errors.BadArgument
-            else:
-                try:
-                    # checks if the inputted value is an integer and maby an eventID
-                    int(event_name)
-                    sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID
-                                FROM Events E
-                                INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
-                                WHERE E.EventID=? AND DM.DiscordGuildID=?
-                                ORDER BY IsDone, E.EventStartingAt"""
-                    c.execute(sql, (event_name, guild_id))
-                    results = c.fetchall()
-                    if len(results) == 0:
-                        raise ValueError
-                except ValueError:
-                    sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID
-                                FROM Events E
-                                INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
-                                WHERE E.EventName LIKE ? AND DM.DiscordGuildID=?
-                                ORDER BY IsDone, E.EventStartingAt"""
-                    c.execute(sql, (f"%{event_name}%", guild_id))
-                    results = c.fetchall()
-                if len(results) == 0:
-                    await ctx.send("ERROR! There is no event with a similar name. Simply type `$event` to get a list of upcoming events.", delete_after=10)
-                    await ctx.message.delete(delay=10)
-                    raise discord.ext.commands.errors.BadArgument
-                embed = discord.Embed(title="Indepth Event View", color=0xFCF4A3)
-                embed.set_footer(text="Join an event with $event join <ID>")
-                if len(results) > 2:
-                    embed.add_field(name="NOTICE",
-                                    value="*There are more than 2 matches with that event name. Only showing the two closest matching events.*",
-                                    inline=False)
-                    embed.add_field(name="\u200b", value="``` ```", inline=False)
-                i = 1
-                MAX_EVENTS = 2  # max amount of events to send per view command
-                for e in results:
-                    # creates a list of all joined members
-                    sql = """   SELECT D.DiscordUserID
-                                FROM EventJoinedUsers E 
-                                INNER JOIN DiscordMembers D on D.UniqueMemberID = E.UniqueMemberID
-                                WHERE E.EventID=?"""
-                    c.execute(sql, (e[5],))
-                    res = c.fetchall()
-                    joined_users_msg = f"Total: {len(res)}"
-                    counter = 1
-                    for row in res:
-                        joined_users_msg += f"\n> <@{row[0]}>"
-                        if counter >= 5:
-                            joined_users_msg += "\n> . . ."
-                            break
-                        counter += 1
-
-                    # Adds the fields to an event
-                    add_event_fields(embed, e[5], e[0], e[4], joined_users_msg, e[2], e[2], e[1], e[3])
-
-                    # if not last field, add a spacer
-                    if i < MAX_EVENTS and i < len(results):
-                        embed.add_field(name="\u200b", value="``` ```", inline=False)
-                    i += 1
-                    if i > MAX_EVENTS:
-                        break
-                await ctx.send(embed=embed)
-        elif command.lower() == "delete":
-            # delete the entry
-            uniqueID = handySQL.get_uniqueMemberID(conn, ctx.message.author.id, guild_id)
-            if event_name is None:
-                event_name = ""
-            c.execute("SELECT EventName FROM Events WHERE UniqueMemberID=? AND EventID = ?", (uniqueID, event_name))
-            result = c.fetchall()
-            if len(result) == 0:
-                await ctx.send(f"ERROR! No event found with the ID `{event_name}` which you are the host of.")
-                raise discord.ext.commands.errors.BadArgument
-            c.execute("DELETE FROM Events WHERE UniqueMemberID=? AND EventID=?", (uniqueID, event_name))
-            conn.commit()
-            embed = discord.Embed(title="Deleted Event",
-                                  description=f"**Name of deleted event:** {result[0][0]}\n"
-                                              f"**Event host:** {ctx.message.author.mention}",
-                                  color=0xFCF4A3)
-            await ctx.send(embed=embed)
-        elif command.lower() in ["join", "leave"]:
-            if event_name is None:
-                await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to {command.lower()}. Check `$help event` to get more "
-                               f"info about the event command.", delete_after=10)
-                await ctx.message.delete(delay=10)
-                raise discord.ext.commands.errors.BadArgument
-            sql = """   SELECT E.EventID, E.EventName
-                        FROM Events E
-                        INNER JOIN DiscordMembers D on D.UniqueMemberID = E.UniqueMemberID
-                        WHERE (E.EventName LIKE ? OR E.EventID=?) AND D.DiscordGuildID=? AND E.IsDone=0"""
-            c.execute(sql, (f"%{event_name}%", event_name, guild_id))
-            event_result = c.fetchall()
-            if len(event_result) == 0:
-                await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an upcoming event with that name/ID.", delete_after=10)
-                await ctx.message.delete(delay=10)
-                raise discord.ext.commands.errors.BadArgument
-            if len(event_result) > 1:
-                event_list = "Multiple events with that name found. Use the ID to join the specific event with `$event join <ID>`."
-                for row in event_result:
-                    event_list += f"\n- **ID: {row[0]}** | **Event Name:** {row[1]}"
-
-            event_result = event_result[0]
-
-            # Checks if the user already joined the event
-            uniqueID = handySQL.get_uniqueMemberID(conn, ctx.message.author.id, guild_id)
-            c.execute("SELECT IsHost FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_result[0], uniqueID))
-            res = c.fetchone()
-
-            if command.lower() == "join":
-                if res is not None:
-                    await ctx.send(f"ERROR! {ctx.message.author.mention}, you already joined the event `{event_result[1]}`.", delete_after=10)
-                    await ctx.message.delete(delay=10)
-                    raise discord.ext.commands.errors.BadArgument
-
-                # Joins the user to the event
-                c.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID) VALUES (?,?)", (event_result[0], uniqueID))
-                conn.commit()
-                embed = discord.Embed(
-                    title="Joined Event",
-                    description=f"Added {ctx.message.author.mention} to event `{event_result[1]}`."
-                                f"You can leave the event with `$event leave {event_result[0]}`",
-                    color=0xFCF4A3)
-                await ctx.send(embed=embed)
-            elif command.lower() == "leave":
-                if res is None:
-                    await ctx.send(f"ERROR! {ctx.message.author.mention}, you can't leave an event you haven't even joined yet. "
-                                   f"The event in question: `{event_result[1]}`.", delete_after=10)
-                    await ctx.message.delete(delay=10)
-                    raise discord.ext.commands.errors.BadArgument
-
-                # Removes the user from that event
-                c.execute("DELETE FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_result[0], uniqueID))
-                conn.commit()
-
-                embed = discord.Embed(
-                    title="Left Event",
-                    description=f"Removed {ctx.message.author.mention} from event `{event_result[1]}`."
-                                f"You can rejoin the event with `$event join {event_result[0]}`",
-                    color=0xffa500)
-                await ctx.send(embed=embed)
-        elif command.lower() == "update":
-            # Sends a message that gets update
-            if guild_id == 0:
-                await ctx.send("Can't send an updating event messagee in direct messages.", delete_after=10)
-                await ctx.message.delete(delay=10)
-                raise discord.ext.commands.errors.BadArgument
-            if not ctx.message.author.guild_permissions.kick_members:
-                await ctx.send("You don't have permissions to send an updating event message.", delete_after=10)
-                await ctx.message.delete(delay=10)
-                raise discord.ext.commands.errors.BadArgument
-            if event_name is None:
-                await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to create an updating message for.", delete_after=10)
-                await ctx.message.delete(delay=10)
-                raise discord.ext.commands.errors.BadArgument
-
-            # Checks if the Event exists
-            res = get_event_details(c, event_name, guild_id)
-            if res is None:
-                await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
-                await ctx.message.delete(delay=10)
-                raise discord.ext.commands.errors.BadArgument
-
-            # Checks if there already exists an updating message, if there does, deletes old one
-            if res[6] is not None:
-                try:
-                    channel = self.bot.get_channel(int(res[7]))
-                    msg_to_delete = await channel.fetch_message(int(res[6]))
-                    await msg_to_delete.delete()
-                except discord.NotFound:
-                    pass
-
-            # Creates embed and sends the message
-            embed = create_event_embed(c, res)
-            msg = await ctx.send(embed=embed)
-
-            c.execute("UPDATE Events SET UpdatedMessageID=?, UpdatedChannelID=? WHERE EventID=?", (msg.id, msg.channel.id, event_name))
-            conn.commit()
-            await ctx.send("Successfully added updating event to DB.", delete_after=3)
-            await ctx.message.delete()
-
-        else:
+        elif ctx.invoked_subcommand is None:
             await ctx.send(f"ERROR! {ctx.message.author.mention}, the command you used is not recognized. Check `$help event` to get more "
                            f"info about the event command.", delete_after=10)
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
+
+    @event.command(usage="add <event name> <date> <event time> [description]")
+    async def add(self, ctx, event_name=None, date=None, event_time=None, *, event_info="*[n/a]*"):
+        """
+        This command is used to add custom events.
+
+        __**Parameters:**__
+        **- event name:** Required. The name of the event. If multiple words, it needs to be in quotation marks. *Maximum 50 characters.*
+        **- date:** Required. The start date of the event. The format is `DD.MM.YYYY` or `DD.MM.YY` or `DD-MM-YYYY` or `DD-MM-YY`.
+        **- time:** Required. The starting time of the event. The format needs to be `HH:MM`.
+        **- description:** Optional. Description to describe your event in more detail (what to prepare, who to contact, etc.). *Maximum 700 characters.*
+
+        Some examples:
+        - `{prefix}event add "My Birthday" 13.03.2022 00:00 This day is my birthday hehe :)`
+        - `{prefix}event add 420BlazeIt 20.4.21 4:20 Send me a dm if you wanna join this event!`
+        """
+        conn = self.get_connection()
+        c = conn.cursor()
+        try:
+            guild_id = ctx.message.guild.id
+        except AttributeError:
+            guild_id = 0
+
+        # check if uniquememberid already exists in db
+        uniqueID = handySQL.get_uniqueMemberID(conn, ctx.message.author.id, guild_id)
+        c.execute("SELECT EventName FROM Events WHERE UniqueMemberID=? AND IsDone=0", (uniqueID,))
+        result = c.fetchall()
+        if len(result) < 2:
+            # add the event to the db
+            # Make sure the inputs are correct
+            if event_name is None or date is None or event_time is None:
+                await ctx.send("ERROR! Incorrect arguments given. Check `$help event` to get more "
+                               f"info about the event command.", delete_after=10)
+                await ctx.message.delete(delay=10)
+                raise discord.ext.commands.errors.BadArgument
+            date = format_input_date(date, event_time)
+            if not date:
+                await ctx.send(
+                    "ERROR! Incorrect date format given or date is passed. Should be `DD.MM.YYYY` or `DD-MM-YYYY`. Check `$help event` to get more "
+                    f"info about the event command. Event has to start minimum the next minute.", delete_after=10)
+                await ctx.message.delete(delay=10)
+                raise discord.ext.commands.errors.BadArgument
+            event_time = format_input_time(event_time)
+            if not event_time:
+                await ctx.send("ERROR! Incorrect time format given. Should be `HH:MM`. Check `$help event` to get more "
+                               f"info about the event command.", delete_after=10)
+                await ctx.message.delete(delay=10)
+                raise discord.ext.commands.errors.BadArgument
+            # Adds the entry to the sql db
+            event_description = event_info
+            if len(event_description) > 700:
+                event_description = event_description[0: 700] + "..."
+            if len(event_name) > 50:
+                event_name = event_name[0: 50] + "..."
+
+            try:
+                dt = datetime(date["year"], date["month"], date["day"], event_time["hour"], event_time["minute"])
+            except ValueError:
+                await ctx.send(
+                    "ERROR! Incorrect date format given or date is passed. Should be `DD.MM.YYYY` or `DD-MM-YYYY`. Check `$help event` to get more "
+                    f"info about the event command.", delete_after=10)
+                await ctx.message.delete(delay=10)
+                raise discord.ext.commands.errors.BadArgument
+
+            # Inserts event into event database
+            c.execute("INSERT INTO Events(EventName, EventCreatedAt, EventStartingAt, EventDescription, UniqueMemberID) VALUES (?,?,?,?,?)",
+                      (event_name, str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")), str(dt), event_description, uniqueID))
+            conn.commit()
+
+            # Inserts user as host to EventJoinedUsers for the newly added event
+            row_id = c.lastrowid
+            c.execute("SELECT EventID FROM Events WHERE ROWID=?", (row_id,))
+            event_id = c.fetchone()[0]
+            c.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID, IsHost) VALUES (?,?,?)", (event_id, uniqueID, 1))
+            conn.commit()
+
+            # Creates and sends the embed message
+            embed = discord.Embed(title="Added New Event", color=0xFCF4A3)
+            embed.add_field(name="Event ID", value=event_id)
+            embed.add_field(name="Event Name", value=event_name, inline=False)
+            embed.add_field(name="Event Host", value=ctx.message.author.mention, inline=False)
+            embed.add_field(name="Event Date", value=format_date_string(dt), inline=False)
+            embed.add_field(name="Event Description", value=event_description, inline=False)
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("ERROR! Each member can only add **two** events. (Might get changed in the future)", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+    @event.command(usage="view <event name / ID>")
+    async def view(self, ctx, event_name=None):
+        """
+        View existing events with more detail using this command.
+
+        The event name parameter can either be a search term (meaning all fitting events will be displayed) or \
+        a specific event ID to only show a single event. If multiple events are shown, they are ordered so that \
+        events closest to starting are at the top.
+        """
+        conn = self.get_connection()
+        c = conn.cursor()
+        try:
+            guild_id = ctx.message.guild.id
+        except AttributeError:
+            guild_id = 0
+
+        if event_name is None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to view. Check `$help event` to get more "
+                           f"info about the event command.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+        else:
+            try:
+                # checks if the inputted value is an integer and maby an eventID
+                int(event_name)
+                sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID
+                            FROM Events E
+                            INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
+                            WHERE E.EventID=? AND DM.DiscordGuildID=?
+                            ORDER BY IsDone, E.EventStartingAt"""
+                c.execute(sql, (event_name, guild_id))
+                results = c.fetchall()
+                if len(results) == 0:
+                    raise ValueError
+            except ValueError:
+                sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID
+                            FROM Events E
+                            INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
+                            WHERE E.EventName LIKE ? AND DM.DiscordGuildID=?
+                            ORDER BY IsDone, E.EventStartingAt"""
+                c.execute(sql, (f"%{event_name}%", guild_id))
+                results = c.fetchall()
+            if len(results) == 0:
+                await ctx.send("ERROR! There is no event with a similar name. Simply type `$event` to get a list of upcoming events.",
+                               delete_after=10)
+                await ctx.message.delete(delay=10)
+                raise discord.ext.commands.errors.BadArgument
+            embed = discord.Embed(title="Indepth Event View", color=0xFCF4A3)
+            embed.set_footer(text="Join an event with $event join <ID>")
+            if len(results) > 2:
+                embed.add_field(name="NOTICE",
+                                value="*There are more than 2 matches with that event name. Only showing the two closest matching events.*",
+                                inline=False)
+                embed.add_field(name="\u200b", value="``` ```", inline=False)
+            i = 1
+            MAX_EVENTS = 2  # max amount of events to send per view command
+            for e in results:
+                # creates a list of all joined members
+                sql = """   SELECT D.DiscordUserID
+                            FROM EventJoinedUsers E 
+                            INNER JOIN DiscordMembers D on D.UniqueMemberID = E.UniqueMemberID
+                            WHERE E.EventID=?"""
+                c.execute(sql, (e[5],))
+                res = c.fetchall()
+                joined_users_msg = f"Total: {len(res)}"
+                counter = 1
+                for row in res:
+                    joined_users_msg += f"\n> <@{row[0]}>"
+                    if counter >= 5:
+                        joined_users_msg += "\n> . . ."
+                        break
+                    counter += 1
+
+                # Adds the fields to an event
+                add_event_fields(embed, e[5], e[0], e[4], joined_users_msg, e[2], e[2], e[1], e[3])
+
+                # if not last field, add a spacer
+                if i < MAX_EVENTS and i < len(results):
+                    embed.add_field(name="\u200b", value="``` ```", inline=False)
+                i += 1
+                if i > MAX_EVENTS:
+                    break
+            await ctx.send(embed=embed)
+
+    @event.command(usage="delete <event ID>")
+    async def delete(self, ctx, event_name=None):
+        """
+        Delete your own events using this command.
+
+        Event ID has to be a valid ID of one of your own events. You cannot delete \
+        other people's events.
+        """
+        conn = self.get_connection()
+        c = conn.cursor()
+        try:
+            guild_id = ctx.message.guild.id
+        except AttributeError:
+            guild_id = 0
+
+        # delete the entry
+        uniqueID = handySQL.get_uniqueMemberID(conn, ctx.message.author.id, guild_id)
+        if event_name is None:
+            event_name = ""
+        c.execute("SELECT EventName FROM Events WHERE UniqueMemberID=? AND EventID = ?", (uniqueID, event_name))
+        result = c.fetchall()
+        if len(result) == 0:
+            await ctx.send(f"ERROR! No event found with the ID `{event_name}` which you are the host of.")
+            raise discord.ext.commands.errors.BadArgument
+        c.execute("DELETE FROM Events WHERE UniqueMemberID=? AND EventID=?", (uniqueID, event_name))
+        conn.commit()
+        embed = discord.Embed(title="Deleted Event",
+                              description=f"**Name of deleted event:** {result[0][0]}\n"
+                                          f"**Event host:** {ctx.message.author.mention}",
+                              color=0xFCF4A3)
+        await ctx.send(embed=embed)
+
+    @event.command(usage="join <event name / ID>")
+    async def join(self, ctx, event_name=None):
+        """
+        Joins an event using the event name or ID.
+        When joining with the event name the first matching event is chosen. \
+        To make sure you join the right event, use the ID.
+
+        Examples:
+        - `{prefix}event join 420BlazeIt`
+        - `{prefix}event join 42`
+        """
+        conn = self.get_connection()
+        c = conn.cursor()
+        try:
+            guild_id = ctx.message.guild.id
+        except AttributeError:
+            guild_id = 0
+
+        event_result, res, uniqueID = await check_join_leave_condition(c, "join", conn, ctx, event_name, guild_id)
+
+        # Joining part
+        if res is not None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, you already joined the event `{event_result[1]}`.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        # Joins the user to the event
+        c.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID) VALUES (?,?)", (event_result[0], uniqueID))
+        conn.commit()
+        embed = discord.Embed(
+            title="Joined Event",
+            description=f"Added {ctx.message.author.mention} to event `{event_result[1]}`."
+                        f"You can leave the event with `$event leave {event_result[0]}`",
+            color=0xFCF4A3)
+        await ctx.send(embed=embed)
+
+    @event.command(usage="leave <event name / ID>")
+    async def leave(self, ctx, event_name=None):
+        """
+        Leaves an event using the event name or ID.
+        When leaving with the event name the first matching event is chosen. \
+        To make sure you leave the right event, use the ID.
+
+        Examples:
+        - `{prefix}event leave 420BlazeIt`
+        - `{prefix}event leave 42`
+        """
+        conn = self.get_connection()
+        c = conn.cursor()
+        try:
+            guild_id = ctx.message.guild.id
+        except AttributeError:
+            guild_id = 0
+
+        event_result, res, uniqueID = await check_join_leave_condition(c, "leave", conn, ctx, event_name, guild_id)
+
+        # Leaving part
+        if res is None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, you can't leave an event you haven't even joined yet. "
+                           f"The event in question: `{event_result[1]}`.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        # Removes the user from that event
+        c.execute("DELETE FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_result[0], uniqueID))
+        conn.commit()
+
+        embed = discord.Embed(
+            title="Left Event",
+            description=f"Removed {ctx.message.author.mention} from event `{event_result[1]}`."
+                        f"You can rejoin the event with `$event join {event_result[0]}`",
+            color=0xffa500)
+        await ctx.send(embed=embed)
+
+    @event.command(usage="update <event ID>")
+    @has_permissions(kick_members=True)
+    async def update(self, ctx, event_name=None):
+        """
+        Creates an updating event message, which constantly gets updated with \
+        the joined members and the remaining time to start.
+
+        There can only be a single updated message for each event. If the command \
+        is called again, the older message will simply be deleted.
+
+        Permissions: kick_members
+        """
+        conn = self.get_connection()
+        c = conn.cursor()
+        try:
+            guild_id = ctx.message.guild.id
+        except AttributeError:
+            guild_id = 0
+
+        # Sends a message that gets update
+        if guild_id == 0:
+            await ctx.send("Can't send an updating event messagee in direct messages.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+        if event_name is None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to create an updating message for.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        # Checks if the Event exists
+        res = get_event_details(c, event_name, guild_id)
+        if res is None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        # Checks if there already exists an updating message, if there does, deletes old one
+        if res[6] is not None:
+            try:
+                channel = self.bot.get_channel(int(res[7]))
+                msg_to_delete = await channel.fetch_message(int(res[6]))
+                await msg_to_delete.delete()
+            except discord.NotFound:
+                pass
+
+        # Creates embed and sends the message
+        embed = create_event_embed(c, res)
+        msg = await ctx.send(embed=embed)
+
+        c.execute("UPDATE Events SET UpdatedMessageID=?, UpdatedChannelID=? WHERE EventID=?", (msg.id, msg.channel.id, event_name))
+        conn.commit()
+        await ctx.send("Successfully added updating event to DB.", delete_after=3)
+        await ctx.message.delete()
 
 
 def setup(bot):
