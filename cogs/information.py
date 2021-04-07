@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from datetime import datetime
 
 from discord.ext.commands import has_permissions
@@ -212,9 +212,10 @@ class Information(commands.Cog):
         self.bot = bot
         self.script_start = time.time()
         self.db_path = "./data/discord.db"
-        self.time_heartbeat = 0
         self.conn = handySQL.create_connection(self.db_path)
-        self.task = self.bot.loop.create_task(self.background_events())
+        self.background_events.start()
+        # emote used for adding users to an event
+        self.emote = ":greenverify:829432586098049034"
 
     def get_connection(self):
         """
@@ -230,73 +231,130 @@ class Information(commands.Cog):
         return self.conn
 
     def heartbeat(self):
-        return self.time_heartbeat
+        return self.background_events.is_running()
 
     def get_task(self):
-        return self.task
+        return self.background_events
 
+    @tasks.loop(seconds=20)
     async def background_events(self):
         await self.bot.wait_until_ready()
-        while not self.bot.is_closed():
-            self.time_heartbeat = time.time()
-            await asyncio.sleep(20)
-            conn = self.get_connection()
-            c = conn.cursor()
+        conn = self.get_connection()
+        c = conn.cursor()
 
-            # iterates through all update messages
-            c.execute("SELECT EventID, UpdatedMessageID, UpdatedChannelID, EventStartingAt FROM Events WHERE IsDone=0")
-            result = c.fetchall()
-            dt = str(datetime.now(timezone("Europe/Zurich")))
-            for row in result:
-                if row[1] is not None and row[2] is not None:
-                    try:
-                        # updates the event message
-                        channel = self.bot.get_channel(int(row[2]))
-                        msg = await channel.fetch_message(int(row[1]))
-                        res = get_event_details(c, row[0], channel.guild.id)
-                        embed = create_event_embed(c, res)
-                        await msg.edit(embed=embed)
-                    except discord.NotFound:
+        # iterates through all update messages
+        c.execute("SELECT EventID, UpdatedMessageID, UpdatedChannelID, EventStartingAt FROM Events WHERE IsDone=0")
+        result = c.fetchall()
+        dt = str(datetime.now(timezone("Europe/Zurich")))
+        for row in result:
+            if row[1] is not None and row[2] is not None:
+                try:
+                    # updates the event message
+                    channel = self.bot.get_channel(int(row[2]))
+                    msg = await channel.fetch_message(int(row[1]))
+                    res = get_event_details(c, row[0], channel.guild.id)
+                    embed = create_event_embed(c, res)
+                    await msg.edit(embed=embed)
+                except (discord.NotFound, discord.errors.Forbidden):
+                    print("Have no access to the events update message.")
+                    continue
+            # ping users if event starts
+            if row[3] < dt:
+                # gets the users to ping
+                sql = """   SELECT D.DiscordUserID
+                            FROM EventJoinedUsers E 
+                            INNER JOIN DiscordMembers D on D.UniqueMemberID = E.UniqueMemberID
+                            WHERE E.EventID=?"""
+                c.execute(sql, (row[0],))
+                result = c.fetchall()
+                # creates the embed for the starting event
+                # E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID, E.UpdatedMessageID, E.UpdatedChannelID
+                event_res = get_event_details(c, row[0])
+                embed = discord.Embed(
+                    title="Event Starting!",
+                    description=f"`{event_res[0]}` is starting! Here just a few details of the event:",
+                    color=0xFCF4A3)
+                embed.add_field(name="Event ID", value=row[0])
+                embed.add_field(name="Host", value=f"<@{event_res[4]}>")
+                embed.add_field(name="Description", value=event_res[3])
+
+                for user_row in result:
+                    user = self.bot.get_user(user_row[0])
+                    if user is None:
+                        print(f"Did not find user with ID {user_row[0]}")
                         continue
-
-                # ping users if event starts
-                if row[3] < dt:
-                    # gets the users to ping
-                    sql = """   SELECT D.DiscordUserID
-                                FROM EventJoinedUsers E 
-                                INNER JOIN DiscordMembers D on D.UniqueMemberID = E.UniqueMemberID
-                                WHERE E.EventID=?"""
-                    c.execute(sql, (row[0],))
-                    result = c.fetchall()
-
-                    # creates the embed for the starting event
-                    # E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID, E.UpdatedMessageID, E.UpdatedChannelID
-                    event_res = get_event_details(c, row[0])
-                    embed = discord.Embed(
-                        title="Event Starting!",
-                        description=f"`{event_res[0]}` is starting! Here just a few details of the event:",
-                        color=0xFCF4A3)
-                    embed.add_field(name="Event ID", value=row[0])
-                    embed.add_field(name="Host", value=f"<@{event_res[4]}>")
-                    embed.add_field(name="Description", value=event_res[3])
-
-                    for user_row in result:
-                        user = self.bot.get_user(user_row[0])
-                        if user is None:
-                            print(f"Did not find user with ID {user_row[0]}")
-                            continue
-                        try:
-                            await user.send(embed=embed)
-                        except discord.Forbidden:
-                            print(f"Can't dm {user.name}")
-
-            # Marks all older events as done
-            c.execute("Update Events SET IsDone=1 WHERE EventStartingAt < ?", (dt,))
-            conn.commit()
+                    try:
+                        await user.send(embed=embed)
+                    except discord.Forbidden:
+                        print(f"Can't dm {user.name}")
+        # Marks all older events as done
+        c.execute("Update Events SET IsDone=1 WHERE EventStartingAt < ?", (dt,))
+        conn.commit()
 
     @commands.Cog.listener()
     async def on_ready(self):
         self.script_start = time.time()
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+        if payload.guild_id is None or payload.channel_id is None or payload.member is None:
+            return
+        # return if its the bot itself
+        if payload.member.bot:
+            return
+        if self.emote in str(payload.emoji):
+            conn = self.get_connection()
+            c = conn.cursor()
+            # checks if this is an updated message
+            c.execute("SELECT EventID, EventName FROM Events WHERE UpdatedMessageID=?", (payload.message_id,))
+            res = c.fetchone()
+            if res is None:
+                return
+            event_id = res[0]
+            event_name = res[1]
+            uniqueID = handySQL.get_uniqueMemberID(conn, payload.member.id, payload.guild_id)
+            c.execute("SELECT * FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_id, uniqueID))
+            res = c.fetchone()
+            # Joining part
+            if res is None:
+                # Joins the user to the event
+                c.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID) VALUES (?,?)", (event_id, uniqueID))
+                conn.commit()
+                try:
+                    await payload.member.send(f"Added you to the event **{event_name}**")
+                except discord.Forbidden:
+                    pass
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, payload):
+        if payload.guild_id is None or payload.channel_id is None or payload.user_id is None:
+            return
+        # return if its the bot itself
+        if payload.user_id == self.bot.user.id:
+            return
+        if self.emote in str(payload.emoji):
+            conn = self.get_connection()
+            c = conn.cursor()
+            # checks if this is an updated message
+            c.execute("SELECT EventID, EventName FROM Events WHERE UpdatedMessageID=?", (payload.message_id,))
+            res = c.fetchone()
+            if res is None:
+                return
+            event_id = res[0]
+            event_name = res[1]
+            uniqueID = handySQL.get_uniqueMemberID(conn, payload.user_id, payload.guild_id)
+            c.execute("SELECT * FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_id, uniqueID))
+            res = c.fetchone()
+            # Removing part
+            if res is not None:
+                # Removes the user from the event
+                c.execute("DELETE FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_id, uniqueID))
+                conn.commit()
+                try:
+                    user = self.bot.get_user(payload.user_id)
+                    await user.send(f"Removed you from the event **{event_name}**")
+                except discord.Forbidden:
+                    pass
 
     @commands.cooldown(2, 10, BucketType.user)
     @commands.command(aliases=["terms"], usage="$terminology [word]")
@@ -857,6 +915,7 @@ class Information(commands.Cog):
         # Creates embed and sends the message
         embed = create_event_embed(c, res)
         msg = await ctx.send(embed=embed)
+        await msg.add_reaction(f"<a{self.emote}>")
 
         c.execute("UPDATE Events SET UpdatedMessageID=?, UpdatedChannelID=? WHERE EventID=?", (msg.id, msg.channel.id, event_name))
         conn.commit()
@@ -946,13 +1005,13 @@ class Information(commands.Cog):
         await ctx.send(f"Successfully added the perms for all joined users for the event {event_id}.", delete_after=3)
 
     @commands.cooldown(1, 120, BucketType.guild)
-    @event.command(usage="ping <event ID>")
-    async def ping(self, ctx, event_id=None):
+    @event.command(usage="ping <event ID>", name="ping")
+    async def mention(self, ctx, event_id=None):
         """
         Ping all users that joined the event. This can only be called if the user themselves joined the event.
         """
         if event_id is None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to create an updating message for.",
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to ping users on.",
                            delete_after=10)
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
