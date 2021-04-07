@@ -2,9 +2,10 @@
 
 Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 2020 Discord Server.
 
-  - Pings users on website updates
+  - Pings users on website updates/ lecture starts
   - Tracks stats
   - Stores quotes
+  - Manages user events
   - and much much more
 
 ## Progress View
