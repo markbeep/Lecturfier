@@ -373,8 +373,14 @@ class Quote(commands.Cog):
                                         VALUES (?,?,?,?,?)"""
                             c.execute(sql, (quote, quoted_name, uniqueID, addedByUniqueID, guild_id))
                             conn.commit()
+                            row_id = c.lastrowid
+                            c.execute("SELECT QuoteID FROM Quotes WHERE ROWID=?", (row_id,))
+                            res = c.fetchone()
+                            quoteID = "n/a"
+                            if res is not None:
+                                quoteID = res[0]
 
-                            embed = discord.Embed(title="Added Quote", description=f"Added quote for {quoted_name}", color=0x00FF00)
+                            embed = discord.Embed(title="Added Quote", description=f"Added quote for {quoted_name}\nQuoteID: `{quoteID}`", color=0x00FF00)
                             await ctx.send(embed=embed)
         else:
             # If $quote is written on its own, send a random quote from any user
