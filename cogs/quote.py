@@ -1,7 +1,7 @@
 import math
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, menus
 import datetime
 import time
 import random
@@ -303,41 +303,32 @@ class Quote(commands.Cog):
                                 i += 1
 
                             # better splitting method
-                            remaining_quotes = quote_list
-                            embeds_to_send = []
-                            message_count = 1
-                            page_count = 1
-
+                            pages = []
                             quoted_name = name
                             if member is not None:
                                 quoted_name = member.name
-                            while len(remaining_quotes) > 0:
-                                # split quotes into multiple chunks of max 6000 chars
-                                if len(remaining_quotes) >= 5900:
-                                    rind = remaining_quotes.rindex("\n", 0, 5900)
-                                else:
-                                    rind = len(remaining_quotes)
-                                single_msg = remaining_quotes[0:rind]
-                                remaining_quotes = remaining_quotes[rind:]
-                                embed = discord.Embed(title=f"All quotes from {quoted_name}", description=f"`Message {message_count}`", color=0x404648)
-                                message_count += 1
-                                embeds_to_send.append(embed)
-                                while len(single_msg) > 0:
-                                    # split quotes into multiple fields of max 1000 chars
-                                    if len(single_msg) >= 1000:
-                                        rind2 = single_msg.rindex("\n", 0, 1000)
-                                        if rind2 == 0:
-                                            # one quote is more than 1000 chars
-                                            rind2 = single_msg.rindex(" ", 0, 1000)
-                                    else:
-                                        rind2 = len(single_msg)
-                                    embed.add_field(name=f"Page {page_count}", value=single_msg[0:rind2])
-                                    single_msg = single_msg[rind2:]
-                                    page_count += 1
 
-                            for e in embeds_to_send:
-                                # sends all embeds messages
-                                await ctx.send(embed=e)
+                            # creates the pages
+                            while len(quote_list) > 0:
+                                # split quotes into multiple fields of max 1000 chars
+                                if len(quote_list) >= 1000:
+                                    rind2 = quote_list.rindex("\n", 0, 1000)
+                                    if rind2 == 0:
+                                        # one quote is more than 1000 chars
+                                        rind2 = quote_list.rindex(" ", 0, 1000)
+                                        if rind2 == 0:
+                                            # the quote is longer than 1000 chars and has no spaces
+                                            rind2 = 1000
+                                else:
+                                    rind2 = len(quote_list)
+                                pages.append(quote_list[0:rind2])
+                                quote_list = quote_list[rind2:]
+
+                            m = QuoteMenu(pages, quoted_name)
+                            if len(pages) > 1:
+                                await m.start(ctx)
+                            else:
+                                await ctx.send(embed=m.get_page(0))
 
                         elif quote.lower().split(" ")[0] == "del":  # Command to delete quotes
                             if not await self.bot.is_owner(ctx.author):
@@ -398,3 +389,42 @@ class Quote(commands.Cog):
 
 def setup(bot):
     bot.add_cog(Quote(bot))
+
+
+class QuoteMenu(menus.Menu):
+    def __init__(self, pages, quoted_name):
+        super().__init__(clear_reactions_after=True, delete_message_after=True)
+        self.quoted_name = quoted_name
+        self.pages = pages
+        self.page_count = 0
+        self.ctx = None
+
+    def get_page(self, page_number):
+        embed = discord.Embed(title=f"All quotes from {self.quoted_name}", color=0x404648)
+        embed.add_field(name=f"Page {page_number + 1} / {len(self.pages)}", value=self.pages[page_number])
+        if len(self.pages) > 1:
+            embed.set_footer(text="⬅️ prev page | ➡️ next page | ❌ delete message")
+        return embed
+
+    async def send_initial_message(self, ctx, channel):
+        embed = self.get_page(self.page_count)
+        self.ctx = ctx
+        return await ctx.send(embed=embed)
+
+    @menus.button("⬅️")
+    async def page_down(self, payload):
+        self.page_count = (self.page_count - 1) % len(self.pages)
+        embed = self.get_page(self.page_count)
+        await self.message.edit(embed=embed)
+
+    @menus.button("➡️")
+    async def page_up(self, payload):
+        self.page_count = (self.page_count + 1) % len(self.pages)
+        embed = self.get_page(self.page_count)
+        await self.message.edit(embed=embed)
+
+    @menus.button("❌")
+    async def delete(self, payload):
+        if self.ctx is not None:
+            await self.ctx.message.delete()
+        self.stop()
