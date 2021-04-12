@@ -7,7 +7,6 @@ from pytz import timezone
 import json
 import time
 from discord.ext.commands.cooldowns import BucketType
-import os
 
 
 class Admin(commands.Cog):
@@ -39,7 +38,8 @@ class Admin(commands.Cog):
 
         if member.bot:
             return
-        if member.guild.id == 747752542741725244:  # if the server is the main server
+        # if the server is the main server
+        if member.guild.id == 747752542741725244:
             channel = self.bot.get_channel(815936830779555841)
             await self.send_welcome_message(channel, member, member.guild)
 
@@ -64,7 +64,6 @@ class Admin(commands.Cog):
             return
         admin_log_channel = self.bot.get_channel(774322847812157450)
         if admin_log_channel is None:
-            print("Have no access to admin log channel.")
             return
         member = payload.member
         emoji = payload.emoji
@@ -101,7 +100,8 @@ class Admin(commands.Cog):
                                         f"<:checkmark:769279808244809798> to accept\n"
                                         f"<:xmark:769279807916998728> to decline",
                             color=discord.Color.gold())
-                        ta_msg = await staff_channel.send(embed=ta_embed)
+                        role_ping = "<@&773908766973624340> <@&815932497920917514> <@&747753814723002500>"
+                        ta_msg = await staff_channel.send(role_ping, embed=ta_embed)
                         await ta_msg.add_reaction("<:checkmark:769279808244809798>")
                         await ta_msg.add_reaction("<:xmark:769279807916998728>")
                         embed = discord.Embed(description=f"{str(member)} requested to be a TA\n"

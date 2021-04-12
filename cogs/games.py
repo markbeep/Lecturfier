@@ -67,6 +67,8 @@ class Games(commands.Cog):
                 f.write(str(new_cases))
             log("Daily cases have been updated", "COVID")
             guild = self.bot.get_guild(747752542741725244)
+            if guild is None:
+                return
             channel = guild.get_channel(747752542741725247)
             await self.send_message(channel, guild, new_cases)
 
