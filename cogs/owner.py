@@ -55,6 +55,7 @@ class Owner(commands.Cog):
         self.conn = handySQL.create_connection(self.db_path)
         self.cancel_all = False
         self.cancel_draws = []
+        self.pause_draws = False
         self.progress = {}
         try:
             self.image = Image.open("place.png")
@@ -375,6 +376,7 @@ class Owner(commands.Cog):
         - `image <x1> <x2> <y1> <y2> [step] [updates channel]`
         - `save [clear]`
         - `cancel`: Cancels all currently going on drawings.
+        - `pause`: Pauses all drawings
         Permissions: Owner
         """
         if await self.bot.is_owner(ctx.author):
@@ -382,6 +384,9 @@ class Owner(commands.Cog):
                 if command is None:
                     await ctx.send("No command given")
                     raise discord.ext.commands.errors.BadArgument
+                elif command == "pause":
+                    self.pause_draws = not self.pause_draws
+                    await ctx.send(f"Pause draws: {self.pause_draws}")
                 elif command == "cancel":
                     if x1 is None:
                         self.cancel_all = True
@@ -467,6 +472,8 @@ class Owner(commands.Cog):
                             self.cancel_draws.pop(self.cancel_draws.index(str(ID)))
                             self.progress.pop(ID)
                             raise discord.ext.commands.errors.BadArgument
+                        if self.pause_draws:
+                            await asyncio.sleep(10)
                         pix = pixels_queue[0]
                         pX = pix[0]
                         pY = pix[1]
@@ -512,8 +519,8 @@ class Owner(commands.Cog):
         if ID is None or int(ID) not in self.progress:
             keys = ""
             for k in self.progress.keys():
-                keys += f"- `{k}`"
-            await ctx.send(f"Project IDs | Count:{len(self.progress)}\n{keys}")
+                keys += f"- `{k}` {round(self.progress[k][0]*100/self.progress[k][1], 2)}%"
+            await ctx.send(f"Project IDs | Count:{len(self.progress)} | Paused: {self.pause_draws}\n{keys}")
             return
         embed = discord.Embed(
             title=f"Drawing Progress | Project {ID}",
