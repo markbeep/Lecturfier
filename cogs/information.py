@@ -547,7 +547,7 @@ class Information(commands.Cog):
         """
         The event command is used to keep track of upcoming events. Each user can add a maximum of two events.
 
-        Command specific help pages have been moved to their own pages with viewable with `{prefix}event <subcommand>`.
+        Command specific help pages have been moved to their own help pages viewable with `{prefix}help event <subcommand>`.
         """
         conn = self.get_connection()
         c = conn.cursor()
