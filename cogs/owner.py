@@ -374,6 +374,7 @@ class Owner(commands.Cog):
         Draws a picture using Battle's place command.
         Commands:
         - `image <x1> <x2> <y1> <y2> [step] [updates channel]`
+        - `multi <x1> <x2> <y1> <y2> [step] [updates channel]`
         - `save [clear]`
         - `cancel`: Cancels all currently going on drawings.
         - `pause`: Pauses all drawings
@@ -393,7 +394,10 @@ class Owner(commands.Cog):
                     else:
                         self.cancel_draws.append(x1)
                     return
-                elif command == "image":
+                elif command == "image" or command == "multi":
+                    if command == "multi":
+                        await ctx.message.delete()
+
                     if len(ctx.message.attachments) == 0:
                         await ctx.send("No image given")
                         raise discord.ext.commands.errors.BadArgument
@@ -461,6 +465,35 @@ class Owner(commands.Cog):
                             raise ValueError
                     except ValueError:
                         channel = ctx.channel
+
+                    # makes txt files instead
+                    if command == "multi":
+                        file_count = 0
+                        files = []
+                        while len(pixels_queue) > 0:
+                            filename = f"{file_count}.txt"
+                            files.append(filename)
+                            file_count += 1
+                            commands = ""
+                            for i in range(3600):
+                                if len(pixels_queue) == 0:
+                                    break
+                                pix = pixels_queue.pop(0)
+                                pX = pix[0]
+                                pY = pix[1]
+                                pHex = pix[2]
+                                commands += f"{pX} {pY} {pHex}"
+                                if len(pixels_queue) != 0:
+                                    commands += "|"
+                            with open(filename, "a") as f:
+                                f.write(commands)
+
+                        for f in files:
+                            file = discord.File(f)
+                            await ctx.author.send(f, file=file)
+                            os.remove(f)
+                        await ctx.author.send("Done")
+                        return
 
                     embed = discord.Embed(title="Started Drawing", description=self.draw_desc(ID))
                     await channel.send(embed=embed)
