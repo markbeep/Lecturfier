@@ -1,14 +1,8 @@
-import asyncio
-
 import discord
 from discord.ext import commands
-import re
-from helper import handySQL
+from helper import hangman
 import string
 from discord.ext.commands.cooldowns import BucketType
-import threading
-import time
-import concurrent.futures
 
 
 def joinTuple(string_tuples) -> str:
@@ -19,32 +13,6 @@ class Hangman(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.sending = False
-        self.db_path = "./data/discord.db"
-        self.conn = handySQL.create_connection(self.db_path)
-
-    def dict_query(self, not_like_msg, language, inputted_word):
-        conn = handySQL.create_connection(self.db_path)
-        c = conn.cursor()
-        c.execute(f"SELECT Word FROM Dictionary WHERE WordLanguage=? AND Word LIKE ? {not_like_msg} GROUP BY Word COLLATE NOCASE",
-                  (language, inputted_word))
-        # As results is a list of tuples, join them
-        return list(map(joinTuple, c.fetchall()))
-
-    def get_connection(self):
-        """
-        Retreives the current database connection
-        :return: Database Connection
-        """
-        if self.conn is None:
-            self.conn = handySQL.create_connection(self.db_path)
-        return self.conn
-
-    def open_file(self, file_name):
-        with open(file_name, "r") as f:
-            word_file = f.read()
-            word_file = re.sub(r'\([^)]*\)', '', word_file)
-            word_file = re.findall(r"[\w']+", word_file)
-        return word_file
 
     def clean_string(self, inp):
         inp = inp.lower()
@@ -54,49 +22,6 @@ class Hangman(commands.Cog):
             if s in valid:
                 corrected += s
         return corrected
-
-    async def word_guesser(self, inputted_word, unused_letters="", language="english"):
-        # Ununused letters
-        not_like_msg = ""
-        for l in unused_letters:
-            not_like_msg += f' AND NOT Word LIKE "%{l}%"'
-
-        # sql query takes up the most time, so its performed in a separate thread to prevent the whole bot from blocking
-        event_loop = asyncio.get_event_loop()
-        blocking_task = [event_loop.run_in_executor(concurrent.futures.ThreadPoolExecutor(max_workers=1), self.dict_query, not_like_msg, language, inputted_word)]
-        completed, pending = await asyncio.wait(blocking_task)
-
-        fitting_words = []
-        for t in completed:
-            fitting_words.extend(t.result())
-
-        alphabet = {'a': 0, 'b': 0, 'c': 0, 'd': 0, 'e': 0, 'f': 0, 'g': 0, 'h': 0, 'i': 0, 'j': 0, 'k': 0, 'l': 0,
-                    'm': 0, 'n': 0, 'o': 0, 'p': 0, 'q': 0, 'r': 0, 's': 0, 't': 0, 'u': 0, 'v': 0, 'w': 0, 'x': 0,
-                    'y': 0, 'z': 0, 'ä': 0, 'ö': 0, 'ü': 0, }
-        total = 0
-
-        if len(fitting_words) == 0:
-            return {'fitting_words': [], 'alphabet': alphabet, 'total': total}
-        else:
-            count_words = []
-
-            # Removes all duplicate characters from every word and puts the words in a list to count
-            for i, word in enumerate(fitting_words):
-                count_words.append(str(set(word)))
-
-            # Puts all strings into one long string to count it easier.
-            all_string = ''.join(count_words)
-
-            # Counts all the letters in the words (but only letters that haven't been mentioned yet)
-            for key in alphabet.keys():
-                if key in inputted_word:
-                    continue
-                else:
-                    count = all_string.count(key)
-                    if count > 0:
-                        total += count
-                        alphabet[key] = count
-            return {'fitting_words': fitting_words, 'alphabet': alphabet, 'total': total}
 
     @commands.cooldown(1, 5, BucketType.user)
     @commands.command(aliases=["hm"], usage="hangman <word up till now> <wrong letters or 0> <language>")
@@ -128,10 +53,10 @@ class Hangman(commands.Cog):
                     return
 
                 # Sets up the variables
-                things = await self.word_guesser(inputted_word, unused_letters, language)
-                alphabet = things['alphabet']
-                fitting_words = things['fitting_words']
-                total = things['total']
+                result = hangman.solve(inputted_word, list(unused_letters), language)
+                alphabet = result[0]
+                fitting_words = result[1]
+                total = sum(alphabet.values())
 
                 text = ''
                 # Creates the word list with
@@ -152,11 +77,12 @@ class Hangman(commands.Cog):
                 self.sending = False
             await ctx.send(message)
         elif self.sending:
-            msg = await ctx.send("❗❗ Already working on a hangman. Hold on ❗❗", delete_after=7)
+            await ctx.send("❗❗ Already working on a hangman. Hold on ❗❗", delete_after=7)
             raise discord.ext.commands.errors.BadArgument
         else:
             await ctx.send("No input given. Check `$help hangman` to see how this command is used.")
             raise discord.ext.commands.errors.BadArgument
+
 
 def setup(bot):
     bot.add_cog(Hangman(bot))
