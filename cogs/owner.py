@@ -456,8 +456,6 @@ class Owner(commands.Cog):
                     topleft = (x1+topX, y1+topY)
                     bottomright = (x1+botX, y1+botY)
 
-                    self.progress[ID] = [0, len(pixels_queue), topleft, bottomright, step]
-
                     # Get channel
                     try:
                         channel = self.bot.get_channel(int(color))
@@ -495,6 +493,8 @@ class Owner(commands.Cog):
                         await ctx.author.send("Done")
                         return
 
+                    self.progress[ID] = [0, len(pixels_queue), topleft, bottomright, step]
+
                     embed = discord.Embed(title="Started Drawing", description=self.draw_desc(ID))
                     await channel.send(embed=embed)
 
@@ -520,28 +520,6 @@ class Owner(commands.Cog):
 
                     # Removes the project from the current active projects
                     self.progress.pop(ID)
-                elif command == "save":
-
-                    if x1 is not None and x1.lower() == "clear":
-                        self.image = None
-                        try:
-                            os.remove("place.png")
-                        except FileNotFoundError:
-                            pass
-                        await ctx.send("Cleared image to keep track of")
-                        return
-
-                    if len(ctx.message.attachments) == 0:
-                        await ctx.send("No image given")
-                        raise discord.ext.commands.errors.BadArgument
-                    async with aiohttp.ClientSession() as cs:
-                        async with cs.get(ctx.message.attachments[0].url) as r:
-                            buffer = io.BytesIO(await r.read())
-
-                    self.image = im = Image.open(buffer)
-                    im.save("place.png", "PNG")
-                    await ctx.send("Successfully updated place.png")
-
                 else:
                     await ctx.send("Command not found. Right now only `cancel`, `image` and `square` exist.")
         else:
@@ -552,14 +530,72 @@ class Owner(commands.Cog):
         if ID is None or int(ID) not in self.progress:
             keys = ""
             for k in self.progress.keys():
-                keys += f"- `{k}` {round(self.progress[k][0]*100/self.progress[k][1], 2)}%"
-            await ctx.send(f"Project IDs | Count:{len(self.progress)} | Paused: {self.pause_draws}\n{keys}")
+                keys += f"\n- `{k}` {round(self.progress[k][0]*100/self.progress[k][1], 2)}%"
+            await ctx.send(f"Project IDs | Count:{len(self.progress)} | Paused: {self.pause_draws}{keys}")
             return
         embed = discord.Embed(
             title=f"Drawing Progress | Project {ID}",
             description=self.draw_desc(ID)
         )
         await ctx.send(embed=embed)
+
+    @commands.is_owner()
+    @draw.command()
+    async def save(self, ctx, on="n"):
+        # saves the new image if needed
+        msg = ""
+        if len(ctx.message.attachments) != 0:
+            async with aiohttp.ClientSession() as cs:
+                async with cs.get(ctx.message.attachments[0].url) as r:
+                    buffer = io.BytesIO(await r.read())
+            self.image = im = Image.open(buffer)
+            im.save("place.png", "PNG")
+            msg = "Successfully updated place.png"
+
+        if on.startswith("c") or on.startswith("n"):
+            self.image = None
+            await ctx.send(f"{msg}\nTurned `OFF` image protection.")
+        else:
+            self.image = Image.open("place.png")
+            await ctx.send(f"{msg}\nTurned `ON` image protection.")
+
+    @commands.is_owner()
+    @draw.command(aliases=["mismatches", "mis"])
+    async def mismatch(self, ctx, color_to_check=""):
+        if len(ctx.message.attachments) == 0:
+            await ctx.send("No image given")
+            raise discord.ext.commands.errors.BadArgument
+        fp = "place.png"
+        if not os.path.isfile(fp):
+            fp = "placeOFF.png"
+            if not os.path.isfile(fp):
+                await ctx.send("No image to compare to")
+                raise discord.ext.commands.errors.BadArgument
+        save_pixels = Image.open(fp).convert("RGBA").load()
+        async with aiohttp.ClientSession() as cs:
+            async with cs.get(ctx.message.attachments[0].url) as r:
+                buffer = io.BytesIO(await r.read())
+        place_pixels = Image.open(buffer).convert("RGBA").load()
+
+        im, count = self.find_mismatches(save_pixels, place_pixels, color_to_check)
+
+        im.save("mismatches.png", "PNG")
+        file = discord.File("mismatches.png")
+        await ctx.send(f"Found {count} mismatches:", file=file)
+
+    def find_mismatches(self, save_pixels, place_pixels, color_to_check=""):
+        im = Image.new(mode="RGBA", size=(1000, 1000), color=(0, 0, 0, 0))
+        pixels = im.load()
+        count = 0
+        for x in range(1000):
+            for y in range(1000):
+                r, g, b, a = save_pixels[x, y]
+                if a != 0:
+                    rp, gp, bp, ap = place_pixels[x, y]
+                    if color_to_check.replace("#", "") == rgb2hex(rp, gp, bp).replace("#", "") or color_to_check == "" and (r, g, b, a) != (rp, gp, bp, ap):
+                        count += 1
+                        pixels[x, y] = (r, g, b, a)
+        return im, count
 
     @commands.command(usage="bully <user>")
     async def bully(self, ctx, user=None):
