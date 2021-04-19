@@ -473,7 +473,7 @@ class Owner(commands.Cog):
                             files.append(filename)
                             file_count += 1
                             commands = ""
-                            for i in range(3600):
+                            for i in range(80000):
                                 if len(pixels_queue) == 0:
                                     break
                                 pix = pixels_queue.pop(0)
