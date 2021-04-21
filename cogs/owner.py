@@ -9,13 +9,14 @@ import os
 import time
 from cogs import admin, hangman, help, updates, minesweeper, owner, games, quote, reputation, statistics, voice
 import json
-from helper import handySQL
+from helper import handySQL, image2queue as im2q
 from sqlite3 import Error
 import sqlite3
 from tabulate import tabulate
 from PIL import Image
 import PIL
 import io
+import numpy as np
 
 
 def rgb2hex(r, g, b):
@@ -48,6 +49,23 @@ def loading_bar(bars, max_length=None, failed=None):
         return "<:green_box:764901465948684289>"*bars  # Green square
 
 
+async def create_buffer(ctx, x1, x2, y1, y2):
+    async with aiohttp.ClientSession() as cs:
+        async with cs.get(ctx.message.attachments[0].url) as r:
+            buffer = io.BytesIO(await r.read())
+    im = Image.open(buffer)
+    x1 = int(x1)
+    x2 = int(x2)
+    y1 = int(y1)
+    y2 = int(y2)
+    width, height = im.size
+    if x2 - x1 != width or y2 - y1 != height:
+        im = im.resize((x2 - x1, y2 - y1), PIL.Image.NEAREST)
+        im.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
 class Owner(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -57,10 +75,7 @@ class Owner(commands.Cog):
         self.cancel_draws = []
         self.pause_draws = False
         self.progress = {}
-        try:
-            self.image = Image.open("place.png")
-        except FileNotFoundError:
-            self.image = None
+        self.image = None
 
     def get_connection(self):
         """
@@ -73,36 +88,21 @@ class Owner(commands.Cog):
         return self.conn
 
     def draw_desc(self, ID):
-        try:
-            index = int(ID)
-        except ValueError:
-            index = "n/a"
-        if index not in self.progress:
+        if ID not in self.progress:
             return "Project has no info"
-        prog = self.progress[index]
-        topleft = prog[2]
-        bottomright = prog[3]
-        step = prog[4]
-        if len(topleft) == 0:
-            topX = 0
-            topY = 0
-        else:
-            topX = topleft[0]
-            topY = topleft[1]
-        if len(bottomright) == 0:
-            botX = 0
-            botY = 0
-        else:
-            botX = bottomright[0]
-            botY = bottomright[1]
+        prog = self.progress[ID]
+        topX, topY = prog["img"].top_left_corner
+        botX, botY = prog["img"].bot_right_corner
+        pix_drawn = prog["count"]
+        pix_total = prog["img"].size
         return f"ID: {ID}\n" \
-               f"X: {topX} | Y: {topY} | Step: {step}\n" \
+               f"X: {topX} | Y: {topY}\n" \
                f"Width: {botX - topX} | Height: {botY - topY}\n" \
-               f"Pixel Total: {prog[1]}\n" \
-               f"Pixels to draw: {prog[1]-prog[0]}\n" \
-               f"Pixels drawn: {prog[0]}\n" \
-               f"{loading_bar_draw(prog[0], prog[1])}  {round(100 * prog[0] / prog[1], 2)}%\n" \
-               f"Time Remaining: {round((prog[1] - prog[0]) * len(self.progress) / 60, 2)} mins\n" \
+               f"Pixel Total: {pix_total}\n" \
+               f"Pixels to draw: {pix_total-pix_drawn}\n" \
+               f"Pixels drawn: {pix_drawn}\n" \
+               f"{loading_bar_draw(pix_drawn, pix_total)}  {round(100 * pix_drawn / pix_total, 2)}%\n" \
+               f"Time Remaining: {round((pix_total - pix_drawn) * len(self.progress) / 60, 2)} mins\n" \
                f"`.place zoom {topX} {topY} {min(max(botX - topX, botY - topY), 250)}` to see the progress.\n"
 
     @commands.Cog.listener()
@@ -368,8 +368,9 @@ class Owner(commands.Cog):
         else:
             raise discord.ext.commands.errors.NotOwner
 
-    @commands.group(usage="draw <command> <x1> <x2> <y1> <y2> <step> <color/channel> [delete_messages: y/n]", invoke_without_command=True)
-    async def draw(self, ctx, command=None, x1=None, x2=None, y1=None, y2=None, step=1, color="#FFFFFF"):
+    @commands.is_owner()
+    @commands.group(aliases=["d"], usage="draw <command> <x1> <x2> <y1> <y2> <step> <color/channel> [delete_messages: y/n]", invoke_without_command=True)
+    async def draw(self, ctx, command=None, x1=None):
         """
         Draws a picture using Battle's place command.
         Commands:
@@ -380,157 +381,133 @@ class Owner(commands.Cog):
         - `pause`: Pauses all drawings
         Permissions: Owner
         """
-        if await self.bot.is_owner(ctx.author):
-            if ctx.invoked_subcommand is None:
-                if command is None:
-                    await ctx.send("No command given")
-                    raise discord.ext.commands.errors.BadArgument
-                elif command == "pause":
-                    self.pause_draws = not self.pause_draws
-                    await ctx.send(f"Pause draws: {self.pause_draws}")
-                elif command == "cancel":
-                    if x1 is None:
-                        self.cancel_all = True
-                    else:
-                        self.cancel_draws.append(x1)
-                    return
-                elif command == "image" or command == "multi":
-                    if command == "multi":
-                        await ctx.message.delete()
-
-                    if len(ctx.message.attachments) == 0:
-                        await ctx.send("No image given")
-                        raise discord.ext.commands.errors.BadArgument
-                    async with aiohttp.ClientSession() as cs:
-                        async with cs.get(ctx.message.attachments[0].url) as r:
-                            buffer = io.BytesIO(await r.read())
-                    im = Image.open(buffer)
-                    x1 = int(x1)
-                    x2 = int(x2)
-                    y1 = int(y1)
-                    y2 = int(y2)
-                    im = im.resize((x2-x1, y2-y1), PIL.Image.NEAREST)
-                    width, height = im.size
-                    pixels = im.convert('RGBA').load()
-                    odd = False
-                    self.cancel_all = False
-                    total_pixels = 0
-
-                    # to get the top left most coordinate and bot right most to look at
-                    botX = 0
-                    botY = 0
-                    topX = x2
-                    topY = y2
-
-                    # id to stop specific draw
-                    ID = random.randint(1000, 10000)
-
-                    prepare_queue = []
-                    pixels_queue = []
-
-                    # count image beforehand
-                    for x in range(0, width, step):
-                        if odd and step > 1:
-                            start = step//2
-                            odd = False
-                        else:
-                            start = 0
-                            odd = True
-                        for y in range(start, height, step):
-                            r, g, b, a = pixels[x, y]
-                            if a != 0:
-                                topX = min(topX, x)
-                                topY = min(topY, y)
-                                total_pixels += 1
-                                prepare_queue.append([x, y, rgb2hex(r, g, b)])
-                                botY = max(y, botY)
-                                botX = max(x, botX)
-
-                    # reorders the pixel placement so every 100th pixel gets drawn first
-                    for i in range(100):
-                        cur = i
-                        while cur < len(prepare_queue):
-                            pixels_queue.append(prepare_queue[cur])
-                            cur += 100
-
-                    topleft = (x1+topX, y1+topY)
-                    bottomright = (x1+botX, y1+botY)
-
-                    # Get channel
-                    try:
-                        channel = self.bot.get_channel(int(color))
-                        if channel is None:
-                            raise ValueError
-                    except ValueError:
-                        channel = ctx.channel
-
-                    # makes txt files instead
-                    if command == "multi":
-                        file_count = 0
-                        files = []
-                        while len(pixels_queue) > 0:
-                            filename = f"{file_count}.txt"
-                            files.append(filename)
-                            file_count += 1
-                            commands = ""
-                            for i in range(80000):
-                                if len(pixels_queue) == 0:
-                                    break
-                                pix = pixels_queue.pop(0)
-                                pX = pix[0]
-                                pY = pix[1]
-                                pHex = pix[2]
-                                commands += f"{pX} {pY} {pHex}"
-                                if len(pixels_queue) != 0:
-                                    commands += "|"
-                            with open(filename, "a") as f:
-                                f.write(commands)
-
-                        for f in files:
-                            file = discord.File(f)
-                            await ctx.author.send(f, file=file)
-                            os.remove(f)
-                        await ctx.author.send("Done")
-                        return
-
-                    self.progress[ID] = [0, len(pixels_queue), topleft, bottomright, step]
-
-                    embed = discord.Embed(title="Started Drawing", description=self.draw_desc(ID))
-                    await channel.send(embed=embed)
-
-                    # draws the pixels
-                    while len(pixels_queue) > 0:
-                        if self.cancel_all or str(ID) in self.cancel_draws:
-                            await ctx.send(f"Canceled Project {ID}.")
-                            self.cancel_draws.pop(self.cancel_draws.index(str(ID)))
-                            self.progress.pop(ID)
-                            raise discord.ext.commands.errors.BadArgument
-                        if self.pause_draws:
-                            await asyncio.sleep(10)
-                        pix = pixels_queue[0]
-                        pX = pix[0]
-                        pY = pix[1]
-                        pHex = pix[2]
-                        try:
-                            await ctx.send(f".place setpixel {pX} {pY} {pHex} | PROJECT {ID}")
-                            self.progress[ID][0] += 1
-                            pixels_queue.pop(0)
-                        except Exception:
-                            await asyncio.sleep(5)
-
-                    # Removes the project from the current active projects
-                    self.progress.pop(ID)
+        if ctx.invoked_subcommand is None:
+            if command is None:
+                await ctx.send("No command given")
+                raise discord.ext.commands.errors.BadArgument
+            elif command == "pause":
+                self.pause_draws = not self.pause_draws
+                await ctx.send(f"Pause draws: {self.pause_draws}")
+            elif command == "cancel":
+                if x1 is None:
+                    self.cancel_all = True
+                    self.progress = {}
                 else:
-                    await ctx.send("Command not found. Right now only `cancel`, `image` and `square` exist.")
-        else:
-            raise discord.ext.commands.errors.NotOwner
+                    self.cancel_draws.append(x1)
+                return
+            else:
+                await ctx.send("Command not found. Right now only `cancel`, `image` and `square` exist.")
+
+    @commands.is_owner()
+    @draw.command(aliases=["i"])
+    async def image(self, ctx, x1=None, x2=None, y1=None, y2=None, percent=0):
+        if len(ctx.message.attachments) == 0:
+            await ctx.send("No image given")
+            raise discord.ext.commands.errors.BadArgument
+        try:
+            buffer = await create_buffer(ctx, x1, x2, y1, y2)
+        except ValueError:
+            await ctx.send("Not all coordinates given.")
+            raise discord.ext.commands.errors.BadArgument
+
+        self.cancel_all = False
+
+        # id to stop specific draw
+        ID = str(random.randint(1000, 10000))
+
+        img = im2q.PixPlace(buffer, ID)
+        img.center_first()
+        drawn = 0
+        if percent > 0:
+            drawn = img.resume_progress(percent)
+        pixels_queue = img.get_queue()
+
+        self.progress[ID] = {
+            "count": drawn,
+            "img": img,
+            "queue": pixels_queue
+        }
+
+        embed = discord.Embed(title="Started Drawing", description=self.draw_desc(ID))
+        await ctx.send(embed=embed)
+
+        # draws the pixels
+        while len(pixels_queue) > 0:
+            if self.cancel_all or str(ID) in self.cancel_draws:
+                await ctx.send(f"Canceled Project {ID}.")
+                if ID in self.progress:
+                    self.progress.pop(ID)
+                if ID in self.cancel_draws:
+                    self.cancel_draws.pop(self.cancel_draws.index(ID))
+                raise discord.ext.commands.errors.BadArgument
+            if self.pause_draws:
+                await asyncio.sleep(10)
+                continue
+            pix = pixels_queue[0]
+            pX = pix[0]
+            pY = pix[1]
+            pHex = rgb2hex(pix[2], pix[3], pix[4])
+            try:
+                await ctx.send(f".place setpixel {pX} {pY} {pHex} | PROJECT {ID}")
+                self.progress[ID]["count"] += 1
+                pixels_queue.pop(0)
+            except Exception:
+                await asyncio.sleep(5)
+
+        # Removes the project from the current active projects
+        self.progress.pop(ID)
+
+    @commands.is_owner()
+    @draw.command(aliases=["m"])
+    async def multi(self, ctx, x1=None, x2=None, y1=None, y2=None):
+        if len(ctx.message.attachments) == 0:
+            await ctx.send("No image given")
+            raise discord.ext.commands.errors.BadArgument
+        try:
+            buffer = await create_buffer(ctx, x1, x2, y1, y2)
+        except ValueError:
+            await ctx.send("Not all coordinates given.")
+
+        img = im2q.PixPlace(buffer, "multi")
+        img.center_first()
+        pixels_queue = img.get_queue()
+
+        # makes txt files instead
+        file_count = 0
+        files = []
+        while len(pixels_queue) > 0:
+            file_count += 1
+            content = ""
+            pixels_added = 0
+            for i in range(80000):
+                if len(pixels_queue) == 0:
+                    break
+                pix = pixels_queue.pop(0)
+                pX = pix[0]
+                pY = pix[1]
+                pHex = rgb2hex(pix[2], pix[3], pix[4])
+                content += f"{pX} {pY} {pHex}"
+                if len(pixels_queue) != 0:
+                    content += "|"
+                pixels_added += 1
+            filename = f"{file_count}-{pixels_added}.txt"
+            files.append(filename)
+            with open(filename, "a") as f:
+                f.write(content)
+
+        for f in files:
+            file = discord.File(f)
+            await ctx.author.send(f, file=file)
+            os.remove(f)
+        await ctx.author.send("Done")
+        return
 
     @draw.command(usage="progress <ID>", aliases=["prog"])
     async def progress(self, ctx, ID=None):
-        if ID is None or int(ID) not in self.progress:
+        if ID is None or ID not in self.progress:
             keys = ""
             for k in self.progress.keys():
-                keys += f"\n- `{k}` {round(self.progress[k][0]*100/self.progress[k][1], 2)}%"
+                keys += f"\n- `{k}` {round(self.progress[k]['count']*100/self.progress[k]['img'].size, 2)}%"
             await ctx.send(f"Project IDs | Count:{len(self.progress)} | Paused: {self.pause_draws}{keys}")
             return
         embed = discord.Embed(
