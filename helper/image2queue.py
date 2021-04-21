@@ -26,7 +26,7 @@ class PixPlace:
 
         # creates new array of tuples with format: (x, y, r, g, b, a)
         i, j = np.meshgrid(range(height), range(width))
-        loc = np.empty((height, width, 6), dtype="int16")
+        loc = np.empty((width, height, 6), dtype="int16")
         loc[:, :, 0] = i
         loc[:, :, 1] = j
         loc[:, :, 2:] = img
@@ -79,6 +79,19 @@ class PixPlace:
             n[t:t + c] = self.pixel_array[i::540]
             t += c
         self.pixel_array = n
+
+    def perc_to_perc(self, start: int, end: int) -> int:
+        drawn = int(self.size * (start / 100))
+        end = int(self.size * (end / 100))
+        self.pixel_array = self.pixel_array[start:end]
+        self.size = len(self.pixel_array)
+        return drawn
+
+    def end_at(self, percent: int) -> int:
+        drawn = int(self.size * (percent / 100))
+        self.pixel_array = self.pixel_array[:drawn]
+        self.size = len(self.pixel_array)
+        return drawn
 
     def resume_progress(self, percent: int) -> int:
         drawn = int(self.size * (percent / 100))
@@ -140,22 +153,16 @@ def get_all_queues(dir="./"):
 
 
 def main():
-    fp = "sponge.png"
-    test(fp, 100)
+    fp = "./helper/c.png"
+    #test(fp, 100)
 
-    """img = PixPlace(fp)
+    img = PixPlace(fp, "test")
     img.center_first()
-    img.save_array()
-    img.load_array()
     img.flip()
     img.low_to_high_res()
 
     print(img)
-    print(Image.open(fp).getpixel((258, 366)))"""
-
-    """q = get_all_queues()
-    for f in q:
-        print(f)"""
+    #print(Image.open(fp).getpixel((92, 236)))
 
 
 if __name__ == "__main__":

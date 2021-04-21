@@ -16,7 +16,7 @@ from tabulate import tabulate
 from PIL import Image
 import PIL
 import io
-import numpy as np
+from discord.ext.commands.cooldowns import BucketType
 
 
 def rgb2hex(r, g, b):
@@ -49,6 +49,41 @@ def loading_bar(bars, max_length=None, failed=None):
         return "<:green_box:764901465948684289>"*bars  # Green square
 
 
+def modifiers(img: im2q.PixPlace, mods: tuple) -> int:
+    drawn = 0
+    start = 0
+    end = 0
+    for i in range(len(mods)):
+        m = mods[i]
+        last = i == len(mods)-1
+        if m.startswith("p"):  # percent start
+            if not last:
+                if mods[i+1].isnumeric():
+                    start = int(mods[i+1])
+                    i += 1
+        if m.startswith("e"):  # percent end
+            if not last:
+                if mods[i+1].isnumeric():
+                    end = int(mods[i+1])
+                    i += 1
+        elif m.startswith("f"):  # flip
+            img.flip()
+        elif m.startswith("c"):  # center
+            img.center_first()
+        elif m.startswith("l"):  # low to high def
+            img.low_to_high_res()
+
+    if start != 0 or end != 0:
+        print(start, end)
+        if start != 0 != end:
+            drawn = img.perc_to_perc(start, end)
+        elif start != 0:
+            drawn = img.resume_progress(start)
+        else:
+            drawn = img.end_at(end)
+    return drawn
+
+
 async def create_buffer(ctx, x1, x2, y1, y2):
     async with aiohttp.ClientSession() as cs:
         async with cs.get(ctx.message.attachments[0].url) as r:
@@ -61,7 +96,10 @@ async def create_buffer(ctx, x1, x2, y1, y2):
     width, height = im.size
     if x2 - x1 != width or y2 - y1 != height:
         im = im.resize((x2 - x1, y2 - y1), PIL.Image.NEAREST)
-        im.save(buffer)
+        buff = io.BytesIO()
+        im.save(buff, format="PNG")
+        buff.seek(0)
+        return buff
     buffer.seek(0)
     return buffer
 
@@ -399,8 +437,21 @@ class Owner(commands.Cog):
                 await ctx.send("Command not found. Right now only `cancel`, `image` and `square` exist.")
 
     @commands.is_owner()
-    @draw.command(aliases=["i"])
-    async def image(self, ctx, x1=None, x2=None, y1=None, y2=None, percent=0):
+    @draw.command(aliases=["i"], usage="image <x1> <x2> <y1> <y2> {mods}")
+    async def image(self, ctx, x1=None, x2=None, y1=None, y2=None, *mods):
+        """
+        `x1`: x to start
+        `x2`: x to stop
+        `y1`: y to start
+        `y2`: y to stop
+        **Modifiers:**
+        `p <int>`: Percentage to start at
+        `e <int>`: Percentage to stop image at
+        `f`: Flip queue order
+        `c`: Center to out draw order
+        `l`: Low to High Def draw order
+        Permissions: Owner
+        """
         if len(ctx.message.attachments) == 0:
             await ctx.send("No image given")
             raise discord.ext.commands.errors.BadArgument
@@ -416,10 +467,7 @@ class Owner(commands.Cog):
         ID = str(random.randint(1000, 10000))
 
         img = im2q.PixPlace(buffer, ID)
-        img.center_first()
-        drawn = 0
-        if percent > 0:
-            drawn = img.resume_progress(percent)
+        drawn = modifiers(img, mods)
         pixels_queue = img.get_queue()
 
         self.progress[ID] = {
@@ -457,9 +505,23 @@ class Owner(commands.Cog):
         # Removes the project from the current active projects
         self.progress.pop(ID)
 
-    @commands.is_owner()
+    @commands.guild_only()
+    @commands.cooldown(1, 30, BucketType.guild)
     @draw.command(aliases=["m"])
-    async def multi(self, ctx, x1=None, x2=None, y1=None, y2=None):
+    async def multi(self, ctx, x1=None, x2=None, y1=None, y2=None, *mods):
+        """
+        Creates a txt file for setmultiplepixels and sends it via DMs.
+        `x1`: x to start
+        `x2`: x to stop
+        `y1`: y to start
+        `y2`: y to stop
+        **Modifiers:**
+        `p <int>`: Percentage to start at
+        `e <int>`: Percentage to stop image at
+        `f`: Flip queue order
+        `c`: Center to out draw order
+        `l`: Low to High Def draw order
+        """
         if len(ctx.message.attachments) == 0:
             await ctx.send("No image given")
             raise discord.ext.commands.errors.BadArgument
@@ -469,7 +531,7 @@ class Owner(commands.Cog):
             await ctx.send("Not all coordinates given.")
 
         img = im2q.PixPlace(buffer, "multi")
-        img.center_first()
+        modifiers(img, mods)
         pixels_queue = img.get_queue()
 
         # makes txt files instead
