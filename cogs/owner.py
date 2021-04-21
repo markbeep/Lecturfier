@@ -80,7 +80,7 @@ def modifiers(img: im2q.PixPlace, mods: tuple) -> int:
         elif start != 0:
             drawn = img.resume_progress(start)
         else:
-            drawn = img.end_at(end)
+            img.end_at(end)
     return drawn
 
 
@@ -507,7 +507,7 @@ class Owner(commands.Cog):
 
     @commands.guild_only()
     @commands.cooldown(1, 30, BucketType.guild)
-    @draw.command(aliases=["m"])
+    @draw.command(aliases=["m"], usage="multi <x1> <x2> <y1> <y2> {mods}")
     async def multi(self, ctx, x1=None, x2=None, y1=None, y2=None, *mods):
         """
         Creates a txt file for setmultiplepixels and sends it via DMs.
