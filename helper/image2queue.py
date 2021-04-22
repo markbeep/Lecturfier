@@ -1,7 +1,10 @@
 import numpy as np
-from imageio import imread
+from imageio import imread, mimsave, imwrite
 import time
 import os
+from PIL import Image
+import cv2
+import io
 
 
 class PixPlace:
@@ -12,6 +15,8 @@ class PixPlace:
         self.queue = []
         self.top_left_corner = []
         self.bot_right_corner = []
+
+        self.place_board = []
 
         if setup:
             self._remove_transparent()
@@ -33,6 +38,37 @@ class PixPlace:
 
         # remoes all pixels with alpha less than 230
         self.pixel_array = loc[(loc[:, :, 5] > 230)]
+
+    def add_place(self, fp):
+        self.place_board = imread(fp, as_gray=True)
+        self.place_board = np.stack((self.place_board,) * 3, axis=-1)
+        self.place_board = self.place_board.astype("uint8")
+
+    def get_preview(self):
+        pix = self.pixel_array
+        self.place_board[pix[:, 1], pix[:, 0]] = pix[:, 2:5]
+        imwrite("test.png", self.place_board)
+
+    def create_gif(self) -> io.BytesIO:
+        cur = 0
+        rem = len(self.pixel_array)
+        n = rem // 100 + 1
+        images = []
+        blank_place = self.place_board.copy()
+        while cur < rem:
+            pix = self.pixel_array[cur:cur + n]
+            blank_place[pix[:, 1], pix[:, 0]] = pix[:, 2:5]
+            if cur + n < rem:
+                cur += n
+            else:
+                cur += rem - cur
+            to_save = blank_place.copy()
+            to_save = cv2.resize(to_save, (256, 256))
+            images.append(to_save)
+        buffer = io.BytesIO()
+        mimsave(buffer, images, format="GIF", fps=16)
+        buffer.seek(0)
+        return buffer
 
     def _set_corners(self):
         topX = np.amin(self.pixel_array[:, 0])
@@ -78,7 +114,7 @@ class PixPlace:
             c = len(self.pixel_array[i::540])
             n[t:t + c] = self.pixel_array[i::540]
             t += c
-        self.pixel_array = n
+        self.pixel_array = n.astype("uint16")
 
     def perc_to_perc(self, start: int, end: int) -> int:
         drawn = int(self.size * (start / 100))
@@ -135,7 +171,7 @@ class PixPlace:
 def test(fp, n):
     t1 = time.perf_counter()
     for i in range(n):
-        img = PixPlace(fp)
+        img = PixPlace(fp, "test")
         img.center_first()
         img.low_to_high_res()
     t2 = time.perf_counter()
@@ -146,23 +182,22 @@ def get_all_queues(dir="./"):
     q = []
     for filename in os.listdir(dir):
         if filename.endswith(".npy"):
-            img = PixPlace(filename.replace(".npy", ""), setup=False)
+            img = PixPlace(filename.replace(".npy", ""), "q", setup=False)
             img.load_array(os.path.join(dir, filename))
             q.append(img)
     return q
 
 
 def main():
-    fp = "./helper/c.png"
-    #test(fp, 100)
+    fp = "sponge.png"
+    place = "place.png"
+    # test(fp, 100)
 
-    img = PixPlace(fp, "test")
-    img.center_first()
-    img.flip()
+    img = PixPlace(fp, "t")
     img.low_to_high_res()
-
-    print(img)
-    #print(Image.open(fp).getpixel((92, 236)))
+    img.add_place(place)
+    img.create_gif()
+    # print(Image.open(fp).getpixel((92, 236)))
 
 
 if __name__ == "__main__":

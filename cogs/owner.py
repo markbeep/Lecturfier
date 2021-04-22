@@ -579,6 +579,26 @@ class Owner(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.is_owner()
+    @draw.command(usage="preview <ID>")
+    async def preview(self, ctx, ID=None):
+        if ID is None or ID not in self.progress:
+            await ctx.send("Unknown ID given")
+        else:
+            if len(ctx.message.attachments) == 0:
+                await ctx.send("No image given. You need to send the place image.")
+                raise discord.ext.commands.errors.BadArgument
+            async with aiohttp.ClientSession() as cs:
+                async with cs.get(ctx.message.attachments[0].url) as r:
+                    buffer = io.BytesIO(await r.read())
+            async with ctx.typing():
+                img = self.progress[ID]["img"]
+                img.add_place(buffer)
+                gif = img.create_gif()
+                file = discord.File(fp=gif, filename="prev.gif")
+            await ctx.send(file=file)
+
+
+    @commands.is_owner()
     @draw.command()
     async def save(self, ctx, on="n"):
         # saves the new image if needed
