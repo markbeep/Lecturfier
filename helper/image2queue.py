@@ -1,4 +1,5 @@
 import numpy as np
+import websockets
 from imageio import imread, mimsave, imwrite
 import time
 import os
@@ -39,17 +40,39 @@ class PixPlace:
         # remoes all pixels with alpha less than 230
         self.pixel_array = loc[(loc[:, :, 5] > 230)]
 
-    def add_place(self, fp):
-        self.place_board = imread(fp, as_gray=True)
-        self.place_board = np.stack((self.place_board,) * 3, axis=-1)
-        self.place_board = self.place_board.astype("uint8")
+    async def get_place(self) -> str:
+        res = ""
+        for i in range(10):  # retry 10 times
+            async with websockets.connect("ws://137.135.102.90:9000/place", max_size=1_000_000_000) as ws:
+                await ws.send(b'\x01')
+                res = await ws.recv()
+            if len(res) > 50:
+                break
+        return res
+
+    async def get_image(self):
+        bytes = await self.get_place()
+        if bytes is None:
+            print("No image received")
+            return
+        # p = imread(bytes)
+        # im = Image.open(bytes)
+        p = np.fromstring(bytes, np.uint8)
+        p = np.reshape(p[1:], (1000, 1000, 3))
+        return p
+
+    async def add_place(self):
+        arr = await self.get_image()
+        arr[:,:,0]=arr[:,:,1]=arr[:,:,2] = np.mean(arr, 2)
+        self.place_board = arr.astype("uint8")
 
     def get_preview(self):
         pix = self.pixel_array
         self.place_board[pix[:, 1], pix[:, 0]] = pix[:, 2:5]
         imwrite("test.png", self.place_board)
 
-    def create_gif(self) -> io.BytesIO:
+    async def create_gif(self) -> io.BytesIO:
+        await self.add_place()
         cur = 0
         rem = len(self.pixel_array)
         n = rem // 100 + 1
@@ -57,7 +80,7 @@ class PixPlace:
         blank_place = self.place_board.copy()
         while cur < rem:
             pix = self.pixel_array[cur:cur + n]
-            blank_place[pix[:, 1], pix[:, 0]] = pix[:, 2:5]
+            blank_place[pix[:,1], pix[:,0]] = pix[:, 2:5]
             if cur + n < rem:
                 cur += n
             else:

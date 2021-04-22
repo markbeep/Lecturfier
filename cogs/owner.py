@@ -584,16 +584,9 @@ class Owner(commands.Cog):
         if ID is None or ID not in self.progress:
             await ctx.send("Unknown ID given")
         else:
-            if len(ctx.message.attachments) == 0:
-                await ctx.send("No image given. You need to send the place image.")
-                raise discord.ext.commands.errors.BadArgument
-            async with aiohttp.ClientSession() as cs:
-                async with cs.get(ctx.message.attachments[0].url) as r:
-                    buffer = io.BytesIO(await r.read())
             async with ctx.typing():
                 img = self.progress[ID]["img"]
-                img.add_place(buffer)
-                gif = img.create_gif()
+                gif = await img.create_gif()
                 file = discord.File(fp=gif, filename="prev.gif")
             await ctx.send(file=file)
 
