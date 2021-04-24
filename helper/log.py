@@ -9,7 +9,11 @@ def log(text, keyword=None):
     :param keyword: An optional parameter which helps with sorting the log
     :return: None
     """
-    if keyword is not None:
+
+    # NO MORE LOGGING FOR NOW
+    return
+
+    """if keyword is not None:
         text = f"{keyword} | {text}"
     date = datetime.now(timezone("Europe/Zurich")).strftime("%Y-%m-%d")
     time = datetime.now(timezone("Europe/Zurich")).strftime("%H:%M:%S")
@@ -23,4 +27,4 @@ def log(text, keyword=None):
             text = text.encode('UTF-8')
             print("!!!-----UnicodeEncodeError while logging-----!!!")
             f.write(f"\n\n#############UnicodeEncodeError#############\n\n[{time}] -- {text}\n")
-    print(f"Logged: {text}")
+    print(f"Logged: {text}")"""
