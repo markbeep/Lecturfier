@@ -43,6 +43,7 @@ class Admin(commands.Cog):
             channel = self.bot.get_channel(815936830779555841)
             await self.send_welcome_message(channel, member, member.guild)
 
+
     @commands.Cog.listener()
     async def on_member_remove(self, member):
         if member.bot:
@@ -269,6 +270,7 @@ class Admin(commands.Cog):
         embed.set_footer(text=f"There are now {memb_amt} members")
         embed.set_author(name=user.display_name, icon_url=user.avatar_url)
         message = await channel.send(embed=embed)
+        await message.edit(content=user.mention, embed=embed)
         await message.add_reaction("<a:blobjoin:821030765143785572>")
 
     async def send_leave_message(self, channel, user, guild):
