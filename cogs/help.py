@@ -46,6 +46,8 @@ class Help(commands.Cog):
         """
 
         specific_command, sorted_commands, sub_commands, command_type = await self.get_specific_com(given_command)
+
+        # if no command is specified, send the help page with all main commands
         if specific_command is None:
             file = discord.File("./images/help_page.gif")
             embed = discord.Embed(color=0xcbd3d7)
@@ -134,15 +136,30 @@ class Help(commands.Cog):
         if specific_command.help is None:
             return "n/a", command_chain  # if there's no help page, but the command exists
         coms = list(args)
+        print("here", specific_command)
         if len(coms) > 0:
+            print("more than 0 commands rem", specific_command)
             try:
+                spec_cm_copy = ""
+                com_chain_copy = "n/a"
                 for com in specific_command.commands:
                     if com.name == coms[0].lower():
                         # command_chain is used to display the command chain in the help page
-                        specific_command, command_chain = await self.get_recursive_command(com, coms[1:], f"{command_chain}{specific_command.name} ")
-            except AttributeError:
-                if specific_command.name == args[0]:
-                    return specific_command, command_chain
+                        spec_cm_copy, com_chain_copy = await self.get_recursive_command(com, coms[1:], f"{command_chain}{specific_command.name} ")
+                        break
+                    else:
+                        # goes over the aliases of the command
+                        for ali in com.aliases:
+                            if ali == coms[0].lower():
+                                spec_cm_copy, com_chain_copy = await self.get_recursive_command(com, coms[1:], f"{command_chain}{specific_command.name} ")
+                                break
+                        else:
+                            continue
+                        break  # breaks out of both for loops if the command was found
+                specific_command = spec_cm_copy
+                command_chain = com_chain_copy
+            except AttributeError:  # this error is thrown if a .commands is called on a command which doesn't have sub commands
+                print("no sub", specific_command)
                 return "no sub", command_chain  # if the command doesnt have a subcommand with that name
         return specific_command, command_chain
 
