@@ -279,6 +279,7 @@ class Admin(commands.Cog):
         embed.set_footer(text=f"There are now {memb_amt} members")
         embed.set_author(name=user.display_name, icon_url=user.avatar_url)
         message = await channel.send(embed=embed)
+        await message.edit(content=user.mention, embed=embed)
         await message.add_reaction("<a:blobleave:821030764812304445>")
 
     @commands.cooldown(1, 5, BucketType.user)
