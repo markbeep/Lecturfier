@@ -20,7 +20,8 @@ class MainBot(commands.Cog):
             "voice",
             "updates",
             "information",
-            "mainbot",
+            "draw",
+            "mainbot"
         ]
 
     @commands.Cog.listener()

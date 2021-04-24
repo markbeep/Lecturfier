@@ -76,8 +76,11 @@ class PixPlace:
         cur = 0
         rem = len(self.pixel_array)
         n = rem // 100 + 1
+        x1, y1 = self.top_left_corner
+        x2, y2 = self.bot_right_corner
         images = []
         blank_place = self.place_board.copy()
+
         while cur < rem:
             pix = self.pixel_array[cur:cur + n]
             blank_place[pix[:,1], pix[:,0]] = pix[:, 2:5]
@@ -85,11 +88,10 @@ class PixPlace:
                 cur += n
             else:
                 cur += rem - cur
-            to_save = blank_place.copy()
-            to_save = cv2.resize(to_save, (256, 256))
-            images.append(to_save)
+            # crops the gif to the image
+            images.append(Image.fromarray(blank_place).crop((max(x1-10, 0), max(y1-10, 0), min(x2+10, 999), min(y2+10, 999))))
         buffer = io.BytesIO()
-        mimsave(buffer, images, format="GIF", fps=16)
+        images[0].save(buffer, format="GIF", append_images=images[1:], save_all=True, duration=50, loop=0)
         buffer.seek(0)
         return buffer
 
