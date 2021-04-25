@@ -146,17 +146,20 @@ class PixPlace:
         end = int(self.size * (end / 100))
         self.pixel_array = self.pixel_array[start:end]
         self.size = len(self.pixel_array)
+        self._set_corners()
         return drawn
 
     def end_at(self, percent: int) -> int:
         drawn = int(self.size * (percent / 100))
         self.pixel_array = self.pixel_array[:drawn]
         self.size = len(self.pixel_array)
+        self._set_corners()
         return drawn
 
     def resume_progress(self, percent: int) -> int:
         drawn = int(self.size * (percent / 100))
         self.pixel_array = self.pixel_array[drawn:]
+        self._set_corners()
         return drawn
 
     def flip(self):

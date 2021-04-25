@@ -1,18 +1,10 @@
-from datetime import datetime
 import aiohttp
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import random
 import asyncio
-import inspect
 import os
-import time
-from cogs import admin, hangman, help, updates, minesweeper, owner, games, quote, reputation, statistics, voice
-import json
 from helper import handySQL, image2queue as im2q
-from sqlite3 import Error
-import sqlite3
-from tabulate import tabulate
 from PIL import Image
 import PIL
 import io
@@ -30,8 +22,8 @@ def loading_bar_draw(a, b):
 
 def modifiers(img: im2q.PixPlace, mods: tuple) -> int:
     drawn = 0
-    start = 0
-    end = 0
+    start = -1
+    end = -1
     for i in range(len(mods)):
         m = mods[i]
         last = i == len(mods)-1
@@ -52,11 +44,11 @@ def modifiers(img: im2q.PixPlace, mods: tuple) -> int:
         elif m.startswith("l"):  # low to high def
             img.low_to_high_res()
 
-    if start != 0 or end != 0:
-        print(start, end)
-        if start != 0 != end:
+    if start != -1 or end != -1:
+        print("Modfiers", start, end)
+        if start != -1 != end:
             drawn = img.perc_to_perc(start, end)
-        elif start != 0:
+        elif start != -1:
             drawn = img.resume_progress(start)
         else:
             img.end_at(end)
@@ -91,6 +83,131 @@ class Draw(commands.Cog):
         self.pause_draws = False
         self.progress = {}
         self.image = None
+        self.queue = []
+        self.background_draw.start()
+        self.db_path = "./data/discord.db"
+        self.place_path = "./place/"
+        self.conn = handySQL.create_connection(self.db_path)
+
+    def get_task(self):
+        self.pause_draws = True
+        return self.background_draw
+
+    def get_connection(self):
+        """
+        Retreives the current database connection
+        :return: Database Connection
+        """
+
+        if self.conn is None:
+            self.conn = handySQL.create_connection(self.db_path)
+        return self.conn
+
+    @tasks.loop(seconds=5)
+    async def background_draw(self):
+        await self.bot.wait_until_ready()
+
+        conn = self.get_connection()
+        c = conn.cursor()
+
+        # opens and readies all the files
+        imgs = self.get_all_queues(self.place_path)
+        for im in imgs:
+            if im.fp not in self.progress:
+                c.execute("SELECT ConfigValue FROM Config WHERE ConfigKey LIKE ?", (f"Start_{im.fp}",))
+                start = c.fetchone()
+                if start is None:
+                    start = 0
+                else:
+                    start = start[0]
+
+                self.progress[im.fp] = {
+                    "count": start,
+                    "img": im,
+                    "queue": im.get_queue()
+                }
+                self.queue.append({
+                        "ID": im.fp,
+                        "size": im.size,
+                        "img": im,
+                        "queue": im.get_queue()
+                })
+
+        c.execute("SELECT ConfigValue FROM Config WHERE ConfigKey LIKE 'PlaceChannel'")
+        channelID = c.fetchone()
+        if channelID is None:
+            channelID = 819966095070330950
+        else:
+            channelID = channelID[0]
+        channel = self.bot.get_channel(channelID)
+
+        # keeps going through all lists
+        while len(self.queue) > 0 and not self.pause_draws:
+            drawing = self.queue[0]
+            c.execute("SELECT ConfigValue FROM Config WHERE ConfigKey LIKE ?", (f"Start_{drawing['ID']}",))
+            start = c.fetchone()
+            c.execute("SELECT ConfigValue FROM Config WHERE ConfigKey LIKE ?", (f"End_{drawing['ID']}",))
+            end = c.fetchone()
+            if start is None:
+                start = 0
+            else:
+                start = start[0]
+            if end is None:
+                end = drawing["img"].size
+            else:
+                end = end[0]
+
+            done = await self.draw_pixels(drawing["ID"], channel, start, end)
+
+            print(done)
+            if done:
+                self.remove_drawing(drawing["ID"])
+
+    def remove_drawing(self, ID):
+        conn = self.get_connection()
+        # removes the drawing from the sql table
+        conn.execute("DELETE FROM Config WHERE ConfigKey LIKE ?", (f"%{ID}",))
+        conn.commit()
+        # removes it from the queue and progress bar
+        if ID in self.progress:
+            self.progress.pop(ID)
+            self.queue.pop(0)
+        os.remove(f"{self.place_path}{ID}.npy")
+
+    def get_all_queues(self, dir="./"):
+        q = []
+        for filename in os.listdir(dir):
+            if filename.endswith(".npy"):
+                img = im2q.PixPlace(filename.replace(".npy", ""), "q", setup=False)
+                img.load_array(os.path.join(dir, filename))
+                q.append(img)
+        return q
+
+    async def draw_pixels(self, ID, channel, start, end) -> bool:
+        pixels_queue = self.progress[ID]["queue"][start:end]
+        conn = self.get_connection()
+        c = conn.cursor()
+        # draws the pixels
+        while len(pixels_queue) > 0:
+            if self.cancel_all or str(ID) in self.cancel_draws:
+                await channel.send(f"Canceled Project {ID}.")
+                return True
+            if self.pause_draws:
+                return False
+            pix = pixels_queue[0]
+            pX = pix[0]
+            pY = pix[1]
+            pHex = rgb2hex(pix[2], pix[3], pix[4])
+            try:
+                await channel.send(f".place setpixel {pX} {pY} {pHex} | PROJECT {ID}")
+                self.progress[ID]["count"] += 1
+                pixels_queue.pop(0)
+                if self.progress[ID]["count"] % 10 == 0:
+                    c.execute("UPDATE Config SET ConfigValue=? WHERE ConfigKey LIKE ?", (self.progress[ID]["count"], f"Start_{ID}"))
+                    conn.commit()
+            except Exception:
+                await asyncio.sleep(5)
+        return True
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -153,10 +270,8 @@ class Draw(commands.Cog):
             elif command == "cancel":
                 if x1 is None:
                     self.cancel_all = True
-                    self.progress = {}
                 else:
                     self.cancel_draws.append(x1)
-                return
             else:
                 await ctx.send("Command not found. Right now only `cancel`, `image` and `square` exist.")
 
@@ -192,42 +307,29 @@ class Draw(commands.Cog):
 
         img = im2q.PixPlace(buffer, ID)
         drawn = modifiers(img, mods)
-        pixels_queue = img.get_queue()
 
         self.progress[ID] = {
             "count": drawn,
             "img": img,
-            "queue": pixels_queue
+            "queue": img.get_queue()
         }
+        self.queue.append({
+            "ID": ID,
+            "size": img.size,
+            "img": img,
+            "queue": img.get_queue()
+        })
+
+        conn = self.get_connection()
+        conn.execute("INSERT INTO Config(ConfigKey, ConfigValue) VALUES (?, ?)", (f"Start_{ID}", 0))
+        conn.execute("INSERT INTO Config(ConfigKey, ConfigValue) VALUES (?, ?)", (f"End_{ID}", img.size))
+        conn.commit()
+
+        # saves the img as a numpy file so it can easily be reload when the bot restarts
+        img.save_array(f"{self.place_path}{ID}")
 
         embed = discord.Embed(title="Started Drawing", description=self.draw_desc(ID))
         await ctx.send(embed=embed)
-
-        # draws the pixels
-        while len(pixels_queue) > 0:
-            if self.cancel_all or str(ID) in self.cancel_draws:
-                await ctx.send(f"Canceled Project {ID}.")
-                if ID in self.progress:
-                    self.progress.pop(ID)
-                if ID in self.cancel_draws:
-                    self.cancel_draws.pop(self.cancel_draws.index(ID))
-                raise discord.ext.commands.errors.BadArgument
-            if self.pause_draws:
-                await asyncio.sleep(10)
-                continue
-            pix = pixels_queue[0]
-            pX = pix[0]
-            pY = pix[1]
-            pHex = rgb2hex(pix[2], pix[3], pix[4])
-            try:
-                await ctx.send(f".place setpixel {pX} {pY} {pHex} | PROJECT {ID}")
-                self.progress[ID]["count"] += 1
-                pixels_queue.pop(0)
-            except Exception:
-                await asyncio.sleep(5)
-
-        # Removes the project from the current active projects
-        self.progress.pop(ID)
 
     @commands.guild_only()
     @commands.cooldown(1, 30, BucketType.guild)
@@ -292,9 +394,21 @@ class Draw(commands.Cog):
     async def progress(self, ctx, ID=None):
         if ID is None or ID not in self.progress:
             keys = ""
-            for k in self.progress.keys():
-                keys += f"\n- `{k}` {round(self.progress[k]['count'] * 100 / self.progress[k]['img'].size, 2)}%"
-            await ctx.send(f"Project IDs | Count:{len(self.progress)} | Paused: {self.pause_draws}{keys}")
+            rank = 1
+            total_pix = 0
+            for k in self.queue:
+                time_to_start = total_pix // 60
+                current_amount = self.progress[k["ID"]]["count"]
+                img_total = k["img"].size
+                percentage = round(current_amount * 100 / img_total, 2)
+                total_pix += img_total-current_amount
+                keys += f"`{rank}:` ID: {k['ID']}\n" \
+                        f"---**Starting in:** {time_to_start}mins\n" \
+                        f"---**Progress:** {percentage}%\n" \
+                        f"---**Duration:** {img_total-current_amount} pixels | {(img_total-current_amount)//60}mins\n" \
+                        f"---**Finished in:** {total_pix // 60}mins\n"
+                rank += 1
+            await ctx.send(f"Project IDs | Count:{len(self.progress)} | Paused: {self.pause_draws}\n{keys}")
             return
         embed = discord.Embed(
             title=f"Drawing Progress | Project {ID}",
@@ -372,7 +486,6 @@ class Draw(commands.Cog):
                         count += 1
                         pixels[x, y] = (r, g, b, a)
         return im, count
-
 
 
 def setup(bot):
