@@ -268,18 +268,16 @@ class Admin(commands.Cog):
         embed = discord.Embed(description=f"{user.mention} joined the server. **Welcome!**", color=0xadd8e6)
         memb_amt = len(guild.members)
         embed.set_footer(text=f"There are now {memb_amt} members")
-        embed.set_author(name=user.display_name, icon_url=user.avatar_url)
+        embed.set_author(name=str(user), icon_url=user.avatar_url)
         message = await channel.send(embed=embed)
-        await message.edit(content=user.mention, embed=embed)
         await message.add_reaction("<a:blobjoin:821030765143785572>")
 
     async def send_leave_message(self, channel, user, guild):
         embed = discord.Embed(description=f"{user.mention} left the server.", color=0x84001B)
         memb_amt = len(guild.members)
         embed.set_footer(text=f"There are now {memb_amt} members")
-        embed.set_author(name=user.display_name, icon_url=user.avatar_url)
+        embed.set_author(name=str(user), icon_url=user.avatar_url)
         message = await channel.send(embed=embed)
-        await message.edit(content=user.mention, embed=embed)
         await message.add_reaction("<a:blobleave:821030764812304445>")
 
     @commands.cooldown(1, 5, BucketType.user)
