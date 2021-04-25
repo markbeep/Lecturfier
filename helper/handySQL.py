@@ -50,6 +50,7 @@ def get_uniqueMemberID(conn, DiscordUserID, DiscordGuildID):
     except Error as e:
         print(e)
 
+
 def get_DiscordUserID(conn, uniqueID):
     try:
         c = conn.cursor()
@@ -426,12 +427,6 @@ def create_all_tables(path):
                                     FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID),
                                     FOREIGN KEY (AddedByUniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
                                     );"""
-    sql_create_dictionary = """     CREATE TABLE IF NOT EXISTS Dictionary (
-                                    WordID integer PRIMARY KEY,
-                                    Word text NOT NULL,
-                                    WordDefinition text,
-                                    WordLanguage text
-                                    );"""
     sql_create_events = """     CREATE TABLE IF NOT EXISTS Events (
                                         EventID integer PRIMARY KEY,
                                         EventName text NOT NULL,
@@ -463,6 +458,11 @@ def create_all_tables(path):
                                         FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID"),
                                         FOREIGN KEY("DiscordGuildID") REFERENCES "DiscordGuilds"("DiscordGuildID")
                                         );"""
+    sql_create_config = """   CREATE TABLE IF NOT EXISTS "Config" (
+                                        "ConfigID" INTEGER PRIMARY KEY,
+                                        "ConfigKey" TEXT,
+                                        "ConfigValue" INTEGER
+                                        );"""
 
     conn = create_connection(database)
 
@@ -478,10 +478,10 @@ def create_all_tables(path):
         create_table(conn, sql_create_VoiceLevels)
         create_table(conn, sql_create_CovidGuessing)
         create_table(conn, sql_create_reputations)
-        create_table(conn, sql_create_dictionary)
         create_table(conn, sql_create_events)
         create_table(conn, sql_create_eventjoinedusers)
         create_table(conn, sql_create_quotes)
+        create_table(conn, sql_create_config)
 
         conn.close()
     else:
@@ -490,6 +490,7 @@ def create_all_tables(path):
 
 def main():
     create_all_tables("../data/discord.db")
+
 
 if __name__ == "__main__":
     main()

@@ -40,7 +40,6 @@ def loading_bar(bars, max_length=None, failed=None):
         return "<:green_box:764901465948684289>"*bars  # Green square
 
 
-
 class Owner(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -62,52 +61,46 @@ class Owner(commands.Cog):
         if message.author.id == self.bot.user.id:  # ignores itself
             return
 
+    @commands.is_owner()
     @commands.command(usage="sql <command>")
     async def sql(self, ctx, *, sql):
         """
         Use SQL
         Permissions: Owner
         """
-        if len(sql) > 0 and sql[0] == "table":
-            file = discord.File("./images/sql_table.png")
-            await ctx.send(file=file)
+        conn = self.get_connection()
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        start_time = time.perf_counter()
+        sql = sql.replace("INSERT", "INSERT OR IGNORE").replace("insert", "insert or ignore")
+        try:
+            c.execute(sql)
+            conn.commit()
+        except Error as e:
+            await ctx.send(e)
             return
-        if await self.bot.is_owner(ctx.author):
-            conn = self.get_connection()
-            conn.row_factory = sqlite3.Row
-            c = conn.cursor()
-            start_time = time.perf_counter()
-            sql = sql.replace("INSERT", "INSERT OR IGNORE").replace("insert", "insert or ignore")
-            try:
-                c.execute(sql)
-                conn.commit()
-            except Error as e:
-                await ctx.send(e)
-                return
-            rows = c.fetchall()
-            if rows is None:
-                await ctx.send("Rows is a None Object. Might have failed getting a connection to the DB?")
-                return
-            if len(rows) > 0:
-                header = list(dict(rows[0]).keys())
-                values = []
-                for r in rows:
-                    values.append(list(dict(r).values()))
-                table = tabulate(values, header, tablefmt="plain")
-                table = table.replace("```", "")
-                row_count = len(rows)
-            else:
-                table = "Execution finished without errors."
-                row_count = c.rowcount
-            cont = f"```\nRows affected: {row_count}\n" \
-                   f"Time taken: {round((time.perf_counter()-start_time)*1000, 2)} ms\n" \
-                   f"{table}```"
-            if len(cont) > 2000:
-                index = cont.rindex("\n", 0, 1900)
-                cont = cont[0:index] + "\n  ...```"
-            await ctx.send(cont)
+        rows = c.fetchall()
+        if rows is None:
+            await ctx.send("Rows is a None Object. Might have failed getting a connection to the DB?")
+            return
+        if len(rows) > 0:
+            header = list(dict(rows[0]).keys())
+            values = []
+            for r in rows:
+                values.append(list(dict(r).values()))
+            table = tabulate(values, header, tablefmt="plain")
+            table = table.replace("```", "")
+            row_count = len(rows)
         else:
-            raise discord.ext.commands.errors.NotOwner
+            table = "Execution finished without errors."
+            row_count = c.rowcount
+        cont = f"```\nRows affected: {row_count}\n" \
+               f"Time taken: {round((time.perf_counter()-start_time)*1000, 2)} ms\n" \
+               f"{table}```"
+        if len(cont) > 2000:
+            index = cont.rindex("\n", 0, 1900)
+            cont = cont[0:index] + "\n  ...```"
+        await ctx.send(cont)
 
     @commands.command(usage="moveToDB <file>")
     async def moveToDB(self, ctx, file=""):
