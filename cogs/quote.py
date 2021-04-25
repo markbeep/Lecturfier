@@ -153,7 +153,7 @@ class Quote(commands.Cog):
             quote = reply_message.content
 
         if name is not None:
-            if name.lower() in ["del", "all"]:
+            if name.lower() in ["all"]:
                 embed = discord.Embed(title="Quote Error", description=f"Can't use `all` or `del` as names. Did you mean to do `$quote <user> {name.lower()}`?", color=0xFF0000)
                 await ctx.send(embed=embed)
                 raise discord.ext.commands.errors.BadArgument
@@ -193,6 +193,20 @@ class Quote(commands.Cog):
                         index += per_field
                         msg_number += 1
                     await ctx.send(embed=embed)
+            elif name.startswith("del"):
+                if not await self.bot.is_owner(ctx.author):
+                    raise discord.ext.commands.errors.NotOwner
+                try:
+                    quote_id = int(quote.lower().split(" ")[0])
+                    try:
+                        c.execute("DELETE FROM Quotes WHERE QuoteID=?", (quote_id,))
+                        conn.commit()
+
+                        await ctx.send(f"Deleted quote with quote ID {quote_id}.")
+                    except IndexError:
+                        await ctx.send("No name with that index.")
+                except (IndexError, ValueError):
+                    await ctx.send("You forgot to add an index.")
             else:
                 # first checks if its a valid discord user ID. If not, sets member to None
                 try:
@@ -206,7 +220,7 @@ class Quote(commands.Cog):
 
                 # if there is only a name/ID given, send a random quote from that user
                 if len(quote) == 0:
-                    if name.lower() in ["del", "all"]:
+                    if name.lower() in ["all"]:
                         embed = discord.Embed(
                             title="Quotes Error",
                             description=f"Incorrect arguments for delete/add command.",
@@ -329,21 +343,6 @@ class Quote(commands.Cog):
                                 await m.start(ctx)
                             else:
                                 await ctx.send(embed=m.get_page(0))
-
-                        elif quote.lower().split(" ")[0] == "del":  # Command to delete quotes
-                            if not await self.bot.is_owner(ctx.author):
-                                raise discord.ext.commands.errors.NotOwner
-                            try:
-                                quote_id = int(quote.lower().split(" ")[1])
-                                try:
-                                    c.execute("DELETE FROM Quotes WHERE QuoteID=?", (quote_id,))
-                                    conn.commit()
-
-                                    await ctx.send(f"Deleted quote with quote ID {quote_id}.")
-                                except IndexError:
-                                    await ctx.send("No name with that index.")
-                            except (IndexError, ValueError):
-                                await ctx.send("You forgot to add an index.")
                         else:  # If the quote is a new quote to add
                             if len(quote) > 500 and not await self.bot.is_owner(ctx.author):
                                 embed = discord.Embed(
