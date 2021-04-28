@@ -368,6 +368,16 @@ class Quote(commands.Cog):
                                 quoted_name = member.name
                             addedByUniqueID = handySQL.get_uniqueMemberID(conn, ctx.message.author.id, guild_id)
 
+                            # checks if the quote exists already
+                            c.execute("SELECT * FROM Quotes WHERE Quote LIKE ? AND UniqueMemberID=?", (quote, uniqueID))
+                            if c.fetchone() is not None:
+                                embed = discord.Embed(
+                                    title="Quote Error",
+                                    description="This quote has been added already.",
+                                    color=0xFF0000)
+                                await ctx.send(embed=embed)
+                                raise discord.ext.commands.errors.BadArgument
+
                             sql = """   INSERT INTO Quotes(Quote, Name, UniqueMemberID, AddedByUniqueMemberID, DiscordGuildID)
                                         VALUES (?,?,?,?,?)"""
                             c.execute(sql, (quote, quoted_name, uniqueID, addedByUniqueID, guild_id))
