@@ -270,6 +270,7 @@ class Admin(commands.Cog):
         embed.set_footer(text=f"There are now {memb_amt} members")
         embed.set_author(name=str(user), icon_url=user.avatar_url)
         message = await channel.send(embed=embed)
+        await message.edit(content=user.mention, embed=embed)
         await message.add_reaction("<a:blobjoin:821030765143785572>")
 
     async def send_leave_message(self, channel, user, guild):
