@@ -342,7 +342,8 @@ class Quote(commands.Cog):
                             if len(pages) > 1:
                                 await m.start(ctx)
                             else:
-                                await ctx.send(embed=m.get_page(0))
+                                await ctx.message.delete(delay=120)
+                                await ctx.send(embed=m.get_page(0), delete_after=120)
                         else:  # If the quote is a new quote to add
                             if len(quote) > 500 and not await self.bot.is_owner(ctx.author):
                                 embed = discord.Embed(
@@ -367,6 +368,15 @@ class Quote(commands.Cog):
                             else:
                                 quoted_name = member.name
                             addedByUniqueID = handySQL.get_uniqueMemberID(conn, ctx.message.author.id, guild_id)
+
+                            # checks if its a self quote
+                            if uniqueID == addedByUniqueID:
+                                embed = discord.Embed(
+                                    title="Quote Error",
+                                    description="You can't quote yourself. That's pretty lame.",
+                                    color=0xFF0000)
+                                await ctx.send(embed=embed)
+                                raise discord.ext.commands.errors.BadArgument
 
                             # checks if the quote exists already
                             c.execute("SELECT * FROM Quotes WHERE Quote LIKE ? AND UniqueMemberID=?", (quote, uniqueID))
