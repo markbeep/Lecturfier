@@ -458,6 +458,11 @@ def create_all_tables(path):
                                         FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID"),
                                         FOREIGN KEY("DiscordGuildID") REFERENCES "DiscordGuilds"("DiscordGuildID")
                                         );"""
+    sql_create_quote_aliases = """  CREATE TABLE IF NOT EXISTS "QuoteAliases" (
+                                        "AliasID" INTEGER PRIMARY KEY,
+                                        "NameFrom" TEXT,
+                                        "NameTo" TEXT
+                                        );"""
     sql_create_config = """   CREATE TABLE IF NOT EXISTS "Config" (
                                         "ConfigID" INTEGER PRIMARY KEY,
                                         "ConfigKey" TEXT,
@@ -482,6 +487,7 @@ def create_all_tables(path):
         create_table(conn, sql_create_eventjoinedusers)
         create_table(conn, sql_create_quotes)
         create_table(conn, sql_create_config)
+        create_table(conn, sql_create_quote_aliases)
 
         conn.close()
     else:

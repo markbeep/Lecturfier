@@ -31,7 +31,7 @@ def createFiles():
         with open("../LECTURFIER.json", "w") as f:
             f.write('{"token":""}')
 
-    if not os.path.exists("./data/discord.db"):
+    if os.path.exists("./data/discord.db"):
         print("Creating DB tables")
         handySQL.create_all_tables("./data/discord.db")
         print("Created DB tables successfully")
