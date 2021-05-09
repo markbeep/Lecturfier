@@ -34,7 +34,6 @@ class MainBot(commands.Cog):
         await self.bot.change_presence(activity=discord.Activity(name="myself startup", type=discord.ActivityType.watching))
         print("-------------")
         await self.load_all_extensions(self.startup_extensions)
-        file_creator.createFiles()
         log("Started up bot\n-------------")
 
     async def load_all_extensions(self, extensions_to_load):
