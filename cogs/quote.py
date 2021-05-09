@@ -40,49 +40,6 @@ class Quote(commands.Cog):
         self.time = 0
         with open("./data/ignored_users.json") as f:
             self.ignored_users = json.load(f)
-        self.aliases = {
-            "püschel": [
-                "pueschel",
-                "peuschel",
-                "pushel",
-                "puschel"
-            ],
-            "steurer": [
-                "streuer",
-                "steuer"
-            ],
-            "cannas": [
-                "ana",
-                "canas",
-                "annas",
-                "anna",
-                "canna"
-
-            ],
-            "gross": [
-                "thomas",
-                "thoma"
-            ],
-            "olga": [
-                "olge",
-                "sorkine",
-                "sarkine"
-            ],
-            "burger": [
-
-            ],
-            "barbara": [
-
-            ],
-            "onur": [
-                "mutlu",
-                "mutu",
-                "multu"
-            ],
-            "lengler": [
-                "lenger"
-            ]
-        }
         self.db_path = "./data/discord.db"
         self.conn = handySQL.create_connection(self.db_path)
 
@@ -114,6 +71,33 @@ class Quote(commands.Cog):
             if res is None:
                 return  # if that name has no quote
             await send_quote(message.channel, res[0], res[3], res[2], res[1])
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+        # Returns if the reacted message is not in a channel
+        if payload.guild_id is None or payload.channel_id is None or payload.message_id is None or payload.member is None:
+            return
+
+        channel = self.bot.get_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id)
+        user = str(message.author.id)
+        quoteAdder = payload.member
+        emoji = payload.emoji
+        if str(emoji) == "<:addQuote:840982832654712863>":
+            # We first check if the channel is an announcement channel
+                # To avoid unecessary queries
+            if channel.type == discord.ChannelType.news:
+                print("Channel is an announcement channel. Ignoring Quote.")
+                return
+
+            conn = self.get_connection()
+            result = conn.execute("SELECT ConfigValue FROM Config WHERE ConfigKey=='BlockedQuoteChannel'").fetchall()
+            blocked_channels = [x[0] for x in result]
+            if channel.id in blocked_channels:
+                print("Blocked Quote Channel. Ignoring quote.")
+                return
+
+            await self.add_quote(user=user, message=message, quote=message.content, quoteAdder=quoteAdder, reactionQuote=True)
 
     @commands.cooldown(4, 10, BucketType.user)
     @commands.group(aliases=["q", "quotes"], usage="quote [user] [quote/command/index]", invoke_without_command=True)
@@ -176,9 +160,13 @@ class Quote(commands.Cog):
                     if member is not None:
                         username = str(member)
                         uniqueID = multUniqueIDs[0]
-                        c.execute("SELECT Quote, QuoteID, Name, CreatedAt FROM Quotes WHERE UniqueMemberID=? AND DiscordGuildID=? ORDER BY RANDOM() LIMIT 1", (uniqueID, ctx.message.guild.id))
+                        c.execute(
+                            "SELECT Quote, QuoteID, Name, CreatedAt FROM Quotes WHERE UniqueMemberID=? AND DiscordGuildID=? ORDER BY RANDOM() LIMIT 1",
+                            (uniqueID, ctx.message.guild.id))
                     else:
-                        c.execute("SELECT Quote, QuoteID, Name, CreatedAt FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=? ORDER BY RANDOM() LIMIT 1", (name, ctx.message.guild.id))
+                        c.execute(
+                            "SELECT Quote, QuoteID, Name, CreatedAt FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=? ORDER BY RANDOM() LIMIT 1",
+                            (name, ctx.message.guild.id))
                     res = c.fetchone()
 
                 if res is None:
@@ -281,11 +269,12 @@ class Quote(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
         await send_quote(channel, res[0], res[2], res[1], res[3])
 
-    async def add_quote(self, user, message: discord.Message, quote):
+    async def add_quote(self, user, message: discord.Message, quote, quoteAdder=None, reactionQuote=False):
         conn = self.get_connection()
         c = conn.cursor()
         channel = message.channel
-        quoteAdder = message.author
+        if quoteAdder is None:
+            quoteAdder = message.author
 
         member, multipleUniqueIDs = await self.get_quote_member(channel, conn, user)
         guild_id = await self.get_guild_for_quotes(channel)
@@ -297,7 +286,13 @@ class Quote(commands.Cog):
                 title="Quote Error",
                 description="This quote exceeds the max_length length of 500 chars. Ping Mark if you want the quote added.",
                 color=0xFF0000)
-            await channel.send(embed=embed)
+            if reactionQuote:
+                try:
+                    await message.add_reaction("<:failedQuote:840988109578698782>")
+                except discord.errors.Forbidden:
+                    pass
+            else:
+                await channel.send(content=quoteAdder.mention, embed=embed, delete_after=5)
             raise discord.ext.commands.errors.NotOwner
 
         # If the quote has too many non-ascii characters
@@ -306,7 +301,13 @@ class Quote(commands.Cog):
                 title="Quote Error",
                 description="This quote contains too many non-ascii characters. Ping Mark if you want the quote added.",
                 color=0xFF0000)
-            await channel.send(embed=embed)
+            if reactionQuote:
+                try:
+                    await message.add_reaction("<:failedQuote:840988109578698782>")
+                except discord.errors.Forbidden:
+                    pass
+            else:
+                await channel.send(content=quoteAdder.mention, embed=embed, delete_after=5)
             raise discord.ext.commands.errors.BadArgument
 
         c.execute("SELECT ConfigValue FROM Config WHERE ConfigKey=='BlockQuote'")
@@ -319,8 +320,14 @@ class Quote(commands.Cog):
                 description="You are blocked from adding new quotes. Possible reasons include adding too many fake quotes or "
                             "simply spamming the quote command.",
                 color=0xFF0000)
-            await channel.send(quoteAdder.mention, embed=embed, delete_after=8)
-            await message.delete(delay=2)
+            if reactionQuote:
+                try:
+                    await message.add_reaction("<:failedQuote:840988109578698782>")
+                except discord.errors.Forbidden:
+                    pass
+            else:
+                await channel.send(content=quoteAdder.mention, embed=embed, delete_after=5)
+                await message.delete(delay=2)
             raise discord.ext.commands.errors.BadArgument
 
         uniqueID = None
@@ -338,7 +345,13 @@ class Quote(commands.Cog):
                 description="You can't quote yourself. That's pretty lame.",
                 color=0xFF0000)
             embed.set_footer(text="(Or your username is the same as the person you're trying to quote.)")
-            await channel.send(embed=embed)
+            if reactionQuote:
+                try:
+                    await message.add_reaction("<:failedQuote:840988109578698782>")
+                except discord.errors.Forbidden:
+                    pass
+            else:
+                await channel.send(content=quoteAdder.mention, embed=embed, delete_after=5)
             raise discord.ext.commands.errors.BadArgument
 
         # checks if the quote exists already
@@ -351,7 +364,13 @@ class Quote(commands.Cog):
                 title="Quote Error",
                 description="This quote has been added already.",
                 color=0xFF0000)
-            await channel.send(embed=embed)
+            if reactionQuote:
+                try:
+                    await message.add_reaction("<:failedQuote:840988109578698782>")
+                except discord.errors.Forbidden:
+                    pass
+            else:
+                await channel.send(content=quoteAdder.mention, embed=embed, delete_after=5)
             raise discord.ext.commands.errors.BadArgument
 
         # gets the alias of the user, if it exists
@@ -372,7 +391,11 @@ class Quote(commands.Cog):
             quoteID = res[0]
 
         embed = discord.Embed(title="Added Quote", description=f"Added quote for {quoted_name}\nQuoteID: `{quoteID}`", color=0x00FF00)
-        await channel.send(embed=embed)
+
+        if reactionQuote:
+            await message.reply(embed=embed, mention_author=False)
+        else:
+            await channel.send(embed=embed)
 
     @quote.command(name="all", usage="all <user>")
     async def all_quotes(self, ctx, user=None):
@@ -573,8 +596,8 @@ class QuoteMenu(menus.Menu):
     async def delete(self, payload):
         if self.ctx is not None:
             # if the message was already deleted
-                # this seems to throw an error
-                # and then the quote msg can't be deleted
+            # this seems to throw an error
+            # and then the quote msg can't be deleted
             try:
                 await self.ctx.message.delete()
             except:
