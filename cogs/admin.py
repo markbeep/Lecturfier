@@ -43,7 +43,6 @@ class Admin(commands.Cog):
             channel = self.bot.get_channel(815936830779555841)
             await self.send_welcome_message(channel, member, member.guild)
 
-
     @commands.Cog.listener()
     async def on_member_remove(self, member):
         if member.bot:
@@ -174,6 +173,51 @@ class Admin(commands.Cog):
             if time.time() < self.secret_channels[message.channel.id][0]:
                 await asyncio.sleep(self.secret_channels[message.channel.id][1])
                 await message.delete()
+        if message.channel.id in [747776646551175217, 768600365602963496]:  # bot channels
+            if message.content.lower().startswith("prefix") or message.content.lower().startswith("prefixes"):
+                args = message.content.split(" ")
+                desc = []
+                command = None
+                prefix = None
+                if len(args) > 1:
+                    command = args[1]
+                if len(args) > 2:
+                    prefix = args[2]
+                if len(args) > 3:
+                    # This means there is possibly a description at the end
+                    desc = args[3:]
+                await self.send_prefix(message, command, prefix, desc)
+
+    async def send_prefix(self, message, command=None, prefix=None, *args):
+        channel = message.channel
+        author = message.author
+        if command is None:
+            msg = "**Already in use Bot Prefixes:**"
+            for prefix in self.all_prefix.keys():
+                msg += f"\n`{prefix}`: {self.all_prefix[prefix]}"
+            await channel.send(msg)
+        elif command.lower() == "add" and author.guild_permissions.kick_members:
+            if prefix is None:
+                await channel.send("Prefix and arguments missing.")
+            else:
+                self.all_prefix[prefix] = " ".join(args)
+                with open(self.bot_prefix_path, "w") as f:
+                    json.dump(self.all_prefix, f)
+                await channel.send(f"Updated prefix table with prefix: {prefix}")
+        elif command.lower() == "delete" or command.lower() == "del" and author.guild_permissions.kick_members:
+            if prefix is None:
+                await channel.send("Prefix to delete is missing.")
+            else:
+                try:
+                    self.all_prefix.pop(prefix)
+                    with open(self.bot_prefix_path, "w") as f:
+                        json.dump(self.all_prefix, f)
+                    await channel.send(f"Deleted prefix: {prefix}")
+                except KeyError:
+                    await channel.send("Invalid prefix")
+        else:
+            await channel.send("Unrecognized command.", delete_after=7)
+            raise discord.ext.commands.errors.BadArgument
 
     @commands.cooldown(10, 10, BucketType.user)
     @commands.command(aliases=["prefixes"], usage="prefix <add/delete> <prefix> <info>")
@@ -182,34 +226,11 @@ class Admin(commands.Cog):
         Is used to view all currently used prefixes for the bots on the server.
         The prefixes are saved in a dictionary, where the prefix itself is the key.
         Adding an already existing prefix changes the value instead of adding an additional entry.
+        In <#747776646551175217> and <#768600365602963496> you can simply type `prefix` to get \
+        a list of prefixes.
         """
-        if command is None:
-            msg = "**Already in use Bot Prefixes:**"
-            for prefix in self.all_prefix.keys():
-                msg += f"\n`{prefix}`: {self.all_prefix[prefix]}"
-            await ctx.send(msg)
-        elif command.lower() == "add" and ctx.author.guild_permissions.kick_members:
-            if prefix is None:
-                await ctx.send("Prefix and arguments missing.")
-            else:
-                self.all_prefix[prefix] = " ".join(args)
-                with open(self.bot_prefix_path, "w") as f:
-                    json.dump(self.all_prefix, f)
-                await ctx.send(f"Updated prefix table with prefix: {prefix}")
-        elif command.lower() == "delete" or command.lower() == "del" and ctx.author.guild_permissions.kick_members:
-            if prefix is None:
-                await ctx.send("Prefix to delete is missing.")
-            else:
-                try:
-                    self.all_prefix.pop(prefix)
-                    with open(self.bot_prefix_path, "w") as f:
-                        json.dump(self.all_prefix, f)
-                    await ctx.send(f"Deleted prefix: {prefix}")
-                except KeyError:
-                    await ctx.send("Invalid prefix")
-        else:
-            await ctx.send("Unrecognized command.", delete_after=7)
-            raise discord.ext.commands.errors.BadArgument
+        await self.send_prefix(ctx.message, command, prefix, args)
+
 
     @commands.cooldown(1, 5, BucketType.user)
     @commands.command(aliases=["secret"], usage="elthision [time in seconds] [delete after in seconds]")
