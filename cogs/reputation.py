@@ -3,8 +3,6 @@ from discord.ext import commands
 import datetime
 import time
 import json
-import traceback
-from helper.log import log
 from helper import handySQL
 
 
@@ -56,80 +54,82 @@ class Reputation(commands.Cog):
     async def on_message(self, message):
         if message.author.bot:
             return
-        # Reps a user
-        if message.content.startswith("+rep"):
-            await self.rep(message)
 
-    async def rep(self, message):
+    @commands.command(aliases=["reputation", "commend", "praise"], usage="rep [<user> [<rep message>]]")
+    async def rep(self, ctx, user_mention=None, *, rep=None):
         """
-        Used to add positive reputation to a user
-        :param message: The message content including the +rep
-        :return: None
+        Can be used to commend another user for doing something you found nice.
+        Can also be used to give negative reps if the rep message starts with a \
+        minus sign: `{prefix}rep <user> -doesn't like chocolate`
+        `{prefix}rep <user>` lists the reputation messages of a user.
         """
-        if message.author.id in self.ignored_users:
-            await message.channel.send(f"{message.author.mention} this discord account is blocked from using +rep.")
+        if ctx.message.author.id in self.ignored_users:
+            await ctx.send(f"{ctx.message.author.mention} this discord account is blocked from using +rep.")
 
-        args = message.content.split(" ")
-        try:
-            if len(args) == 1:  # If there's only the command:
-                await self.send_reputations(message, message.author)
+        if user_mention is None:  # If there's only the command:
+            await self.send_reputations(ctx.message, ctx.message.author)
+            return
 
-            elif len(args) == 2:  # If there's only the command a mention
-                u_id = args[1].replace("<@", "").replace(">", "").replace("!", "")
-                member = message.guild.get_member(int(u_id))
-                await self.send_reputations(message, member)
+        if rep is None:  # If there's only the command a mention
+            u_id = user_mention.replace("<@", "").replace(">", "").replace("!", "")
+            member = ctx.message.guild.get_member(int(u_id))
+            await self.send_reputations(ctx.message, member)
+            return
 
-            else:  # If the message is long enough, add it as a reputation
-                # check if it is a mention
-                u_id = args[1].replace("<@", "").replace(">", "").replace("!", "")
-                member = message.guild.get_member(int(u_id))
+        # If the message is long enough, add it as a reputation
+        # check if it is a mention
+        u_id = user_mention.replace("<@", "").replace(">", "").replace("!", "")
+        member = ctx.message.guild.get_member(int(u_id))
 
-                if member.id == message.author.id:
-                    raise ValueError
+        if member.id == ctx.message.author.id:
+            embed = discord.Embed(title="Error",
+                                  description="You can't rep yourself.",
+                                  color=discord.Color.red())
+            await ctx.send(embed=embed, delete_after=10)
+            raise discord.ext.commands.BadArgument
 
-                # checks if the message chars are valid
-                if not await valid_chars_checker(message.content):
-                    raise ValueError
+        # checks if the message chars are valid
+        if not await valid_chars_checker(ctx.message.content):
+            embed = discord.Embed(title="Error",
+                                  description="You can only use printable ascii characters in reputation messages.",
+                                  color=discord.Color.red())
+            await ctx.send(embed=embed, delete_after=10)
+            raise discord.ext.commands.BadArgument
 
-                # Add reputation to user
-                time_valid = await self.add_rep(message, member, message.author)
+        # Add reputation to user
+        time_valid = await self.add_rep(ctx.message, member, ctx.message.author)
 
-                # Send return message
-                if time_valid:
-                    display_name = member.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
-                    embed = discord.Embed(
-                        title="Added +rep",
-                        description=f"Added +rep to {display_name}",
-                        color=discord.Color.green())
-                    if len(args) > 2:
-                        embed.add_field(name="Comment:", value=f"```{' '.join(args[2:])}```")
-                    embed.set_author(name=str(message.author))
-                    await message.channel.send(embed=embed)
-                    await message.delete()
+        # Send return message
+        if time_valid:
+            display_name = member.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
+            embed = discord.Embed(
+                title="Added rep",
+                description=f"Added rep to {display_name}",
+                color=discord.Color.green())
+            embed.add_field(name="Comment:", value=f"```{rep}```")
+            embed.set_author(name=str(ctx.message.author))
+            await ctx.send(embed=embed)
+            await ctx.message.delete()
 
-                else:
-                    conn = self.get_connection()
-                    guild_id = get_valid_guild_id(message)
-                    uniqueID = handySQL.get_uniqueMemberID(conn, message.author.id, guild_id)
-                    last_sent_time = get_most_recent_time(conn, uniqueID)
-                    if last_sent_time is not None:
-                        seconds = datetime.datetime.strptime(last_sent_time, '%Y-%m-%d %H:%M:%S.%f').timestamp() + self.time_to_wait
-                        next_time = datetime.datetime.fromtimestamp(seconds).strftime("%A at %H:%M")
-                        embed = discord.Embed(
-                            title="Error",
-                            description=f"You've repped too recently. You can rep again on {next_time}.",
-                            color=discord.Color.red())
-                        await message.channel.send(embed=embed, delete_after=10)
-                    else:
-                        embed = discord.Embed(title="Error",
-                                              description="Had problems parsing something. Tbh this error shouldn't show up...",
-                                              color=discord.Color.red())
-                        await message.channel.send(embed=embed, delete_after=10)
+        else:
+            conn = self.get_connection()
+            guild_id = get_valid_guild_id(ctx.message)
+            uniqueID = handySQL.get_uniqueMemberID(conn, ctx.message.author.id, guild_id)
+            last_sent_time = get_most_recent_time(conn, uniqueID)
+            if last_sent_time is not None:
+                seconds = datetime.datetime.strptime(last_sent_time, '%Y-%m-%d %H:%M:%S.%f').timestamp() + self.time_to_wait
+                next_time = datetime.datetime.fromtimestamp(seconds).strftime("%A at %H:%M")
+                embed = discord.Embed(
+                    title="Error",
+                    description=f"You've repped too recently. You can rep again on {next_time}.",
+                    color=discord.Color.red())
+                await ctx.send(embed=embed, delete_after=10)
+            else:
+                embed = discord.Embed(title="Error",
+                                      description="Had problems parsing something. Tbh this error shouldn't show up...",
+                                      color=discord.Color.red())
+                await ctx.send(embed=embed, delete_after=10)
 
-        except ValueError:
-            embed = discord.Embed(title="Error", description="Only mention one user, don't mention yourself, only use printable ascii characters, and keep it under 40 characters.", color=discord.Color.red())
-            embed.add_field(name="Example", value="+rep <@755781649643470868> helped with Eprog")
-            await message.channel.send(embed=embed, delete_after=10)
 
     async def send_reputations(self, message, member):
         reputation_msg = ""
