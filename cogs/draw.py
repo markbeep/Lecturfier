@@ -140,6 +140,8 @@ class Draw(commands.Cog):
         else:
             channelID = channelID[0]
         channel = self.bot.get_channel(channelID)
+        if channel is None:
+            channel = self.bot.get_channel(402551175272202252)  # fallback test channel
 
         # keeps going through all lists
         while len(self.queue) > 0 and not self.pause_draws:
@@ -310,6 +312,50 @@ class Draw(commands.Cog):
 
         self.progress[ID] = {
             "count": drawn,
+            "img": img,
+            "queue": img.get_queue()
+        }
+        self.queue.append({
+            "ID": ID,
+            "size": img.size,
+            "img": img,
+            "queue": img.get_queue()
+        })
+
+        conn = self.get_connection()
+        conn.execute("INSERT INTO Config(ConfigKey, ConfigValue) VALUES (?, ?)", (f"Start_{ID}", 0))
+        conn.execute("INSERT INTO Config(ConfigKey, ConfigValue) VALUES (?, ?)", (f"End_{ID}", img.size))
+        conn.commit()
+
+        # saves the img as a numpy file so it can easily be reload when the bot restarts
+        img.save_array(f"{self.place_path}{ID}")
+
+        embed = discord.Embed(title="Started Drawing", description=self.draw_desc(ID))
+        await ctx.send(embed=embed)
+
+    @commands.is_owner()
+    @draw.command(aliases=["t"], usage="text")
+    async def text(self, ctx):
+        """
+        Reads in pixels from a setpixel txt file
+        """
+        if len(ctx.message.attachments) == 0:
+            await ctx.send("No text file given")
+            raise discord.ext.commands.errors.BadArgument
+        setpixels_file = ""
+        async with aiohttp.ClientSession() as cs:
+            async with cs.get(ctx.message.attachments[0].url) as r:
+                setpixels_file = await r.text()
+
+        self.cancel_all = False
+
+        # id to stop specific draw
+        ID = str(random.randint(1000, 10000))
+
+        img = im2q.PixPlace(ID, ID, setup=False, setpixels=setpixels_file)
+
+        self.progress[ID] = {
+            "count": 0,
             "img": img,
             "queue": img.get_queue()
         }

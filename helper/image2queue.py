@@ -8,8 +8,14 @@ import cv2
 import io
 
 
+def hex_to_rgb(value):
+    value = value.lstrip('#')
+    lv = len(value)
+    return tuple(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
+
+
 class PixPlace:
-    def __init__(self, fp, name, setup=True):
+    def __init__(self, fp, name, setup=True, setpixels=None):
         self.fp = fp
         self.name = name
         self.pixel_array = None
@@ -18,6 +24,11 @@ class PixPlace:
         self.bot_right_corner = []
 
         self.place_board = []
+
+        if setpixels is not None:
+            self.read_setpixel_string(setpixels)
+            self.size = len(self.pixel_array)
+            self._set_corners()
 
         if setup:
             self._remove_transparent()
@@ -35,7 +46,11 @@ class PixPlace:
         loc = np.empty((width, height, 6), dtype="int16")
         loc[:, :, 0] = i
         loc[:, :, 1] = j
-        loc[:, :, 2:] = img
+        if d == 3:
+            loc[:, :, 2:5] = img
+            loc[:, :, 5] = 255
+        else:
+            loc[:, :, 2:] = img
 
         # remoes all pixels with alpha less than 230
         self.pixel_array = loc[(loc[:, :, 5] > 230)]
@@ -178,11 +193,22 @@ class PixPlace:
         self.queue = self.pixel_array.tolist()
         return self.queue
 
+    def read_setpixel_string(self, inp:str):
+        inp = inp.replace("\r", "")
+        setpixels = inp.split("\n")
+        self.pixel_array = np.empty((len(setpixels), 6), dtype="int16")
+        for i, pix in enumerate(setpixels):
+            args = pix.split(" ")
+            # .place, setpixel, x, y, #hex
+            rgb = hex_to_rgb(args[4])
+            self.pixel_array[i] = [args[2], args[3], rgb[0], rgb[1], rgb[2], 255]
+
     def load_array(self, cus_fp=None):
         if cus_fp is None:
             cus_fp = f"{self.name}.npy"
         self.pixel_array = np.load(f"{cus_fp}")
         self.size = len(self.pixel_array)
+        self._set_corners()
 
     def save_array(self, cus_fp=None):
         if cus_fp is None:
@@ -220,11 +246,12 @@ def main():
     fp = "sponge.png"
     place = "place.png"
     # test(fp, 100)
+    p = ""
+    with open("toDraw.txt", "r") as f:
+        p = f.read()
 
-    img = PixPlace(fp, "t")
-    img.low_to_high_res()
-    img.add_place(place)
-    img.create_gif()
+    img = PixPlace(fp, "t", setup=False, setpixels=p)
+    print(img)
     # print(Image.open(fp).getpixel((92, 236)))
 
 

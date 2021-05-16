@@ -88,15 +88,15 @@ class MainBot(commands.Cog):
         """
         task = task.lower()
         all_loops = {
-            "updates": self.bot.get_cog("Updates").get_task(),
-            "statistics": self.bot.get_cog("Statistics").get_task(),
-            "voice": self.bot.get_cog("Voice").get_task(),
-            "games": self.bot.get_cog("Games").get_task(),
-            "information": self.bot.get_cog("Information").get_task(),
-            "draw": self.bot.get_cog("Draw").get_task()
+            "updates": self.bot.get_cog("Updates"),
+            "statistics": self.bot.get_cog("Statistics"),
+            "voice": self.bot.get_cog("Voice"),
+            "games": self.bot.get_cog("Games"),
+            "information": self.bot.get_cog("Information"),
+            "draw": self.bot.get_cog("Draw")
         }
         if task in all_loops:
-            all_loops[task].cancel()
+            all_loops[task].get_task().cancel()
             return True
         return False
 
