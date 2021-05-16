@@ -188,7 +188,7 @@ class Admin(commands.Cog):
                     desc = args[3:]
                 await self.send_prefix(message, command, prefix, desc)
 
-    async def send_prefix(self, message, command=None, prefix=None, *args):
+    async def send_prefix(self, message, command=None, prefix=None, args=[]):
         channel = message.channel
         author = message.author
         if command is None:
@@ -203,7 +203,7 @@ class Admin(commands.Cog):
                 self.all_prefix[prefix] = " ".join(args)
                 with open(self.bot_prefix_path, "w") as f:
                     json.dump(self.all_prefix, f)
-                await channel.send(f"Updated prefix table with prefix: {prefix}")
+                await channel.send(f"Updated prefix table with prefix: `{prefix}`")
         elif command.lower() == "delete" or command.lower() == "del" and author.guild_permissions.kick_members:
             if prefix is None:
                 await channel.send("Prefix to delete is missing.")
@@ -220,7 +220,7 @@ class Admin(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
 
     @commands.cooldown(10, 10, BucketType.user)
-    @commands.command(aliases=["prefixes"], usage="prefix <add/delete> <prefix> <info>")
+    @commands.command(aliases=["prefixes"], usage="prefix [<add/delete> <prefix> <info>]")
     async def prefix(self, ctx, command=None, prefix=None, *args):
         """
         Is used to view all currently used prefixes for the bots on the server.
@@ -231,9 +231,8 @@ class Admin(commands.Cog):
         """
         await self.send_prefix(ctx.message, command, prefix, args)
 
-
     @commands.cooldown(1, 5, BucketType.user)
-    @commands.command(aliases=["secret"], usage="elthision [time in seconds] [delete after in seconds]")
+    @commands.command(aliases=["secret"], usage="elthision [<time in seconds> [<delete after in seconds>]]")
     @commands.has_permissions(administrator=True)
     async def elthision(self, ctx, seconds=10, delete=2.0):
         """
