@@ -129,6 +129,7 @@ class Admin(commands.Cog):
                     # edits the previous sent message in the staff channel
                     role_ping = "<@&773908766973624340> <@&815932497920917514> <@&747753814723002500>"
                     await message.edit(content=role_ping, embed=embed)
+                    await message.clear_reactions()
             except discord.NotFound:
                 print("Did not find the role to give to the new member")
                 return
