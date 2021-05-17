@@ -1,15 +1,16 @@
 import discord
 from discord.ext import commands
 import json
-from helper import file_creator
-
-file_creator.createFiles()
 
 with open("./data/settings.json", "r") as f:
     prefix = json.load(f)
 
 intents = discord.Intents()
-bot = commands.Bot(command_prefix=prefix["prefix"], description='Lecture Notifier', intents=intents.all(), owner_id=205704051856244736)
+bot = commands.Bot(
+    command_prefix=prefix["prefix"],
+    description='Lecture Notifier',
+    intents=intents.all(),
+    owner_id=205704051856244736)
 
 bot.remove_command("help")
 

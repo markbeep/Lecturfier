@@ -6,6 +6,7 @@ from helper import file_creator
 
 class MainBot(commands.Cog):
     def __init__(self, bot):
+        file_creator.createFiles()
         self.bot = bot
         self.startup_extensions = [
             "games",
