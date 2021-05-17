@@ -468,6 +468,10 @@ def create_all_tables(path):
                                         "ConfigKey" TEXT,
                                         "ConfigValue" INTEGER
                                         );"""
+    sql_create_quotestoremove = """   CREATE TABLE IF NOT EXISTS "QuotesToRemove" (
+                                        "QuoteID" INTEGER PRIMARY KEY,
+                                        "ReporterID" INTEGER
+                                        );"""
 
     conn = create_connection(database)
 
@@ -488,6 +492,7 @@ def create_all_tables(path):
         create_table(conn, sql_create_quotes)
         create_table(conn, sql_create_config)
         create_table(conn, sql_create_quote_aliases)
+        create_table(conn, sql_create_quotestoremove)
 
         conn.close()
     else:

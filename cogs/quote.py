@@ -1,3 +1,4 @@
+import asyncio
 import math
 
 import discord
@@ -131,7 +132,7 @@ class Quote(commands.Cog):
             reply_message = await ctx.message.channel.fetch_message(reply.message_id)
             name = str(reply_message.author.id)
             quote = reply_message.content
-            await self.add_quote(user=name, message=ctx.message, quote=quote)
+            await self.add_quote(user=name, message=reply_message, quote=quote, quoteAdder=ctx.message.author)
             return
 
         if name is None:  # no user is given, so send a random quote
@@ -275,6 +276,11 @@ class Quote(commands.Cog):
         channel = message.channel
         if quoteAdder is None:
             quoteAdder = message.author
+
+        try:
+            await message.add_reaction("<:addedQuote:840985556304265237>")
+        except discord.errors.NotFound:
+            pass
 
         member, multipleUniqueIDs = await self.get_quote_member(channel, conn, user)
         guild_id = await self.get_guild_for_quotes(channel)
@@ -428,6 +434,10 @@ class Quote(commands.Cog):
 
     @quote.group(aliases=["rep"], usage="report <quote ID>", invoke_without_command=True)
     async def report(self, ctx, quoteID=None):
+        """
+        Report quotes which should be deleted. This makes deleting quotes a lot easier \
+        and more organized. Additionally ping @mark so he knows a quote was reported.
+        """
         if ctx.invoked_subcommand is not None:
             return
         
@@ -466,7 +476,7 @@ class Quote(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
         
         # At this point we have a valid Quote ID, so add it to the database
-        c.execute("INSERT INTO QuotesToRemove(QuoteID, ReporterID VALUES(?,?)", (quoteID, ctx.message.author.id))
+        c.execute("INSERT INTO QuotesToRemove(QuoteID, ReporterID) VALUES(?,?)", (quoteID, ctx.message.author.id))
         conn.commit()
         embed = discord.Embed(
             title="Added Quote Report",
@@ -475,42 +485,43 @@ class Quote(commands.Cog):
         await ctx.send(embed=embed, delete_after=5)
 
     @commands.is_owner()
-    @report.command(aliases=["show", "all"])
+    @report.command(aliases=["show", "all"], usage="showReports")
     async def showReports(self, ctx):
+        """
+        Shows all reported quotes in an easy to use fashion.
+        Permissions: Owner
+        """
         # get all the reports
         conn = self.get_connection()
         c = conn.cursor()
         c.execute("SELECT QuoteID, ReporterID FROM QuotesToRemove")
         rows = c.fetchall()
 
-        # fetches each quote and adds it to a 2D list
+        # fetches each quote and adds it to a page
+        # 1 quote per page
         pages = []
-        pages.append([])
         while len(rows) > 0:
-            # each page has a maximum amount of shown fields (here 10)
-            if len(pages[len(pages)-1]) <= 10:
-                quoteID, reporterID = rows.pop()
-                c.execute("SELECT UniqueMemberID, Quote FROM Quotes WHERE QuoteID=?", (quoteID,))
-                res = c.fetchone()
-                # res can be None if the quote was removed in another way
-                if res is None:
-                    # remove the quote from the table and continue
-                    c.execute("DELETE FROM QuotesToRemove WHERE QuoteID=?", (quoteID,))
-                    conn.commit()
-                    continue
-                quote, uniqueID = res
-                userID = handySQL.get_DiscordUserID(conn, uniqueID)
-                pages[len(pages)-1].append([userID, quote])
-            else:
-                pages.append([])
+            quoteID, reporterID = rows.pop()
+            c.execute("SELECT UniqueMemberID, Quote FROM Quotes WHERE QuoteID=?", (quoteID,))
+            res = c.fetchone()
+            # res can be None if the quote was removed in another way
+            if res is None:
+                # remove the quote from the table and continue
+                c.execute("DELETE FROM QuotesToRemove WHERE QuoteID=?", (quoteID,))
+                conn.commit()
+                continue
+            uniqueID, quote = res
+            userID = handySQL.get_DiscordUserID(conn, uniqueID)
+            pages.append([userID, quoteID, quote, reporterID])
 
         # should have a list of page lists, each with a max of 10 elements
-        # in each page element we have user ID and the quote
+        # in each page element we have user ID, quoute ID and the quote itself
         if len(pages) == 0:
             await ctx.send("There are no reported quotes to remove.")
             return
         
-        menu = QuotesToRemove(pages)
+        m = QuotesToRemove(pages, conn)
+        await m.start(ctx=ctx, channel=ctx.channel)
 
     async def get_all_quotes(self, channel: discord.channel, user):
         conn = self.get_connection()
@@ -690,10 +701,66 @@ class QuoteMenu(menus.Menu):
                 pass
         self.stop()
 
+
 class QuotesToRemove(menus.Menu):
-    def __init__(self, pages):
+    def __init__(self, pages, conn):
         super().__init__(clear_reactions_after=True, delete_message_after=True)
         self.pages = pages
         self.page_count = 0
         self.ctx = None
-    
+        self.conn = conn
+
+    async def send_initial_message(self, ctx, channel):
+        embed = self.create_embed(self.page_count)
+        self.ctx = ctx
+        return await ctx.send(embed=embed)
+
+    def create_embed(self, page_number):
+        embed = discord.Embed(title="Quotes to Remove", description=f"Page {page_number+1}/{len(self.pages)}", color=0x00003f)
+        userID, quoteID, quote, reporterID = self.pages[page_number]
+        embed.add_field(name=f"ID: {quoteID}", value=quote)
+        return embed
+
+    @menus.button("⬅️")
+    async def page_down(self, payload):
+        self.page_count = (self.page_count - 1) % len(self.pages)
+        embed = self.create_embed(self.page_count)
+        await self.message.edit(embed=embed)
+
+    @menus.button("➡️")
+    async def page_up(self, payload):
+        self.page_count = (self.page_count + 1) % len(self.pages)
+        embed = self.create_embed(self.page_count)
+        await self.message.edit(embed=embed)
+
+    @menus.button("❌")
+    async def delete(self, payload):
+        if self.ctx is not None:
+            # if the message was already deleted
+            # this seems to throw an error
+            # and then the quote msg can't be deleted
+            try:
+                await self.ctx.message.delete()
+            except:
+                pass
+        self.stop()
+
+    @menus.button("<:DeletThis:843908352999686234>")
+    async def deleteQuote(self, payload):
+        userID, quoteID, quote, reporterID = self.pages[self.page_count]
+        c = self.conn.cursor()
+        c.execute("DELETE FROM Quotes WHERE QuoteID=?", (quoteID,))
+        self.conn.commit()
+        self.pages.pop(self.page_count)
+        embed = discord.Embed(title="Deleted Quote", description=f"Quote with ID {quoteID} was YEEEEEETED.", color=0xffff00)
+        await self.ctx.send(content=f"Reported by <@{reporterID}>", embed=embed)
+
+        if len(self.pages) == 0:
+            embed = discord.Embed(title="Cleansing is done", description=f"All reported quotes were yeeted.", color=0xffff00)
+            await self.ctx.send(embed=embed)
+            self.stop()
+            return
+        # get new page
+        self.page_count = self.page_count % len(self.pages)
+        embed = self.create_embed(self.page_count)
+        await self.message.edit(embed=embed)
