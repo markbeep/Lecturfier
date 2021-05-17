@@ -58,7 +58,7 @@ class PixPlace:
     async def get_place(self) -> str:
         res = ""
         for i in range(10):  # retry 10 times
-            async with websockets.connect("ws://137.135.102.90:9000/place", max_size=1_000_000_000) as ws:
+            async with websockets.connect("wss://websocket.battlerush.dev:9000/place", max_size=1_000_000_000) as ws:
                 await ws.send(b'\x01')
                 res = await ws.recv()
             if len(res) > 50:
