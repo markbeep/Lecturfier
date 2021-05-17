@@ -159,14 +159,16 @@ class Help(commands.Cog):
                 specific_command = spec_cm_copy
                 command_chain = com_chain_copy
             except AttributeError:  # this error is thrown if a .commands is called on a command which doesn't have sub commands
-                print("no sub", specific_command)
                 return "no sub", command_chain  # if the command doesnt have a subcommand with that name
         return specific_command, command_chain
 
     async def command_help(self, specific_command, command_chain):
         help_msg = specific_command.help
         aliases = specific_command.aliases
-        usage = command_chain + specific_command.usage
+        if specific_command.usage is None:
+            usage = "[n/a]"
+        else:
+            usage = command_chain + specific_command.usage
 
         # if the command has subcommands
         sub_commands = []
