@@ -426,6 +426,92 @@ class Quote(commands.Cog):
 
         await self.get_all_quotes(ctx, user)
 
+    @quote.group(aliases=["rep"], usage="report <quote ID>", invoke_without_command=True)
+    async def report(self, ctx, quoteID=None):
+        if ctx.invoked_subcommand is not None:
+            return
+        
+        # input parsing
+        if quoteID is None:
+            embed = discord.Embed(title="Quotes Error", description=f"No quote ID given.", color=0xFF0000)
+            await ctx.send(embed=embed, delete_after=5)
+            raise discord.ext.commands.errors.BadArgument
+        if not quoteID.isnumeric():
+            embed = discord.Embed(title="Quotes Error", description=f"Quote ID has to be an integer.", color=0xFF0000)
+            await ctx.send(embed=embed, delete_after=5)
+            raise discord.ext.commands.errors.BadArgument
+        quoteID = int(quoteID)
+
+        conn = self.get_connection()
+        c = conn.cursor()
+
+        # check if quote ID is a valid ID
+        c.execute("SELECT * FROM Quotes WHERE QuoteID=?", (quoteID,))
+        if c.fetchone() is None:
+            embed = discord.Embed(
+                title="Quotes Error",
+                description=f"The given quote ID can't be assigned to a valid quote. Did you type the right ID?",
+                color=0xFF0000)
+            await ctx.send(embed=embed, delete_after=5)
+            raise discord.ext.commands.errors.BadArgument
+
+        # check if quote ID is already listed in db
+        c.execute("SELECT * FROM QuotesToRemove WHERE QuoteID=?", (quoteID,))
+        if c.fetchone() is not None:
+            embed = discord.Embed(
+                title="Quotes Error",
+                description=f"The given quote ID is already listed in the quotes to remove list.",
+                color=0xFF0000)
+            await ctx.send(embed=embed, delete_after=5)
+            raise discord.ext.commands.errors.BadArgument
+        
+        # At this point we have a valid Quote ID, so add it to the database
+        c.execute("INSERT INTO QuotesToRemove(QuoteID, ReporterID VALUES(?,?)", (quoteID, ctx.message.author.id))
+        conn.commit()
+        embed = discord.Embed(
+            title="Added Quote Report",
+            description=f"Succesfully requested quote {quoteID} to be deleted.",
+            color=0x00FF00)
+        await ctx.send(embed=embed, delete_after=5)
+
+    @commands.is_owner()
+    @report.command(aliases=["show", "all"])
+    async def showReports(self, ctx):
+        # get all the reports
+        conn = self.get_connection()
+        c = conn.cursor()
+        c.execute("SELECT QuoteID, ReporterID FROM QuotesToRemove")
+        rows = c.fetchall()
+
+        # fetches each quote and adds it to a 2D list
+        pages = []
+        pages.append([])
+        while len(rows) > 0:
+            # each page has a maximum amount of shown fields (here 10)
+            if len(pages[len(pages)-1]) <= 10:
+                quoteID, reporterID = rows.pop()
+                c.execute("SELECT UniqueMemberID, Quote FROM Quotes WHERE QuoteID=?", (quoteID,))
+                res = c.fetchone()
+                # res can be None if the quote was removed in another way
+                if res is None:
+                    # remove the quote from the table and continue
+                    c.execute("DELETE FROM QuotesToRemove WHERE QuoteID=?", (quoteID,))
+                    conn.commit()
+                    continue
+                quote, uniqueID = res
+                userID = handySQL.get_DiscordUserID(conn, uniqueID)
+                pages[len(pages)-1].append([userID, quote])
+            else:
+                pages.append([])
+
+        # should have a list of page lists, each with a max of 10 elements
+        # in each page element we have user ID and the quote
+        if len(pages) == 0:
+            await ctx.send("There are no reported quotes to remove.")
+            return
+        
+        menu = QuotesToRemove(pages)
+
     async def get_all_quotes(self, channel: discord.channel, user):
         conn = self.get_connection()
         c = conn.cursor()
@@ -603,3 +689,11 @@ class QuoteMenu(menus.Menu):
             except:
                 pass
         self.stop()
+
+class QuotesToRemove(menus.Menu):
+    def __init__(self, pages):
+        super().__init__(clear_reactions_after=True, delete_message_after=True)
+        self.pages = pages
+        self.page_count = 0
+        self.ctx = None
+    
