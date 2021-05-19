@@ -502,7 +502,7 @@ class Quote(commands.Cog):
         pages = []
         while len(rows) > 0:
             quoteID, reporterID = rows.pop()
-            c.execute("SELECT UniqueMemberID, Quote FROM Quotes WHERE QuoteID=?", (quoteID,))
+            c.execute("SELECT UniqueMemberID, Quote, Name FROM Quotes WHERE QuoteID=?", (quoteID,))
             res = c.fetchone()
             # res can be None if the quote was removed in another way
             if res is None:
@@ -510,9 +510,9 @@ class Quote(commands.Cog):
                 c.execute("DELETE FROM QuotesToRemove WHERE QuoteID=?", (quoteID,))
                 conn.commit()
                 continue
-            uniqueID, quote = res
+            uniqueID, quote, name = res
             userID = handySQL.get_DiscordUserID(conn, uniqueID)
-            pages.append([userID, quoteID, quote, reporterID])
+            pages.append([userID, quoteID, quote, reporterID, name])
 
         # should have a list of page lists, each with a max of 10 elements
         # in each page element we have user ID, quoute ID and the quote itself
@@ -717,8 +717,11 @@ class QuotesToRemove(menus.Menu):
 
     def create_embed(self, page_number):
         embed = discord.Embed(title="Quotes to Remove", description=f"Page {page_number+1}/{len(self.pages)}", color=0x00003f)
-        userID, quoteID, quote, reporterID = self.pages[page_number]
-        embed.add_field(name=f"ID: {quoteID}", value=quote)
+        userID, quoteID, quote, reporterID, name = self.pages[page_number]
+        if userID is not None:
+            embed.add_field(name=f"ID: {quoteID} | {name}", value=f"Discord User: <@{userID}>\nReported by: <@{reporterID}>\n**Quote:**\n{quote}")
+        else:
+            embed.add_field(name=f"ID: {quoteID} | {name}", value=quote)
         return embed
 
     @menus.button("⬅️")
@@ -747,12 +750,33 @@ class QuotesToRemove(menus.Menu):
 
     @menus.button("<:DeletThis:843908352999686234>")
     async def deleteQuote(self, payload):
-        userID, quoteID, quote, reporterID = self.pages[self.page_count]
+        userID, quoteID, quote, reporterID, name = self.pages[self.page_count]
         c = self.conn.cursor()
         c.execute("DELETE FROM Quotes WHERE QuoteID=?", (quoteID,))
+        c.execute("DELETE FROM QuotesToRemove WHERE QuoteID=?", (quoteID,))
         self.conn.commit()
         self.pages.pop(self.page_count)
         embed = discord.Embed(title="Deleted Quote", description=f"Quote with ID {quoteID} was YEEEEEETED.", color=0xffff00)
+        await self.ctx.send(content=f"Reported by <@{reporterID}>", embed=embed)
+
+        if len(self.pages) == 0:
+            embed = discord.Embed(title="Cleansing is done", description=f"All reported quotes were yeeted.", color=0xffff00)
+            await self.ctx.send(embed=embed)
+            self.stop()
+            return
+        # get new page
+        self.page_count = self.page_count % len(self.pages)
+        embed = self.create_embed(self.page_count)
+        await self.message.edit(embed=embed)
+
+    @menus.button("<a:IgnoreReport:844678929751212083>")
+    async def deleteQuote(self, payload):
+        userID, quoteID, quote, reporterID, name = self.pages[self.page_count]
+        c = self.conn.cursor()
+        c.execute("DELETE FROM QuotesToRemove WHERE QuoteID=?", (quoteID,))
+        self.conn.commit()
+        self.pages.pop(self.page_count)
+        embed = discord.Embed(title="Ignored Quote", description=f"Quote with ID {quoteID} was ignored.", color=0xffff00)
         await self.ctx.send(content=f"Reported by <@{reporterID}>", embed=embed)
 
         if len(self.pages) == 0:
