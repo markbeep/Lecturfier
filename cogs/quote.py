@@ -770,7 +770,7 @@ class QuotesToRemove(menus.Menu):
         await self.message.edit(embed=embed)
 
     @menus.button("<a:IgnoreReport:844678929751212083>")
-    async def deleteQuote(self, payload):
+    async def ignoreQuote(self, payload):
         userID, quoteID, quote, reporterID, name = self.pages[self.page_count]
         c = self.conn.cursor()
         c.execute("DELETE FROM QuotesToRemove WHERE QuoteID=?", (quoteID,))
