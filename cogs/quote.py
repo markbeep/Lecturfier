@@ -1,18 +1,13 @@
-import asyncio
 import math
-
 import discord
 from discord.ext import commands, menus
 import datetime
-import time
-import random
 import json
 from pytz import timezone
-import traceback
-from helper.log import log
 from discord.ext.commands.cooldowns import BucketType
 from helper import handySQL
-
+from discord_components import DiscordComponents, Button, ButtonStyle, InteractionType
+import time
 
 def isascii(s):
     """Checks how many bytes of non-ascii characters there is in the quote"""
@@ -38,6 +33,7 @@ async def send_quote(channel: discord.channel, quote, date, name, index=None):
 class Quote(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        DiscordComponents(self.bot)
         self.time = 0
         with open("./data/ignored_users.json") as f:
             self.ignored_users = json.load(f)
@@ -523,7 +519,8 @@ class Quote(commands.Cog):
         m = QuotesToRemove(pages, conn)
         await m.start(ctx=ctx, channel=ctx.channel)
 
-    async def get_all_quotes(self, channel: discord.channel, user):
+    async def get_all_quotes(self, ctx, user):
+        channel = ctx.message.channel
         conn = self.get_connection()
         c = conn.cursor()
 
@@ -580,12 +577,14 @@ class Quote(commands.Cog):
             pages.append(quote_list[0:rind2])
             quote_list = quote_list[rind2:]
 
-        m = QuoteMenu(pages, quoted_name)
+        p = Pages(self.bot, ctx, pages, ctx.message.author.id, f"All quotes from {quoted_name}", 180)
         if len(pages) > 1:
-            await m.start(channel)
+            #m = QuoteMenu(pages, quoted_name)
+            await p.handle_pages()
+            #await m.start(channel)
         else:
             await channel.message.delete(delay=120)
-            await channel.send(embed=m.get_page(0), delete_after=120)
+            await channel.send(embed=p.create_embed(0), delete_after=120)
 
     @commands.is_owner()
     @quote.command(name="delete", aliases=["del"], usage="delete <Quote ID>")
@@ -787,4 +786,125 @@ class QuotesToRemove(menus.Menu):
         # get new page
         self.page_count = self.page_count % len(self.pages)
         embed = self.create_embed(self.page_count)
+        await self.message.edit(embed=embed)
+
+
+class Pages:
+    def __init__(self, bot: discord.Client, ctx: discord.ext.commands.Context, pages: list, user_id: int, embed_title: str, seconds=60):
+        self.bot = bot  # bot object required so we can wait for the button click
+        self.ctx = ctx  # so that we can remove the original message in the end
+        self.page_count = 0  # current page
+        self.pages = pages  # list of strings
+        self.start_time = time.time()
+        self.user_id = user_id  # the user ID that can change the pages
+        self.embed_title = embed_title  # the title of each page
+        self.seconds = seconds  # time in seconds to wait until we delete the message
+        self.message = None  # the quotes message sent by the bot
+
+    async def handle_pages(self):
+        """
+        The meat of the pages which handles what shall be done depending
+        on what button was pressed. This sits in a while loop until the time
+        of self.seconds passes.
+        """
+        self.message = await self.send_initial_message()
+        while time.time() < self.start_time + self.seconds:
+            # waits for a button click event
+            res = await self.bot.wait_for("button_click")
+            if res.message is not None and res.message.id == self.message.id:
+                if res.user.id == self.user_id:
+                    if res.component.label == "<":  # prev page
+                        await self.page_down()
+                    elif res.component.label == ">":  # next page
+                        await self.page_up()
+                    elif res.component.label == "X":  # break resulting in deleting the page and user message
+                        break
+                    elif res.component.label == "<<":  # first page
+                        await self.first_page()
+                    elif res.component.label == ">>":  # last page
+                        await self.last_page()
+                    # Responds by updating the message
+                    await res.respond(type=InteractionType.UpdateMessage, components=self.get_components())
+                else:
+                    await res.respond(type=InteractionType.ChannelMessageWithSource, content="This page wasn't called by you.")
+        try:
+            await self.ctx.message.delete()
+        except AttributeError:
+            pass
+        await self.message.delete()
+
+    async def send_initial_message(self) -> discord.Message:
+        """
+        Sends the initial message on page 1 (index 0) with
+        the buttons
+        """
+        embed = self.create_embed()
+        return await self.ctx.send(
+            embed=embed,
+            components=self.get_components()
+        )
+
+    def get_components(self) -> list:
+        """
+        Returns the buttons correctly colored. Depending if
+        it's the first or last page, some buttons will be disabled.
+        """
+        components = [
+            Button(style=ButtonStyle.blue, label="<<"),
+            Button(style=ButtonStyle.blue, label="<"),
+            Button(style=ButtonStyle.red, label="X"),
+            Button(style=ButtonStyle.blue, label=">"),
+            Button(style=ButtonStyle.blue, label=">>")
+        ]
+        if self.page_count == len(self.pages)-1:  # we are on the last page
+            components[3] = Button(style=ButtonStyle.grey, label=">", disabled=True)
+            components[4] = Button(style=ButtonStyle.grey, label=">>", disabled=True)
+
+        if self.page_count == 0:  # we are on the first page
+            components[0] = Button(style=ButtonStyle.grey, label="<<", disabled=True)
+            components[1] = Button(style=ButtonStyle.grey, label=">", disabled=True)
+
+        return [components]
+
+    def create_embed(self) -> discord.Embed:
+        """
+        Creates a discord embed with the given self.embed_title as
+        the title and the page depending on the current page we're on.
+        """
+        embed = discord.Embed(title=self.embed_title, color=0x404648)
+        embed.add_field(name=f"Page {self.page_count + 1} / {len(self.pages)}", value=self.pages[self.page_count])
+        if len(self.pages) > 1:
+            embed.set_footer(text="<< first page | < prev page | ❌ delete message | > next page | >> last page")
+        return embed
+
+    async def page_down(self) -> None:
+        """
+        Goes down a page
+        """
+        self.page_count = (self.page_count - 1) % len(self.pages)
+        embed = self.create_embed()
+        await self.message.edit(embed=embed)
+
+    async def page_up(self) -> None:
+        """
+        Goes up a page
+        """
+        self.page_count = (self.page_count + 1) % len(self.pages)
+        embed = self.create_embed()
+        await self.message.edit(embed=embed)
+
+    async def last_page(self) -> None:
+        """
+        Heads to the last page
+        """
+        self.page_count = len(self.pages) - 1
+        embed = self.create_embed()
+        await self.message.edit(embed=embed)
+
+    async def first_page(self) -> None:
+        """
+        Heads to the first page
+        """
+        self.page_count = 0
+        embed = self.create_embed()
         await self.message.edit(embed=embed)
