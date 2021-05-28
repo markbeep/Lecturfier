@@ -583,8 +583,8 @@ class Quote(commands.Cog):
             await p.handle_pages()
             #await m.start(channel)
         else:
-            await channel.message.delete(delay=120)
-            await channel.send(embed=p.create_embed(0), delete_after=120)
+            await ctx.message.delete(delay=120)
+            await ctx.send(embed=p.create_embed(), delete_after=120)
 
     @commands.is_owner()
     @quote.command(name="delete", aliases=["del"], usage="delete <Quote ID>")
@@ -811,7 +811,7 @@ class Pages:
         while time.time() < self.start_time + self.seconds:
             # waits for a button click event
             res = await self.bot.wait_for("button_click")
-            if res.message is not None and res.message.id == self.message.id:
+            if res.message is not None and type(res.component) != type(list) and res.message.id == self.message.id:
                 if res.user.id == self.user_id:
                     if res.component.label == "<":  # prev page
                         await self.page_down()
