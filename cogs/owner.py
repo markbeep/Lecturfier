@@ -1,22 +1,15 @@
 from datetime import datetime
-import aiohttp
 import discord
 from discord.ext import commands
 import random
 import asyncio
-import inspect
 import os
 import time
-from cogs import admin, hangman, help, updates, minesweeper, owner, games, quote, reputation, statistics, voice
 import json
-from helper import handySQL, image2queue as im2q
+from helper import handySQL
 from sqlite3 import Error
 import sqlite3
 from tabulate import tabulate
-from PIL import Image
-import PIL
-import io
-from discord.ext.commands.cooldowns import BucketType
 
 
 def isascii(s):
@@ -311,20 +304,6 @@ class Owner(commands.Cog):
                 await asyncio.sleep(random.randint(10, 100))
                 msg = await ctx.send(user)
                 await msg.delete()
-        else:
-            raise discord.ext.commands.errors.NotOwner
-
-    @commands.command(usage="inspect <cmd>")
-    async def inspect(self, ctx, cmd="minesweeper"):
-        """
-        Used to send the code of any given command. **Does not work yet.**
-        Permissions: Owner
-        """
-        if await self.bot.is_owner(ctx.author):
-            source_code = inspect.getsource(minesweeper.Minesweeper)
-            await ctx.send(f"```python\n"
-                           f"{source_code}\n"
-                           f"```")
         else:
             raise discord.ext.commands.errors.NotOwner
 
