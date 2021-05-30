@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands, tasks
 from datetime import datetime
-
+from discord_components import DiscordComponents, Button, ButtonStyle, InteractionType
 from discord.ext.commands import has_permissions
 from pytz import timezone
 import psutil
@@ -9,12 +9,10 @@ import time
 import random
 import string
 import hashlib
-from helper.lecture_scraper import scraper_test
 from discord.ext.commands.cooldowns import BucketType
 from helper import handySQL
 from calendar import monthrange
-import asyncio
-
+import multiprocessing
 
 def get_formatted_time(rem):
     if rem < 0:
@@ -210,6 +208,7 @@ async def check_join_leave_condition(c, command, conn, ctx, event_name, guild_id
 class Information(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        DiscordComponents(self.bot)
         self.script_start = time.time()
         self.db_path = "./data/discord.db"
         self.conn = handySQL.create_connection(self.db_path)
@@ -251,6 +250,8 @@ class Information(commands.Cog):
                 try:
                     # updates the event message
                     channel = self.bot.get_channel(int(row[2]))
+                    if channel is None:  # channel is not visible to the bot
+                        continue
                     msg = await channel.fetch_message(int(row[1]))
                     res = get_event_details(c, row[0], channel.guild.id)
                     embed = create_event_embed(c, res)
@@ -369,34 +370,10 @@ class Information(commands.Cog):
                     pass
 
     @commands.cooldown(2, 10, BucketType.user)
-    @commands.command(aliases=["terms"], usage="$terminology [word]")
-    async def terminology(self, ctx, word=None):
-        """
-        Fetches the terms from the PPROG site. This command has been neglected \
-        as it barely serves a purpose.
-        """
-        async with ctx.typing():
-            terms = await scraper_test.terminology()
-            if word is None:
-                embed = discord.Embed(title="PPROG Terminology")
-                cont = ""
-                for key in terms.keys():
-                    cont += f"**- {key}:** {terms[key]}\n"
-                if len(cont) > 2000:
-                    index = cont.rindex("\n", 0, 1900)
-                    cont = cont[0:index]
-                    cont += "\n..."
-                embed.description = cont
-                embed.set_footer(text="URL=https://cgl.ethz.ch/teaching/parallelprog21/pages/terminology.html")
-                await ctx.send(embed=embed)
-            else:
-                if word in terms.keys():
-                    cont = f"**{word}**:\n{terms[word]}"
-                    embed = discord.Embed(title="PPROG Terminology", description=cont)
-                    embed.set_footer(text="URL=https://cgl.ethz.ch/teaching/parallelprog21/pages/terminology.html")
-                    await ctx.send(embed=embed)
-                else:
-                    await ctx.send("Couldn't find word. soz...")
+    @commands.command(aliases=["calc"], usage="calculator")
+    async def calculator(self, ctx):
+        c = Calculator(self.bot, ctx, 180)
+        await c.handle_calculator()
 
     @commands.cooldown(4, 10, BucketType.user)
     @commands.command(usage="guild")
@@ -1107,3 +1084,176 @@ def seconds_elapsed():
 
 def random_string(n):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
+
+
+class Calculator:
+    def __init__(self, bot, ctx, seconds=60):
+        self.equation = ""
+        self.previous_answer = 0
+        self.operator = ""
+        self.bot = bot
+        self.ctx = ctx
+        self.time = time.time()
+        self.seconds = seconds
+        self.message = None
+        self.open_parenth_count = 0
+
+    async def handle_calculator(self):
+        self.message = await self.send_initial_message()
+        while time.time() < self.time + self.seconds:
+            res = await self.bot.wait_for("button_click")
+            if res.message is not None and type(res.component) != type(list) and res.message.id == self.message.id:
+                if res.user.id == self.ctx.message.author.id:
+                    label = res.component.label
+                    if label in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "x", "/", "+", "-", "^"]:
+                        if self.equation == "N/A":
+                            self.equation = label
+                        else:
+                            self.equation = f"{self.equation}{label}"
+                    elif label == "DEL":
+                        if self.equation == "N/A" or len(self.equation) <= 1:
+                            self.equation = ""
+                        elif len(self.equation) >= 3 and self.equation[-3:] == "ANS":
+                            # Removes ANS if its the last thing
+                            self.equation = self.equation[:-3]
+                        else:
+                            self.equation = self.equation[:-1]
+                    elif label in ["(", ")"]:
+                        self.equation = f"{self.equation}{label}"
+                        if label == "(":
+                            self.open_parenth_count += 1
+                        else:
+                            self.open_parenth_count -= 1
+                    elif label == "ANS":
+                        self.equation = f"{self.equation}{label}"
+                    elif label == "=":
+                        try:
+                            self.equation = self.equation.replace("x", "*").replace("ANS", str(self.previous_answer)).replace("^", "**")
+                            result = eval(self.equation)
+                            self.equation = str(result)
+                            self.previous_answer = result
+                        except (ZeroDivisionError, SyntaxError):
+                            self.equation = "N/A"
+                    elif label == "AC":
+                        self.equation = ""
+                    elif label == "OFF":
+                        break
+                    elif label == ".":
+                        self.equation = f"{self.equation}{label}"
+                    await self.update_message()
+                    try:
+                        await res.respond(type=InteractionType.UpdateMessage, components=self.get_components())
+                    except discord.errors.NotFound:
+                        continue
+                else:
+                    await res.respond(type=InteractionType.ChannelMessageWithSource, content="The calculator wasn't called by you.")
+        try:
+            await self.ctx.message.delete()
+        except discord.errors.NotFound:
+            pass
+        await self.message.delete()
+
+    async def update_message(self):
+        await self.message.edit(embed=self.create_embed())
+
+    def get_components(self) -> list:
+        components = [
+            [
+                Button(style=ButtonStyle.grey, label="7"),
+                Button(style=ButtonStyle.grey, label="8"),
+                Button(style=ButtonStyle.grey, label="9"),
+                Button(style=ButtonStyle.grey, label="DEL"),
+                Button(style=ButtonStyle.grey, label="AC")
+            ],
+            [
+                Button(style=ButtonStyle.grey, label="4"),
+                Button(style=ButtonStyle.grey, label="5"),
+                Button(style=ButtonStyle.grey, label="6"),
+                Button(style=ButtonStyle.grey, label="x"),
+                Button(style=ButtonStyle.grey, label="/")
+            ],
+            [
+                Button(style=ButtonStyle.grey, label="1"),
+                Button(style=ButtonStyle.grey, label="2"),
+                Button(style=ButtonStyle.grey, label="3"),
+                Button(style=ButtonStyle.grey, label="+"),
+                Button(style=ButtonStyle.grey, label="-")
+            ],
+            [
+                Button(style=ButtonStyle.grey, label="0"),
+                Button(style=ButtonStyle.grey, label="."),
+                Button(style=ButtonStyle.grey, label="("),
+                Button(style=ButtonStyle.grey, label=")"),
+                Button(style=ButtonStyle.grey, label="=")
+            ],
+            [
+                Button(style=ButtonStyle.grey, label="ANS"),
+                Button(style=ButtonStyle.red, label="OFF"),
+                Button(style=ButtonStyle.grey, label="^")
+            ]
+        ]
+        # checks if the operators can be used
+        if len(self.equation) == 0 or self.equation[-1] in ["x", "/", "(", ".", "+", "-", "^"]:
+            components[1][3:] = [
+                Button(style=ButtonStyle.grey, label="x", disabled=True),
+                Button(style=ButtonStyle.grey, label="/", disabled=True)
+            ]
+            components[4][2] = Button(style=ButtonStyle.grey, label="^", disabled=True)
+            components[3][1] = Button(style=ButtonStyle.grey, label=".", disabled=True)
+        # when to allow + -
+        if len(self.equation) > 0 and self.equation[-1] in ["x", "/", "(", ".", "^"]:
+            components[2][3:] = [
+                Button(style=ButtonStyle.grey, label="+", disabled=True),
+                Button(style=ButtonStyle.grey, label="-", disabled=True)
+            ]
+        # when to allow ANS and opening bracket
+        if len(self.equation) > 0 and self.equation[-1] in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "S"]:
+            components[4][0] = Button(style=ButtonStyle.grey, label="ANS", disabled=True)
+            components[3][2] = Button(style=ButtonStyle.grey, label="(", disabled=True)
+
+        # makes the closing parentheses red if a closing bracket is needed
+        if self.open_parenth_count > 0:
+            components[3][3] = Button(style=ButtonStyle.red, label=")")
+        # when to disable the closing bracket
+        if self.open_parenth_count == 0 or (len(self.equation) > 0 and self.equation[-1] in ["(", "x", "/", ".", "+", "-", "^"]):
+            components[3][3] = Button(style=ButtonStyle.grey, label=")", disabled=True)
+
+        # when to disable numbers
+        if len(self.equation) > 0 and self.equation[-1] in ["S", ")"]:
+            components[0][:3] = [
+                Button(style=ButtonStyle.grey, label="7", disabled=True),
+                Button(style=ButtonStyle.grey, label="8", disabled=True),
+                Button(style=ButtonStyle.grey, label="9", disabled=True),
+            ]
+            components[1][:3] = [
+                Button(style=ButtonStyle.grey, label="4", disabled=True),
+                Button(style=ButtonStyle.grey, label="5", disabled=True),
+                Button(style=ButtonStyle.grey, label="6", disabled=True),
+            ]
+            components[2][:3] = [
+                Button(style=ButtonStyle.grey, label="1", disabled=True),
+                Button(style=ButtonStyle.grey, label="2", disabled=True),
+                Button(style=ButtonStyle.grey, label="3", disabled=True),
+            ]
+
+        # check if its possible to even compute the equation
+        try:
+            self.equation.replace("x", "*").replace("ANS", str(self.previous_answer)).replace("^", "**")
+        except (SyntaxError, ZeroDivisionError):
+            components[3][4] = Button(style=ButtonStyle.red, label="=", disabled=True)
+
+        return components
+
+    def create_embed(self):
+        embed = discord.Embed()
+        embed.set_author(name=str(self.ctx.message.author), icon_url=self.ctx.message.author.avatar_url)
+        field_value = self.equation
+        if len(field_value) < 42:
+            field_value += " "*(42 - len(field_value))
+        if len(field_value) > 1000:
+            field_value = "N/A"
+        embed.add_field(name="Calculator", value=f"```\n{field_value}\n```")
+        return embed
+
+    async def send_initial_message(self) -> discord.Message:
+        return await self.ctx.send(embed=self.create_embed(), components=self.get_components())
