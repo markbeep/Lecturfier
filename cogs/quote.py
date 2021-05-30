@@ -829,7 +829,7 @@ class Pages:
                     await res.respond(type=InteractionType.ChannelMessageWithSource, content="This page wasn't called by you.")
         try:
             await self.ctx.message.delete()
-        except AttributeError:
+        except discord.errors.NotFound:
             pass
         await self.message.delete()
 
@@ -862,7 +862,7 @@ class Pages:
 
         if self.page_count == 0:  # we are on the first page
             components[0] = Button(style=ButtonStyle.grey, label="<<", disabled=True)
-            components[1] = Button(style=ButtonStyle.grey, label=">", disabled=True)
+            components[1] = Button(style=ButtonStyle.grey, label="<", disabled=True)
 
         return [components]
 
@@ -873,6 +873,7 @@ class Pages:
         """
         embed = discord.Embed(title=self.embed_title, color=0x404648)
         embed.add_field(name=f"Page {self.page_count + 1} / {len(self.pages)}", value=self.pages[self.page_count])
+        embed.set_author(name=str(self.ctx.message.author), icon_url=self.ctx.message.author.avatar_url)
         if len(self.pages) > 1:
             embed.set_footer(text="<< first page | < prev page | ❌ delete message | > next page | >> last page")
         return embed
