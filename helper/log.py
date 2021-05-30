@@ -1,30 +1,22 @@
-from datetime import datetime
-from pytz import timezone
+import logging
+
+logger = logging.getLogger("discord")
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler(filename="./logs/discord.log", encoding="utf-8", mode="w")
+handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s"))
+logger.addHandler(handler)
 
 
-def log(text, keyword=None):
+def log(text, print_it=True, warning=False) -> None:
     """
     Logs a specific entry to a file.
     :param text: The text to log into a file
-    :param keyword: An optional parameter which helps with sorting the log
+    :param print_it: An optional parameter which helps with sorting the log
     :return: None
     """
-
-    # NO MORE LOGGING FOR NOW
-    return
-
-    """if keyword is not None:
-        text = f"{keyword} | {text}"
-    date = datetime.now(timezone("Europe/Zurich")).strftime("%Y-%m-%d")
-    time = datetime.now(timezone("Europe/Zurich")).strftime("%H:%M:%S")
-
-    # In rare cases some characters can cause an UnicodeEncodeError
-    try:
-        with open(f"logs/{date}.log", "a") as f:
-            f.write(f"[{time}] -- {text}\n")
-    except UnicodeEncodeError:
-        with open(f"logs/{date}.log", "a") as f:
-            text = text.encode('UTF-8')
-            print("!!!-----UnicodeEncodeError while logging-----!!!")
-            f.write(f"\n\n#############UnicodeEncodeError#############\n\n[{time}] -- {text}\n")
-    print(f"Logged: {text}")"""
+    if print_it:
+        print(text)
+    level = logging.INFO
+    if warning:
+        level = logging.WARNING
+    logger.log(msg=text, level=level)
