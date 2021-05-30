@@ -27,26 +27,30 @@ class MainBot(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        log("\n----------------------------\nStarting up bot")
-        print("Logged in as:", "LOGIN")
-        print(f"Name: {self.bot.user.name}", "LOGIN")
-        print(f"ID: {self.bot.user.id}", "LOGIN")
-        print(f"Version: {discord.__version__}", "LOGIN")
+        print("\n----------------------------")
+        log("Starting up bot")
+        log("Logged in as:")
+        log(f"Name: {self.bot.user.name}")
+        log(f"ID: {self.bot.user.id}")
+        log(f"Version: {discord.__version__}")
         await self.bot.change_presence(activity=discord.Activity(name="myself startup", type=discord.ActivityType.watching))
         print("-------------")
-        await self.load_all_extensions(self.startup_extensions)
-        log("Started up bot\n-------------")
+        count = await self.load_all_extensions(self.startup_extensions)
+        log(f"Started up bot with {count}/{len(self.startup_extensions)-2} extensions loaded successfully.")
+        print("-------------")
 
-    async def load_all_extensions(self, extensions_to_load):
+    async def load_all_extensions(self, extensions_to_load) -> int:
+        count = 0
         for extension in extensions_to_load:
             try:
                 loaded_cog = self.bot.load_extension("cogs." + extension)
-                print("Loaded extension \"{}\".".format(extension), "EXTENSION")
+                log("Loaded extension \"{}\".".format(extension))
+                count += 1
             except discord.ext.commands.errors.ExtensionAlreadyLoaded:
                 pass
             except Exception as e:
-                print("Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)), "EXTENSION")
-        print("-------------------")
+                log("Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)), print_it=True, warning=True)
+        return count
 
     @commands.command()
     async def reload(self, ctx, cog=None):
