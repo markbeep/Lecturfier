@@ -7,6 +7,7 @@ from pytz import timezone
 import json
 import time
 from discord.ext.commands.cooldowns import BucketType
+from discord_components import DiscordComponents, Button, ButtonStyle, InteractionType
 
 
 class Admin(commands.Cog):
@@ -50,6 +51,13 @@ class Admin(commands.Cog):
         if member.guild.id == 747752542741725244:
             channel = self.bot.get_channel(815936830779555841)
             await self.send_leave_message(channel, member, member.guild)
+
+    @commands.Cog.listener()
+    async def on_button_click(self, res):
+        print("Button clicked")
+        await asyncio.sleep(1)
+        if not res.responded:
+            await res.respond(type=InteractionType.ChannelMessageWithSource, content="These buttons seem to be broken.")
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
