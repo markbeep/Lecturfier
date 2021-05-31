@@ -434,6 +434,9 @@ def create_all_tables(path):
                                         EventStartingAt text,
                                         EventDescription text,
                                         UniqueMemberID integer,
+                                        UpdatedMessageID integer,
+                                        UpdatedChannelID integer,
+                                        IsDone integer,
                                         FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
                                         );"""
 
