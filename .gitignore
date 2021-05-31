@@ -1,0 +1,8 @@
+cogs/__pycache__/*
+helper/__pycache__/*
+*.json
+*.db
+*.txt
+*.html
+helper/lecture_scraper/__pycache__/*
+*.log
