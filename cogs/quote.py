@@ -1,3 +1,4 @@
+import asyncio
 import math
 import discord
 from discord.ext import commands, menus
@@ -810,7 +811,12 @@ class Pages:
         self.message = await self.send_initial_message()
         while time.time() < self.start_time + self.seconds:
             # waits for a button click event
-            res = await self.bot.wait_for("button_click")
+            try:
+                # We add a timeout so that the message still gets deleted
+                # even if nobody presses any button
+                res = await self.bot.wait_for("button_click", timeout=10)
+            except asyncio.TimeoutError:
+                continue
             if res.message is not None and type(res.component) != type(list) and res.message.id == self.message.id:
                 if res.user.id == self.user_id:
                     if res.component.label == "<":  # prev page
