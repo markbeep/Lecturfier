@@ -165,9 +165,10 @@ class Updates(commands.Cog):
                 self.sent_updates = False
 
             # Update activity status:
-            time_till_next = self.get_time_till_next_lesson()
+            # Disabled because semester 2 is over -------------------
+            """time_till_next = self.get_time_till_next_lesson()
             if time_till_next != self.current_activity:
-                await self.bot.change_presence(activity=discord.Activity(name=time_till_next, type=discord.ActivityType.watching))
+                await self.bot.change_presence(activity=discord.Activity(name=time_till_next, type=discord.ActivityType.watching))"""
 
         except AttributeError as e:
             print(f"ERROR in Lecture Updates Loop! Probably wrong channel ID | {e}")
