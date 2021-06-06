@@ -1,0 +1,8 @@
+.idea/.name
+*.pyc
+*.log
+*.html
+data/*
+.idea/*
+.vscode/*
+helper/lecture_scraper/scraper_test.py
