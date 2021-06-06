@@ -257,9 +257,12 @@ class Statistics(commands.Cog):
         c = conn.cursor()
         uniqueID = handySQL.get_uniqueMemberID(conn, user_id, guild_id)
         for column in message_columns:
-            sql = f"""  SELECT UniqueMemberID, SUM({column}) as sm
-                        FROM UserMessageStatistic
-                        GROUP BY UniqueMemberID
+            sql = f"""  SELECT ums.UniqueMemberID, SUM({column}) as sm
+                        FROM UserMessageStatistic ums
+                        INNER JOIN DiscordMembers as dm on dm.UniqueMemberID=ums.UniqueMemberID
+                        INNER JOIN DiscordUsers DU on dm.DiscordUserID = DU.DiscordUserID
+                        WHERE DU.IsBot=0
+                        GROUP BY ums.UniqueMemberID
                         ORDER BY sm DESC"""
             rank = 0
             val = None
@@ -275,9 +278,12 @@ class Statistics(commands.Cog):
                 val = f"{val} MB"
             embed.add_field(name=column, value=f"{val} *({rank}.)*\n")
         for column in reaction_columns:
-            sql = f"""  SELECT UniqueMemberID, SUM({column}) as sm
-                        FROM UserReactionStatistic
-                        GROUP BY UniqueMemberID
+            sql = f"""  SELECT ums.UniqueMemberID, SUM({column}) as sm
+                        FROM UserReactionStatistic ums
+                        INNER JOIN DiscordMembers as dm on dm.UniqueMemberID=ums.UniqueMemberID
+                        INNER JOIN DiscordUsers DU on dm.DiscordUserID = DU.DiscordUserID
+                        WHERE DU.IsBot=0
+                        GROUP BY ums.UniqueMemberID
                         ORDER BY sm DESC"""
             rank = 0
             val = None

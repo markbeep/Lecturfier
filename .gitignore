@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 .idea/.name
 *.pyc
 *.log
@@ -6,3 +7,13 @@ data/*
 .idea/*
 .vscode/*
 helper/lecture_scraper/scraper_test.py
+=======
+cogs/__pycache__/*
+helper/__pycache__/*
+*.json
+*.db
+*.txt
+*.html
+helper/lecture_scraper/__pycache__/*
+*.log
+>>>>>>> origin/master

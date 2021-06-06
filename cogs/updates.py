@@ -9,7 +9,6 @@ import json
 import traceback
 from helper.log import log
 from helper import handySQL
-from helper.lecture_scraper import scraper_test
 
 
 async def create_lecture_embed(subject_name, stream_url, zoom_url, subject_website_url, subject_room=None, color=discord.colour.Color.light_gray()):
@@ -166,9 +165,10 @@ class Updates(commands.Cog):
                 self.sent_updates = False
 
             # Update activity status:
-            time_till_next = self.get_time_till_next_lesson()
+            # Disabled because semester 2 is over -------------------
+            """time_till_next = self.get_time_till_next_lesson()
             if time_till_next != self.current_activity:
-                await self.bot.change_presence(activity=discord.Activity(name=time_till_next, type=discord.ActivityType.watching))
+                await self.bot.change_presence(activity=discord.Activity(name=time_till_next, type=discord.ActivityType.watching))"""
 
         except AttributeError as e:
             print(f"ERROR in Lecture Updates Loop! Probably wrong channel ID | {e}")
@@ -177,13 +177,6 @@ class Updates(commands.Cog):
             user = self.bot.get_user(self.bot.owner_id)
             await user.send(f"Error in background loop: {traceback.format_exc()}")
             log(f"Error in background loop self.bot.py: {traceback.format_exc()}", "BACKGROUND")
-
-    @commands.command(usage="edit <message id> <livestream link>")
-    async def testOnline(self, ctx):
-        if await self.bot.is_owner(ctx.author):
-            await scraper_test.scrape()
-        else:
-            raise discord.ext.commands.errors.NotOwner
 
     @commands.command(usage="testLecture <subject_id> <channel_id> <role_id>")
     async def testLecture(self, ctx, subject_id=None, channel_id=None, role_id=0, stream_url=None):
