@@ -37,7 +37,7 @@ def createFiles():
         handySQL.create_all_tables("./data/discord.db")
         print("Created DB tables successfully")
 
-    if not os.path.exists("./data/rewrite_discord.db"):
+    if not os.path.exists("./data/test.db"):
         print("Creating rewrite DB table")
         create_tables()
         print("Created rewrite DB tables successfully")

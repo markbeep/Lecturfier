@@ -1,182 +1,165 @@
-from peewee import *
-import datetime
+from helper.sql.SQLFunctions import connect
 
-path = "./data/rewrite_discord.db"
+DiscordUsers = """  CREATE TABLE IF NOT EXISTS DiscordUsers (
+                        DiscordUserID integer NOT NULL PRIMARY KEY,
+                        DisplayName text NOT NULL,
+                        Discriminator integer NOT NULL,
+                        IsBot integer NOT NULL,
+                        AvatarURL text NOT NULL,
+                        CreatedAt text NOT NULL
+                    );"""
+DiscordGuilds = """ CREATE TABLE IF NOT EXISTS DiscordGuilds (
+                        DiscordGuildID integer NOT NULL PRIMARY KEY,
+                        GuildName text NOT NULL,
+                        GuildRegion text,
+                        GuildChannelCount integer default 0,
+                        GuildMemberCount integer default 1,
+                        GuildRoleCount integer default 0
+                        );"""
+DiscordChannels = """ CREATE TABLE IF NOT EXISTS DiscordChannels (
+                        DiscordChannelID integer NOT NULL PRIMARY KEY,
+                        DiscordGuildID integer NOT NULL,
+                        ChannelName text NOT NULL,
+                        ChannelType text NOT NULL,
+                        ChannelPosition integer NOT NULL,
+                        FOREIGN KEY (DiscordGuildID) REFERENCES DiscordGuilds(DiscordGuildID)
+                        );"""
+DiscordMembers = """ CREATE TABLE IF NOT EXISTS DiscordMembers (
+                        UniqueMemberID integer PRIMARY KEY,
+                        DiscordUserID integer NOT NULL,
+                        DiscordGuildID integer NOT NULL,
+                        JoinedAt text NOT NULL,
+                        Nickname text,
+                        Semester integer default 0,
+                        FOREIGN KEY (DiscordUserID) REFERENCES DiscordUsers(DiscordUserID),
+                        FOREIGN KEY (DiscordGuildID) REFERENCES DiscordGuilds(DiscordGuildID)
+                        );"""
+Subjects = """ CREATE TABLE IF NOT EXISTS Subjects (
+                        SubjectID integer NOT NULL PRIMARY KEY,
+                        SubjectName text NOT NULL,
+                        SubjectAbbreviation text,
+                        SubjectSemester integer default 0,
+                        SubjectLink text
+                        );"""
+WeekDayTimes = """ CREATE TABLE IF NOT EXISTS WeekDayTimes (
+                        UniqueDayTimesID integer PRIMARY KEY,
+                        SubjectID integer NOT NULL,
+                        DayID integer NOT NULL,
+                        TimeFrom text NOT NULL,
+                        TimeTo text NOT NULL,
+                        StreamLink text,
+                        ZoomLink text,
+                        OnSiteLocation text,
+                        FOREIGN KEY (SubjectID) REFERENCES Subject(SubjectID)
+                        );"""
+UserStatistics = """ CREATE TABLE IF NOT EXISTS UserStatistics (
+                        UserStatisticID integer PRIMARY KEY,
+                        UniqueMemberID integer NOT NULL,
+                        -- stats for each subject, where subjectID 0 is no current subject
+                        SubjectID integer NOT NULL,
+                        MessagesSent integer DEFAULT 0,
+                        MessagesDeleted integer DEFAULT 0,
+                        MessagesEdited integer DEFAULT 0,
+                        CharactersSent integer DEFAULT 0,
+                        WordsSent integer DEFAULT 0,
+                        SpoilersSent integer DEFAULT 0,
+                        EmojisSent integer DEFAULT 0,
+                        FilesSent integer DEFAULT 0,
+                        FileSizeSent integer DEFAULT 0,
+                        ImagesSent integer DEFAULT 0,
+                        ReactionsAdded integer DEFAULT 0,
+                        ReactionsRemoved integer DEFAULT 0,
+                        ReactionsReceived integer DEFAULT 0,
+                        ReactionsTakenAway integer DEFAULT 0,
+                        FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID),
+                        FOREIGN KEY (SubjectID) REFERENCES Subject(SubjectID)
+                                    );"""
+VoiceLevels = """ CREATE TABLE IF NOT EXISTS VoiceLevels (
+                    UniqueMemberID integer NOT NULL PRIMARY KEY,
+                    ExperienceAmount integer DEFAULT 0,
+                    FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
+                            );"""
+CovidGuessing = """  CREATE TABLE IF NOT EXISTS CovidGuessing (
+                        UniqueMemberID integer NOT NULL PRIMARY KEY,
+                        TotalPointsAmount integer DEFAULT 0,
+                        GuessCount integer DEFAULT 0,
+                        NextGuess integer,
+                        TempPoints integer,
+                        FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
+                        );"""
+Reputations = """    CREATE TABLE IF NOT EXISTS Reputations (
+                                ReputationID integer PRIMARY KEY,
+                                UniqueMemberID integer NOT NULL,
+                                ReputationMessage text NOT NULL,
+                                CreatedAt text DEFAULT CURRENT_TIMESTAMP,
+                                AddedByUniqueMemberID integer,
+                                IsPositive integer DEFAULT 1,
+                                FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID),
+                                FOREIGN KEY (AddedByUniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
+                                );"""
+Events = """     CREATE TABLE IF NOT EXISTS Events (
+                                    EventID integer PRIMARY KEY,
+                                    EventName text NOT NULL,
+                                    EventCreatedAt text DEFAULT CURRENT_TIMESTAMP,
+                                    EventStartingAt text NOT NULL,
+                                    EventDescription text default '[No Description]',
+                                    UniqueMemberID integer NOT NULL,
+                                    UpdatedMessageID integer,
+                                    UpdatedChannelID integer,
+                                    IsDone integer,
+                                    FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
+                                    );"""
 
-sqlite_db = SqliteDatabase(path, pragmas={
-    "journal_mode": "wal",
-    "foreign_keys": 1,
-    "ignore_check_constraints": 0
-})
+EventJoinedUsers = """   CREATE TABLE IF NOT EXISTS "EventJoinedUsers" (
+                                    "EventJoinedID"	INTEGER,
+                                    "EventID"	INTEGER,
+                                    "UniqueMemberID"	INTEGER,
+                                    "JoinedAt"	TEXT DEFAULT CURRENT_TIMESTAMP,
+                                    "IsHost"	INTEGER DEFAULT 0,
+                                    FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID"),
+                                    PRIMARY KEY("EventJoinedID"),
+                                    FOREIGN KEY("EventID") REFERENCES "Events"("EventID") ON DELETE CASCADE
+                                    );"""
+Quotes = """   CREATE TABLE IF NOT EXISTS "Quotes" (
+                                    "QuoteID" INTEGER PRIMARY KEY,
+                                    "Quote" INTEGER NOT NULL,
+                                    "Name" TEXT NOT NULL, -- name of who the quote is from
+                                    "UniqueMemberID" INTEGER, -- uniqueID if it exists
+                                    "CreatedAt"	TEXT DEFAULT CURRENT_TIMESTAMP,
+                                    "AddedByUniqueMemberID" INTEGER,
+                                    "DiscordGuildID" INTEGER NOT NULL,
+                                    FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID"),
+                                    FOREIGN KEY("DiscordGuildID") REFERENCES "DiscordGuilds"("DiscordGuildID")
+                                    );"""
+QuoteAliases = """  CREATE TABLE IF NOT EXISTS "QuoteAliases" (
+                                    "AliasID" INTEGER PRIMARY KEY,
+                                    "NameFrom" TEXT NOT NULL,
+                                    "NameTo" TEXT NOT NULL
+                                    );"""
+Config = """   CREATE TABLE IF NOT EXISTS "Config" (
+                                    "ConfigID" INTEGER PRIMARY KEY,
+                                    "ConfigKey" TEXT NOT NULL,
+                                    "ConfigValue" INTEGER NOT NULL
+                                    );"""
+QuotesToRemove = """   CREATE TABLE IF NOT EXISTS "QuotesToRemove" (
+                                    "QuoteID" INTEGER PRIMARY KEY,
+                                    "UniqueMemberID" INTEGER,
+                                    FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID"),
+                                    FOREIGN KEY("QuoteID") REFERENCES "DiscordMembers"("QuoteID")
+                                    );"""
 
-
-class BaseModel(Model):
-    class Meta:
-        database = sqlite_db
-
-
-class Config(BaseModel):
-    id = IntegerField(primary_key=True, unique=True)
-    Key = TextField()
-    Value = IntegerField()
-
-
-class DiscordGuilds(BaseModel):
-    DiscordGuildID = IntegerField(primary_key=True)
-    DiscordGuildName = TextField()
-    GuildRegion = TextField(null=True)
-    GuildChannelCount = IntegerField(default=0)
-    GuildMemberCount = IntegerField(default=0)
-    GuildRoleCount = IntegerField(default=0)
-
-
-class DiscordChannels(BaseModel):
-    DiscordChannelID = IntegerField(primary_key=True)
-    DiscordGuild = ForeignKeyField(DiscordGuilds, backref="channels")
-    ChannelName = TextField()
-    ChannelType = TextField()
-    ChannelPosition = IntegerField()
-
-
-class DiscordUsers(BaseModel):
-    DiscordUserID = IntegerField(primary_key=True)
-    DisplayName = TextField()
-    Discriminator = IntegerField()
-    IsBot = IntegerField()
-    AvatarURL = TextField()
-    CreatedAt = DateTimeField()
-
-
-class DiscordMembers(BaseModel):
-    DiscordMemberID = IntegerField(primary_key=True)
-    DiscordUser = ForeignKeyField(DiscordUsers, backref="members")
-    DiscordGuild = ForeignKeyField(DiscordGuilds, backref="members")
-    JoinedAt = DateTimeField(null=True)
-    Nickname = TextField(null=True)
-    Semester = IntegerField(null=True)
-
-
-class CovidGuessing(BaseModel):
-    DiscordMember = ForeignKeyField(DiscordMembers, backref="covid_score")
-    TotalPointsAmount = IntegerField()
-    GuessCount = IntegerField()
-    NextGuess = IntegerField(null=True)
-    TempPoints = IntegerField(null=True)
-
-
-class Events(BaseModel):
-    id = IntegerField(primary_key=True)
-    Name = TextField()
-    CreatedAt = DateTimeField(default=datetime.datetime.now)
-    StartingAt = DateTimeField()
-    Description = TextField(default="[no description]")
-    Host = ForeignKeyField(DiscordMembers, backref="events_hosting")
-    IsDone = IntegerField(default=0)
-    # These channels are not foreign fields, as this would result in errors
-    # if the channel can't be seen by the bot
-    UpdatedChannelID = IntegerField(null=True)
-    UpdatedMessageID = IntegerField(null=True)
-    SpecifiedChannelID = IntegerField(null=True)
-
-
-class EventJoinedUsers(BaseModel):
-    id = IntegerField(primary_key=True)
-    Event = ForeignKeyField(Events, backref="joined_members", on_delete="CASCADE")
-    DiscordMember = ForeignKeyField(DiscordMembers, backref="events_joined")
-    JoinedAt = DateTimeField(default=datetime.datetime.now)
-    IsHost = IntegerField(default=0)
-
-
-class Quotes(BaseModel):
-    id = IntegerField(primary_key=True)
-    Quote = TextField()
-    Name = TextField()
-    DiscordMember = ForeignKeyField(DiscordMembers, backref="quotes", null=True)
-    CreatedAt = DateTimeField()
-    AddedBy = ForeignKeyField(DiscordMembers, backref="quotes_added", null=True)
-    DiscordGuild = ForeignKeyField(DiscordGuilds, backref="quotes")
-
-
-class QuoteAliases(BaseModel):
-    id = IntegerField(primary_key=True)
-    NameFrom = TextField()
-    NameTo = TextField()
-
-
-class QuotesToRemove(BaseModel):
-    Quote = ForeignKeyField(Quotes, backref="to_remove", on_delete="CASCADE")
-    Reporter = ForeignKeyField(DiscordMembers, backref="reported_quotes")
-
-
-class Reputations(BaseModel):
-    id = IntegerField(primary_key=True)
-    DiscordMember = ForeignKeyField(DiscordMembers, backref="reputations")
-    Message = TextField()
-    CreatedAt = DateTimeField(default=datetime.datetime.now)
-    AddedBy = ForeignKeyField(DiscordMembers, backref="reputations_added", null=True)
-    IsPositive = IntegerField(default=1)
-
-
-class Subjects(BaseModel):
-    id = IntegerField(primary_key=True)
-    Name = TextField()
-    Abbreviation = TextField(default="n/a")
-    Semester = TextField(default=0)
-    Link = TextField(null=True)
-
-
-class WeekDayTimes(BaseModel):
-    id = IntegerField(primary_key=True)
-    Subject = ForeignKeyField(Subjects, backref="times")
-    DayID = IntegerField()
-    TimeFrom = TimeField(formats=["%H:%M"])
-    TimeTo = TimeField(formats=["%H:%M"])
-    StreamLink = TextField(null=True)
-    ZoomLink = TextField(null=True)
-    OnSiteLocation = TextField(null=True)
-
-
-class UserStatistics(BaseModel):
-    id = AutoField(primary_key=True)
-    Subject = ForeignKeyField(Subjects, backref="message_statistics")
-    DiscordMember = ForeignKeyField(DiscordMembers, backref="message_statistics")
-    MessagesSent = IntegerField(default=0)
-    MessagesDeleted = IntegerField(default=0)
-    MessagesEdited = IntegerField(default=0)
-    CharactersSent = IntegerField(default=0)
-    WordsSent = IntegerField(default=0)
-    SpoilersSent = IntegerField(default=0)
-    EmojisSent = IntegerField(default=0)
-    FilesSent = IntegerField(default=0)
-    FileSizeSent = IntegerField(default=0)
-    ImagesSent = IntegerField(default=0)
-    ReactionsAdded = IntegerField(default=0)
-    ReactionsRemoved = IntegerField(default=0)
-    ReactionsReceived = IntegerField(default=0)
-    ReactionsTakenAway = IntegerField(default=0)
-
-
-class VoiceLevels(BaseModel):
-    DiscordMember = ForeignKeyField(DiscordMembers, backref="voice_xp")
-    ExperienceAmount = IntegerField(default=0)
+all_tables = [DiscordUsers, DiscordGuilds, DiscordChannels, DiscordMembers, Subjects, WeekDayTimes,
+              UserStatistics, VoiceLevels, CovidGuessing, Reputations, Events, EventJoinedUsers,
+              Quotes, QuoteAliases, QuotesToRemove, Config]
 
 
 def create_tables():
-    with sqlite_db:
-        sqlite_db.create_tables([Config,
-                                 DiscordGuilds,
-                                 DiscordChannels,
-                                 DiscordUsers,
-                                 DiscordMembers,
-                                 CovidGuessing,
-                                 Events,
-                                 EventJoinedUsers,
-                                 Quotes,
-                                 QuoteAliases,
-                                 QuotesToRemove,
-                                 Reputations,
-                                 Subjects,
-                                 WeekDayTimes,
-                                 UserStatistics,
-                                 VoiceLevels])
-
+    conn = connect()
+    try:
+        for table in all_tables:
+            print(table)
+            conn.execute(table)
+    except Exception as e:
+        print(e)
+    finally:
+        conn.commit()
