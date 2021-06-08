@@ -7,8 +7,9 @@ import asyncio
 from emoji import demojize
 import json
 from helper.git_backup import gitpush
-from helper import handySQL
 from discord.ext.commands.cooldowns import BucketType
+from helper.sql import SQLFunctions
+from helper import handySQL
 
 
 def is_in(word, list_to_check):
@@ -26,24 +27,15 @@ class Statistics(commands.Cog):
         self.time_counter = 0  # So statistics dont get saved every few seconds, and instead only every 2 mins
         self.bot_changed_to_yesterday = {}
         self.db_path = "./data/discord.db"
-        self.conn = handySQL.create_connection(self.db_path)
         self.background_git_backup.start()
         self.sent_file = False
+        self.current_subject = [-1, 0]
 
     def heartbeat(self):
         return self.background_git_backup.is_running()
 
     def get_task(self):
         return self.background_git_backup
-
-    def get_connection(self):
-        """
-        Retreives the current database connection
-        :return: Database Connection
-        """
-        if self.conn is None:
-            self.conn = handySQL.create_connection(self.db_path)
-        return self.conn
 
     @tasks.loop(seconds=10)
     async def background_git_backup(self):
@@ -96,15 +88,12 @@ class Statistics(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        # Creates a connection with the DB
-        conn = self.get_connection()
-        try:
-            # This is in case a message is a direct message
-            guild_obj = message.guild
-        except AttributeError:
-            guild_obj = None
+        # only count stats in servers
+        if message.guild is None:
+            return
 
-        SUBJECT_ID = self.get_current_subject_id()
+        SUBJECT_ID = self.get_current_subject()
+        print("SUBJECT ID", SUBJECT_ID)
         # Makes it better to work with the message
         msg = demojize(message.content)
 
@@ -122,134 +111,81 @@ class Statistics(commands.Cog):
             if f.height is not None and f.height > 0:
                 images_amt += 1
 
-        uniqueID = handySQL.get_or_create_member(conn, message.author, guild_obj)
+        SQLFunctions.update_statistics(message.author,
+                                       SUBJECT_ID,
+                                       messages_sent=1,
+                                       characters_sent=char_count,
+                                       words_sent=word_count,
+                                       spoilers_sent=spoiler_count,
+                                       emojis_sent=emoji_count,
+                                       files_sent=files_amount,
+                                       file_size_sent=file_sizes,
+                                       images_sent=images_amt)
 
-        c = conn.cursor()
-        c.execute(f"SELECT * FROM UserMessageStatistic WHERE UniqueMemberID=? AND SubjectID=?", (uniqueID, SUBJECT_ID))
-        if c.fetchone() is None:
-            result = handySQL.create_message_statistic_entry(conn, message.author, guild_obj, SUBJECT_ID, "UserMessageStatistic")
-            if not result[0]:
-                return
-        values = (char_count, word_count, spoiler_count, emoji_count, files_amount, file_sizes, images_amt, uniqueID, SUBJECT_ID)
-        sql = """   UPDATE UserMessageStatistic
-                    SET MessageSentCount=MessageSentCount+1,
-                        CharacterCount=CharacterCount+?,
-                        WordCount=WordCount+?,
-                        SpoilerCount=SpoilerCount+?,
-                        EmojiCount=EmojiCount+?,
-                        FileSentCount=FileSentCount+?,
-                        FileTotalSize=FileTotalSize+?,
-                        ImageCount=ImageCount+?
-                    WHERE UniqueMemberID=? AND SubjectID=?"""
-        c.execute(sql, values)
-        conn.commit()
-
-    def get_current_subject_id(self, semester=2):
-        conn = self.get_connection()
-        c = conn.cursor()
-        sql = """   SELECT WD.SubjectID
-                    FROM WeekDayTimes WD
-                    INNER JOIN Subject S on WD.SubjectID=S.SubjectID
-                    WHERE WD.DayID=? AND WD.TimeFROM<=? AND WD.TimeTo>? AND S.SubjectSemester=?"""
-        day = datetime.now().weekday()
-        hour = datetime.now().hour
-        c.execute(sql, (day, hour, hour, semester))
-        row = c.fetchone()
-        if row is None:
-            return 0
-        return row[0]
+    def get_current_subject(self, semester=2) -> int:
+        """
+        Minor cache system to only make a subject query if it's a new minute
+        Returns the current subject ID
+        """
+        minute = datetime.now().minute
+        if self.current_subject[0] != minute:
+            subject_id = SQLFunctions.get_current_subject_id(semester)
+            self.current_subject = [minute, subject_id]
+        return self.current_subject[1]
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
-        # Update messages to be "deleted"
-        conn = self.get_connection()
-
-        try:
-            # This is in case a message is a direct message
-            guild_obj = message.guild
-        except AttributeError:
-            guild_obj = None
-
-        SUBJECT_ID = self.get_current_subject_id()
-
-        # Increments deleted message count
-        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "MessageDeletedCount", "UserMessageStatistic")
-        if not result[0]:
-            print(f"ERROR! MessageDeletedCount: {result[2]} | UserID: {message.author.id}")
+        if message.guild is None:
+            return
+        SUBJECT_ID = self.get_current_subject()
+        SQLFunctions.update_statistics(message.member, SUBJECT_ID, messages_deleted=1)
 
     @commands.Cog.listener()
     async def on_message_edit(self, before, message):
         # Adds the edited message to the table
-        if before.content == message.content:
+        if message.guild is None:
             return
-        conn = self.get_connection()
 
-        try:
-            # This is in case a message is a direct message
-            guild_obj = message.guild
-        except AttributeError:
-            guild_obj = None
+        # gets the char difference between the two messages
+        b_cont = before.content
+        a_cont = message.content
+        before_char_count = len(b_cont)
+        before_word_count = len(b_cont.split(" "))
+        before_emoji_count = b_cont.count(":") // 2
+        before_spoiler_count = b_cont.count("||") // 2
+        after_char_count = len(a_cont)
+        after_word_count = len(a_cont.split(" "))
+        after_emoji_count = a_cont.count(":") // 2
+        after_spoiler_count = a_cont.count("||") // 2
 
-        SUBJECT_ID = self.get_current_subject_id()
-
-        # Increments edited message count
-        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "MessageEditedCount", "UserMessageStatistic")
-        if not result[0]:
-            print(f"ERROR! MessageEditedCount: {result[2]} | UserID: {message.author.id}")
+        SUBJECT_ID = self.get_current_subject()
+        SQLFunctions.update_statistics(message.author,
+                                       SUBJECT_ID,
+                                       messages_edited=1,
+                                       characters_sent=after_char_count - before_char_count,
+                                       words_sent=after_word_count - before_word_count,
+                                       emojis_sent=after_emoji_count - before_emoji_count,
+                                       spoilers_sent=after_spoiler_count - before_spoiler_count)
 
     @commands.Cog.listener()
-    async def on_reaction_add(self, reaction, user):
-        conn = self.get_connection()
-
-        try:
-            # This is in case a message is a direct message
-            guild_obj = reaction.message.guild
-        except AttributeError:
-            guild_obj = None
-
-        SUBJECT_ID = self.get_current_subject_id()
-
-        # Increments added reaction count for reaction giver
-        result = handySQL.increment_message_statistic(conn, user, guild_obj, SUBJECT_ID, "ReactionAddedCount", "UserReactionStatistic")
-        if not result[0]:
-            print(f"ERROR! ReactionAddedCount: {result[2]} | UserID: {user.id}")
-
-        # User can't up the statistic on his own message
-        if user.id == reaction.message.author.id:
+    async def on_reaction_add(self, reaction, member):
+        if reaction.message.guild is None:
             return
-
-        # Increments gotten reaction count for reaction receiver
-        result = handySQL.increment_message_statistic(conn, reaction.message.author, guild_obj, SUBJECT_ID, "GottenReactionCount",
-                                                      "UserReactionStatistic")
-        if not result[0]:
-            print(f"ERROR! GottenReactionCount: {result[2]} | UserID: {user.id}")
+        SUBJECT_ID = self.get_current_subject()
+        SQLFunctions.update_statistics(member, SUBJECT_ID, reactions_added=1)
+        if member.id == reaction.message.author.id:
+            return
+        SQLFunctions.update_statistics(reaction.message.author, SUBJECT_ID, reactions_received=1)
 
     @commands.Cog.listener()
-    async def on_reaction_remove(self, reaction, user):
-        conn = self.get_connection()
-
-        try:
-            # This is in case a message is a direct message
-            guild_obj = reaction.message.guild
-        except AttributeError:
-            guild_obj = None
-
-        SUBJECT_ID = self.get_current_subject_id()
-
-        # Increments removed reaction count for reaction giver
-        result = handySQL.increment_message_statistic(conn, user, guild_obj, SUBJECT_ID, "ReactionRemovedCount", "UserReactionStatistic")
-        if not result[0]:
-            print(f"ERROR! ReactionRemovedCount: {result[2]} | UserID: {user.id}")
-
-        # User can't up the statistic on his own message
-        if user.id == reaction.message.author.id:
+    async def on_reaction_remove(self, reaction, member):
+        if reaction.message.guild is None:
             return
-
-        # Increments removed gotten reaction count for reaction receiver
-        result = handySQL.increment_message_statistic(conn, reaction.message.author, guild_obj, SUBJECT_ID, "GottenReactionRemovedCount",
-                                                      "UserReactionStatistic")
-        if not result[0]:
-            print(f"ERROR! GottenReactionRemovedCount: {result[2]} | UserID: {user.id}")
+        SUBJECT_ID = self.get_current_subject()
+        SQLFunctions.update_statistics(member, SUBJECT_ID, reactions_removed=1)
+        if member.id == reaction.message.author.id:
+            return
+        SQLFunctions.update_statistics(reaction.message.author, SUBJECT_ID, reactions_taken_away=1)
 
     async def create_embed(self, display_name, guild_id, user_id, message_columns, reaction_columns):
         embed = discord.Embed(title=f"Statistics for {display_name}")
@@ -323,7 +259,7 @@ class Statistics(commands.Cog):
                 if column == "FileTotalSize":
                     val = round(val / 1000000.0, 2)
                     val = f"{val} MB"
-                lb_msg += f"**{i+1}.** <@!{rows[i][0]}> *({val})*\n"
+                lb_msg += f"**{i + 1}.** <@!{rows[i][0]}> *({val})*\n"
             embed.add_field(name=column, value=lb_msg)
         for column in reaction_columns:
             rows = await self.get_rows(column, "UserReactionStatistic", guild_id, limit)
@@ -366,6 +302,9 @@ class Statistics(commands.Cog):
             guild_id = ctx.message.guild.id
         except AttributeError:
             guild_id = 0
+
+        SQLFunctions.get_statistic_rows()
+        return
 
         if user is not None:
             user_message_val = is_in(user, message_columns)

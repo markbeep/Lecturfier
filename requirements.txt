@@ -24,3 +24,4 @@ typing-extensions>=3.10.0.0
 urllib3>=1.26.5
 websockets>=9.0.2
 yarl>=1.6.3
+peewee>=3.14.4
