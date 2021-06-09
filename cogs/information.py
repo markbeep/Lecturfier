@@ -9,7 +9,7 @@ import random
 import string
 import hashlib
 from discord.ext.commands.cooldowns import BucketType
-from helper import handySQL
+from helper.sql import SQLFunctions
 from calendar import monthrange
 
 def get_formatted_time(rem):
@@ -99,108 +99,41 @@ def is_valid_time(time_dict):
     return False
 
 
-def starting_in(string_date):
-    dt = datetime.strptime(string_date, "%Y-%m-%d %H:%M:%S")
+def starting_in(dt: datetime):
     delta = dt - datetime.now()
     return get_formatted_time(delta.total_seconds())
 
 
-def add_event_fields(embed, ID, name, host, joined_users, date, start, created, desc):
-    """
-    Adds all the necessary fields to an embed message for a specific event
-    :param embed:
-    :param ID:
-    :param name:
-    :param host:
-    :param joined_users:
-    :param date:
-    :param start:
-    :param created:
-    :param desc:
-    :return:
-    """
-    embed.add_field(name="**Event ID**", value=ID)
-    embed.add_field(name="Event Name", value=name)
-    embed.add_field(name="Host", value=f"<@{host}>")
-    embed.add_field(name="Joined Users", value=joined_users)
-    embed.add_field(name="Event Date", value=format_date_string(date))
-    embed.add_field(name="Starting in", value=starting_in(start))
-    embed.add_field(name="Created", value=format_date_string(created))
-    embed.add_field(name="Event Description", value=desc)
+def format_date_string(dt: datetime):
+    return dt.strftime("%H:%M on %d.%b %Y")
 
 
-def format_date_string(dt):
-    return datetime.strptime(str(dt), "%Y-%m-%d %H:%M:%S").strftime("%H:%M on %d.%b %Y")
-
-
-def get_event_details(c, event_id, guild_id=None):
-    # guild_id is only given if its important to limit events to a guild
-    if guild_id is not None:
-        sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID, E.UpdatedMessageID, E.UpdatedChannelID
-                    FROM Events E
-                    INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
-                    WHERE E.EventID=? AND DM.DiscordGuildID=?"""
-        c.execute(sql, (event_id, guild_id))
-    else:
-        sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID, E.UpdatedMessageID, E.UpdatedChannelID
-                    FROM Events E
-                    INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
-                    WHERE E.EventID=?"""
-        c.execute(sql, (event_id,))
-    res = c.fetchone()
-    return res
-
-
-def create_event_embed(c, res):
+def create_event_embed(event: SQLFunctions.Event, joined_members: list):
     # Creates joined user table
-    sql = """   SELECT D.DiscordUserID
-                FROM EventJoinedUsers E 
-                INNER JOIN DiscordMembers D on D.UniqueMemberID = E.UniqueMemberID
-                WHERE E.EventID=?"""
-    c.execute(sql, (res[5],))
-    users = c.fetchall()
-    joined_users_msg = f"Total: {len(users)}"
+    joined_users_msg = f"Total: {len(joined_members)}"
     counter = 1
-    for row in users:
+    for member in joined_members:
         if counter > 5:
             joined_users_msg += "\n> . . ."
             break
-        joined_users_msg += f"\n> <@{row[0]}>"
+        joined_users_msg += f"\n> <@{member.DiscordUserID}>"
         counter += 1
-
     # Creates and returns the embed message
     embed = discord.Embed(title="Updating Event View", color=0xFCF4A3)
-    embed.set_footer(text=f"Join this event with $event join {res[5]}")
-    add_event_fields(embed, res[5], res[0], res[4], joined_users_msg, res[2], res[2], res[1], res[3])
+    embed.set_footer(text=f"Join this event with $event join {event.EventID}")
+    add_event_fields(embed, event, joined_users_msg)
     return embed
 
 
-async def check_join_leave_condition(c, command, conn, ctx, event_name, guild_id):
-    """
-    Used for the event join and leave commands to check whether the event exists and there only exists one result
-    """
-    if event_name is None:
-        await ctx.send(
-            f"ERROR! {ctx.message.author.mention}, you did not specify what event to {command}. Check `$help event` to get more "
-            f"info about the event command.", delete_after=10)
-        await ctx.message.delete(delay=10)
-        raise discord.ext.commands.errors.BadArgument
-    sql = """   SELECT E.EventID, E.EventName, E.SpecificChannel
-                FROM Events E
-                INNER JOIN DiscordMembers D on D.UniqueMemberID = E.UniqueMemberID
-                WHERE (E.EventName LIKE ? OR E.EventID=?) AND D.DiscordGuildID=? AND E.IsDone=0"""
-    c.execute(sql, (f"%{event_name}%", event_name, guild_id))
-    event_result = c.fetchall()
-    if len(event_result) == 0:
-        await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an upcoming event with that name/ID.", delete_after=10)
-        await ctx.message.delete(delay=10)
-        raise discord.ext.commands.errors.BadArgument
-    event_result = event_result[0]
-    # Checks if the user already joined the event
-    uniqueID = handySQL.get_uniqueMemberID(conn, ctx.message.author.id, guild_id)
-    c.execute("SELECT IsHost FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_result[0], uniqueID))
-    res = c.fetchone()
-    return event_result, res, uniqueID
+def add_event_fields(embed, event, joined_users_msg):
+    embed.add_field(name="**Event ID**", value=event.EventID)
+    embed.add_field(name="Event Name", value=event.EventName)
+    embed.add_field(name="Host", value=f"<@{event.DiscordMember.DiscordUserID}>")
+    embed.add_field(name="Joined Users", value=joined_users_msg)
+    embed.add_field(name="Event Date", value=format_date_string(event.EventStartingAt))
+    embed.add_field(name="Starting in", value=starting_in(event.EventStartingAt))
+    embed.add_field(name="Created", value=format_date_string(event.EventCreatedAt))
+    embed.add_field(name="Event Description", value=event.EventDescription)
 
 
 class Information(commands.Cog):
@@ -208,23 +141,10 @@ class Information(commands.Cog):
         self.bot = bot
         self.script_start = time.time()
         self.db_path = "./data/discord.db"
-        self.conn = handySQL.create_connection(self.db_path)
+        self.conn = SQLFunctions.connect()
         self.background_events.start()
         # emote used for adding users to an event
         self.emote = ":greenverify:829432586098049034"
-
-    def get_connection(self):
-        """
-        Retreives the current database connection
-        :return: Database Connection
-        """
-        if self.conn is None:
-            self.conn = handySQL.create_connection(self.db_path)
-        c = self.conn.cursor()
-        c.execute('PRAGMA foreign_keys = ON;')
-        self.conn.commit()
-        c.close()
-        return self.conn
 
     def heartbeat(self):
         return self.background_events.is_running()
@@ -235,101 +155,102 @@ class Information(commands.Cog):
     @tasks.loop(seconds=20)
     async def background_events(self):
         await self.bot.wait_until_ready()
-        conn = self.get_connection()
-        c = conn.cursor()
-
-        # iterates through all update messages
-        c.execute("SELECT EventID, UpdatedMessageID, UpdatedChannelID, EventStartingAt FROM Events WHERE IsDone=0")
-        result = c.fetchall()
-        dt = str(datetime.now(timezone("Europe/Zurich")))
-        for row in result:
-            if row[1] is not None and row[2] is not None:
+        # iterates through all events to update the event messages
+        results = SQLFunctions.get_events(self.conn, is_done=False)
+        current_time = datetime.now()
+        for event in results:
+            joined_members = SQLFunctions.get_event_joined_users(event, self.conn)
+            if event.UpdatedChannelID is not None and event.UpdatedMessageID is not None:
                 try:
-                    # updates the event message
-                    channel = self.bot.get_channel(int(row[2]))
-                    if channel is None:  # channel is not visible to the bot
+                    # fetches the event channel and event
+                    # in case of an error updating is simply skipped
+                    channel = self.bot.get_channel(event.UpdatedChannelID)
+                    if channel is None or channel.guild is None:  # channel is not visible to the bot or it's a private channel
                         continue
-                    msg = await channel.fetch_message(int(row[1]))
-                    res = get_event_details(c, row[0], channel.guild.id)
-                    embed = create_event_embed(c, res)
+                    msg = await channel.fetch_message(event.UpdatedMessageID)
+                    embed = create_event_embed(event, joined_members)
                     await msg.edit(embed=embed)
                 except (discord.NotFound, discord.errors.Forbidden):
-                    print("Have no access to the events update message.")
+                    print(f"Have no access to the events update message for the event with ID {event.EventID}.")
                     continue
             # ping users if event starts
-            if row[3] < dt:
-                # gets the users to ping
-                sql = """   SELECT D.DiscordUserID
-                            FROM EventJoinedUsers E 
-                            INNER JOIN DiscordMembers D on D.UniqueMemberID = E.UniqueMemberID
-                            WHERE E.EventID=?"""
-                c.execute(sql, (row[0],))
-                result = c.fetchall()
+            if event.EventStartingAt <= current_time:
                 # creates the embed for the starting event
-                # E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID, E.UpdatedMessageID, E.UpdatedChannelID
-                event_res = get_event_details(c, row[0])
                 embed = discord.Embed(
                     title="Event Starting!",
-                    description=f"`{event_res[0]}` is starting! Here just a few details of the event:",
+                    description=f"`{event.EventName}` is starting! Here just a few details of the event:",
                     color=0xFCF4A3)
-                embed.add_field(name="Event ID", value=row[0])
-                embed.add_field(name="Host", value=f"<@{event_res[4]}>")
-                embed.add_field(name="Description", value=event_res[3])
+                embed.add_field(name="Event ID", value=event.EventID)
+                embed.add_field(name="Host", value=f"<@{event.DiscordMember.DiscordUserID}>")
+                embed.add_field(name="Description", value=event.EventDescription)
 
-                for user_row in result:
-                    user = self.bot.get_user(user_row[0])
+                for member in joined_members:
+                    user = self.bot.get_user(member.DiscordUserID)
                     if user is None:
-                        print(f"Did not find user with ID {user_row[0]}")
+                        print(f"Did not find user with ID {member.DiscordUserID}")
                         continue
                     try:
                         await user.send(embed=embed)
                     except discord.Forbidden:
                         print(f"Can't dm {user.name}")
         # Marks all older events as done
-        c.execute("Update Events SET IsDone=1 WHERE EventStartingAt < ?", (dt,))
-        conn.commit()
+        SQLFunctions.mark_events_done(current_time, conn=self.conn)
 
     @commands.Cog.listener()
     async def on_ready(self):
         self.script_start = time.time()
 
+    async def join_leave_event(self, member, guild_id, command, message_id=None, event_id=None) -> SQLFunctions.Event:
+        event_results = SQLFunctions.get_events(self.conn, is_done=False, guild_id=guild_id)
+        for e in event_results:
+            if e.UpdatedChannelID == message_id or e.EventID == event_id:
+                event = e
+                break
+        else:  # no matching event was found otherwise
+            return False
+        # check if the user already joined the event
+        joined_members = SQLFunctions.get_event_joined_users(event=event, conn=self.conn)
+        joined = True
+        for m in joined_members:
+            if m.DiscordUserID == member.id:
+                discord_member: SQLFunctions.DiscordMember = m
+                break
+        else:
+            joined = False
+        if command == "join" and not joined:
+            # Adds the user to the event
+            member = SQLFunctions.get_or_create_discord_member(member)
+            SQLFunctions.add_member_to_event(event, member, self.conn)
+        elif command == "leave" and joined:
+            # Removes the user from the event
+            SQLFunctions.remove_member_from_event(event, discord_member, self.conn)
+        else:
+            return False
+        try:
+            await self.set_event_channel_perms(member, event.SpecificChannelID, command)
+        except discord.Forbidden:
+            pass
+        return event
+
     @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload):
-        if payload.guild_id is None or payload.channel_id is None or payload.member is None:
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        if payload.guild_id is None or payload.channel_id is None or payload.member is None or payload.message_id is None:
             return
         # return if its the bot itself
         if payload.member.bot:
             return
         if self.emote in str(payload.emoji):
-            conn = self.get_connection()
-            c = conn.cursor()
-            # checks if this is an updated message
-            c.execute("SELECT EventID, EventName, SpecificChannel FROM Events WHERE UpdatedMessageID=?", (payload.message_id,))
-            res = c.fetchone()
-            if res is None:
+            event = await self.join_leave_event(payload.member, payload.guild_id, "join", message_id=payload.message_id)
+            SQLFunctions.logger.debug(f"Member {str(payload.member)} joining Event: {event}")
+            if not event:
                 return
-            event_id = res[0]
-            event_name = res[1]
-            specific_channel = res[2]
-            uniqueID = handySQL.get_uniqueMemberID(conn, payload.member.id, payload.guild_id)
-            c.execute("SELECT * FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_id, uniqueID))
-            res = c.fetchone()
-            # Joining part
-            if res is None:
-                # Joins the user to the event
-                c.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID) VALUES (?,?)", (event_id, uniqueID))
-                conn.commit()
-                try:
-                    await self.set_event_channel_perms(payload.member, specific_channel, "join")
-                except discord.Forbidden:
-                    pass
-                try:
-                    await payload.member.send(f"Added you to the event **{event_name}**")
-                except discord.Forbidden:
-                    pass
+            try:
+                await payload.member.send(f"Added you to the event **{event.EventName}**")
+            except discord.Forbidden:
+                pass
 
     @commands.Cog.listener()
-    async def on_raw_reaction_remove(self, payload):
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
         if payload.guild_id is None or payload.channel_id is None or payload.user_id is None:
             return
         # return if its the bot itself
@@ -337,34 +258,20 @@ class Information(commands.Cog):
             return
         if self.emote in str(payload.emoji):
             guild = self.bot.get_guild(payload.guild_id)
-            member = guild.get_member(payload.user_id)
-            conn = self.get_connection()
-            c = conn.cursor()
-            # checks if this is an updated message
-            c.execute("SELECT EventID, EventName, SpecificChannel FROM Events WHERE UpdatedMessageID=?", (payload.message_id,))
-            res = c.fetchone()
-            if res is None:
+            if guild is None:
                 return
-            event_id = res[0]
-            event_name = res[1]
-            specific_channel = res[2]
-            uniqueID = handySQL.get_uniqueMemberID(conn, payload.user_id, payload.guild_id)
-            c.execute("SELECT * FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_id, uniqueID))
-            res = c.fetchone()
+            member = guild.get_member(payload.user_id)
+            if member is None:
+                return
+            event = await self.join_leave_event(member, payload.guild_id, "join", message_id=payload.message_id)
+            SQLFunctions.logger.debug(f"Member {str(member)} leaving Event: {event}")
+            if not event:
+                return
             try:
-                await self.set_event_channel_perms(member, specific_channel, "leave")
+                user = self.bot.get_user(payload.user_id)
+                await user.send(f"Removed you from the event **{event.EventName}**")
             except discord.Forbidden:
                 pass
-            # Removing part
-            if res is not None:
-                # Removes the user from the event
-                c.execute("DELETE FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_id, uniqueID))
-                conn.commit()
-                try:
-                    user = self.bot.get_user(payload.user_id)
-                    await user.send(f"Removed you from the event **{event_name}**")
-                except discord.Forbidden:
-                    pass
 
     @commands.cooldown(4, 10, BucketType.user)
     @commands.command(usage="guild")
@@ -510,6 +417,7 @@ class Information(commands.Cog):
             await ctx.send("Invalid hash type. Most OpenSSL algorithms are supported. Usage: `$hash <hash algo> <msg>`")
             raise discord.ext.commands.errors.BadArgument
 
+    @commands.guild_only()
     @commands.group(aliases=["events"], usage="event [add/view/edit/delete/join/leave] [event name/event ID] [date] [time] [description]", invoke_without_command=True)
     async def event(self, ctx, command=None):
         """
@@ -517,36 +425,17 @@ class Information(commands.Cog):
 
         Command specific help pages have been moved to their own help pages viewable with `{prefix}help event <subcommand>`.
         """
-        conn = self.get_connection()
-        c = conn.cursor()
-        try:
-            guild_id = ctx.message.guild.id
-            guild_name = ctx.message.guild.name
-        except AttributeError:
-            guild_id = 0
-            guild_name = "Direct Message"
-
         if command is None:
             # list all upcoming events sorted by upcoming order
-            sql = """   SELECT E.EventName, E.EventStartingAt, E.EventID
-                        FROM Events E
-                        INNER JOIN DiscordMembers DM on DM.UniqueMemberID = E.UniqueMemberID
-                        WHERE DM.DiscordGuildID=? AND IsDone=0
-                        ORDER BY E.EventStartingAt"""
-            c.execute(sql, (guild_id,))
-            results = c.fetchall()
-            i = 0
-            embed = discord.Embed(title=f"Upcoming Events On {guild_name}", color=0xFCF4A3)
+            event_results = SQLFunctions.get_events(self.conn, is_done=False, guild_id=ctx.message.guild.id, order=True, limit=10)
+            embed = discord.Embed(title=f"Upcoming Events On {ctx.message.guild.name}", color=0xFCF4A3)
             embed.set_footer(text="$event view <ID> to get more details about an event")
-            for e in results:
-                if i == 10:
-                    # a max of 10 events are shown
-                    break
-                dt = datetime.strptime(e[1], "%Y-%m-%d %H:%M:%S")
-                form_time = starting_in(e[1])
-                embed.add_field(name=f"**ID:** {e[2]}\n**Name:** {e[0]}", value=f"**At:** {dt}\n**In:** {form_time}", inline=False)
-                i += 1
-            if len(results) == 0:
+            for event in event_results:
+                form_time = starting_in(event.EventStartingAt)
+                embed.add_field(name=f"**ID:** {event.EventID}"
+                                     f"\n**Name:** {event.EventName}",
+                                value=f"**At:** {event.EventStartingAt}\n**In:** {form_time}", inline=False)
+            if len(event_results) == 0:
                 embed.description = "-- There are no upcoming events --"
             await ctx.send(embed=embed)
         elif ctx.invoked_subcommand is None:
@@ -555,8 +444,9 @@ class Information(commands.Cog):
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
 
+    @commands.guild_only()
     @event.command(usage="add <event name> <date> <event time> [description]")
-    async def add(self, ctx, event_name=None, date=None, event_time=None, *, event_info="*[n/a]*"):
+    async def add(self, ctx, event_name=None, date=None, event_time=None, *, event_description="[No Description]"):
         """
         This command is used to add custom events.
 
@@ -570,18 +460,9 @@ class Information(commands.Cog):
         - `{prefix}event add "My Birthday" 13.03.2022 00:00 This day is my birthday hehe :)`
         - `{prefix}event add 420BlazeIt 20.4.21 4:20 Send me a dm if you wanna join this event!`
         """
-        conn = self.get_connection()
-        c = conn.cursor()
-        try:
-            guild_id = ctx.message.guild.id
-        except AttributeError:
-            guild_id = 0
-
-        # check if uniquememberid already exists in db
-        uniqueID = handySQL.get_uniqueMemberID(conn, ctx.message.author.id, guild_id)
-        c.execute("SELECT EventName FROM Events WHERE UniqueMemberID=? AND IsDone=0", (uniqueID,))
-        result = c.fetchall()
-        if len(result) < 2:
+        # check if the user already has created events
+        events = SQLFunctions.get_events(self.conn, is_done=False, by_user_id=ctx.message.author.id, guild_id=ctx.message.guild.id)
+        if len(events) < 3:
             # add the event to the db
             # Make sure the inputs are correct
             if event_name is None or date is None or event_time is None:
@@ -603,7 +484,6 @@ class Information(commands.Cog):
                 await ctx.message.delete(delay=10)
                 raise discord.ext.commands.errors.BadArgument
             # Adds the entry to the sql db
-            event_description = event_info
             if len(event_description) > 700:
                 event_description = event_description[0: 700] + "..."
             if len(event_name) > 50:
@@ -619,30 +499,25 @@ class Information(commands.Cog):
                 raise discord.ext.commands.errors.BadArgument
 
             # Inserts event into event database
-            c.execute("INSERT INTO Events(EventName, EventCreatedAt, EventStartingAt, EventDescription, UniqueMemberID) VALUES (?,?,?,?,?)",
-                      (event_name, str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")), str(dt), event_description, uniqueID))
-            conn.commit()
-
-            # Inserts user as host to EventJoinedUsers for the newly added event
-            row_id = c.lastrowid
-            c.execute("SELECT EventID FROM Events WHERE ROWID=?", (row_id,))
-            event_id = c.fetchone()[0]
-            c.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID, IsHost) VALUES (?,?,?)", (event_id, uniqueID, 1))
-            conn.commit()
+            member = SQLFunctions.get_or_create_discord_member(ctx.message.author, conn=self.conn)
+            event = SQLFunctions.create_event(event_name, dt, event_description, member, self.conn)
+            # Additionally joins the host as a joined user
+            SQLFunctions.add_member_to_event(event, member, self.conn, host=True)
 
             # Creates and sends the embed message
             embed = discord.Embed(title="Added New Event", color=0xFCF4A3)
-            embed.add_field(name="Event ID", value=event_id)
+            embed.add_field(name="Event ID", value=event.EventID)
             embed.add_field(name="Event Name", value=event_name, inline=False)
             embed.add_field(name="Event Host", value=ctx.message.author.mention, inline=False)
             embed.add_field(name="Event Date", value=format_date_string(dt), inline=False)
-            embed.add_field(name="Event Description", value=event_description, inline=False)
+            embed.add_field(name="Event Description", value=event.EventDescription, inline=False)
             await ctx.send(embed=embed)
         else:
-            await ctx.send("ERROR! Each member can only add **two** events. (Might get changed in the future)", delete_after=10)
+            await ctx.send("ERROR! Each member can only add **three** events as of now.", delete_after=10)
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
 
+    @commands.guild_only()
     @event.command(usage="view <event name / ID>")
     async def view(self, ctx, event_name=None):
         """
@@ -652,12 +527,6 @@ class Information(commands.Cog):
         a specific event ID to only show a single event. If multiple events are shown, they are ordered so that \
         events closest to starting are at the top.
         """
-        conn = self.get_connection()
-        c = conn.cursor()
-        try:
-            guild_id = ctx.message.guild.id
-        except AttributeError:
-            guild_id = 0
 
         if event_name is None:
             await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to view. Check `$help event` to get more "
@@ -665,102 +534,82 @@ class Information(commands.Cog):
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
         else:
-            try:
-                # checks if the inputted value is an integer and maby an eventID
-                int(event_name)
-                sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID
-                            FROM Events E
-                            INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
-                            WHERE E.EventID=? AND DM.DiscordGuildID=?
-                            ORDER BY IsDone, E.EventStartingAt"""
-                c.execute(sql, (event_name, guild_id))
-                results = c.fetchall()
-                if len(results) == 0:
-                    raise ValueError
-            except ValueError:
-                sql = """   SELECT E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, DM.DiscordUserID, E.EventID
-                            FROM Events E
-                            INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
-                            WHERE E.EventName LIKE ? AND DM.DiscordGuildID=?
-                            ORDER BY IsDone, E.EventStartingAt"""
-                c.execute(sql, (f"%{event_name}%", guild_id))
-                results = c.fetchall()
-            if len(results) == 0:
+            events = SQLFunctions.get_events(self.conn, guild_id=ctx.message.guild.id, order=True)
+            event_results = []
+            for e in events:
+                if e.EventName.lower() == event_name.lower() or str(e.EventID) == event_name:
+                    event_results.append(e)
+            if len(event_results) == 0:
                 await ctx.send("ERROR! There is no event with a similar name. Simply type `$event` to get a list of upcoming events.",
                                delete_after=10)
                 await ctx.message.delete(delay=10)
                 raise discord.ext.commands.errors.BadArgument
+
             embed = discord.Embed(title="Indepth Event View", color=0xFCF4A3)
             embed.set_footer(text="Join an event with $event join <ID>")
-            if len(results) > 2:
+            if len(event_results) > 2:
                 embed.add_field(name="NOTICE",
-                                value="*There are more than 2 matches with that event name. Only showing the two closest matching events.*",
+                                value="*There are more than 2 matches with that event name. Only showing the two closest timewise.*",
                                 inline=False)
                 embed.add_field(name="\u200b", value="``` ```", inline=False)
             i = 1
             MAX_EVENTS = 2  # max amount of events to send per view command
-            for e in results:
+            for e in event_results:
                 # creates a list of all joined members
-                sql = """   SELECT D.DiscordUserID
-                            FROM EventJoinedUsers E 
-                            INNER JOIN DiscordMembers D on D.UniqueMemberID = E.UniqueMemberID
-                            WHERE E.EventID=?"""
-                c.execute(sql, (e[5],))
-                res = c.fetchall()
-                joined_users_msg = f"Total: {len(res)}"
+                joined_members = SQLFunctions.get_event_joined_users(e, self.conn)
+                joined_users_msg = f"Total: {len(joined_members)}"
                 counter = 1
-                for row in res:
-                    joined_users_msg += f"\n> <@{row[0]}>"
+                for member in joined_members:
+                    joined_users_msg += f"\n> <@{member.DiscordUserID}>"
                     if counter >= 5:
                         joined_users_msg += "\n> . . ."
                         break
                     counter += 1
 
                 # Adds the fields to an event
-                add_event_fields(embed, e[5], e[0], e[4], joined_users_msg, e[2], e[2], e[1], e[3])
+                add_event_fields(embed, e, joined_users_msg)
 
                 # if not last field, add a spacer
-                if i < MAX_EVENTS and i < len(results):
+                if i < MAX_EVENTS and i < len(event_results):
                     embed.add_field(name="\u200b", value="``` ```", inline=False)
                 i += 1
                 if i > MAX_EVENTS:
                     break
             await ctx.send(embed=embed)
 
+    @commands.guild_only()
     @event.command(usage="delete <event ID>")
-    async def delete(self, ctx, event_name=None):
+    async def delete(self, ctx, event_id=None):
         """
         Delete your own events using this command.
 
         Event ID has to be a valid ID of one of your own events. You cannot delete \
         other people's events.
         """
-        conn = self.get_connection()
-        c = conn.cursor()
-        try:
-            guild_id = ctx.message.guild.id
-        except AttributeError:
-            guild_id = 0
-
-        # delete the entry
-        uniqueID = handySQL.get_uniqueMemberID(conn, ctx.message.author.id, guild_id)
-        if event_name is None:
-            event_name = ""
-        c.execute("SELECT EventName FROM Events WHERE UniqueMemberID=? AND EventID = ?", (uniqueID, event_name))
-        result = c.fetchall()
-        if len(result) == 0:
-            await ctx.send(f"ERROR! No event found with the ID `{event_name}` which you are the host of.")
+        if event_id is None:
+            await ctx.send("ERROR! No Event ID given. Don't know what event I should delete <:NotLikeThis:852170634439032873>")
             raise discord.ext.commands.errors.BadArgument
-        c.execute("DELETE FROM Events WHERE UniqueMemberID=? AND EventID=?", (uniqueID, event_name))
-        conn.commit()
+        event_results = SQLFunctions.get_events(self.conn, guild_id=ctx.message.guild.id)
+        for e in event_results:
+            if str(e.EventID) == event_id:
+                event: SQLFunctions.Event = e
+                break
+        else:
+            await ctx.send(f"ERROR! No event found with the given ID `{event_id}`.")
+            raise discord.ext.commands.errors.BadArgument
+        if event.DiscordMember.DiscordUserID != ctx.message.author.id:
+            await ctx.send(f"ERROR! You are not the host of the given event ID. You can't delete other people's events.")
+            raise discord.ext.commands.errors.BadArgument
+        SQLFunctions.delete_event(event, self.conn)
         embed = discord.Embed(title="Deleted Event",
-                              description=f"**Name of deleted event:** {result[0][0]}\n"
+                              description=f"**Name of deleted event:** {event.EventName}\n"
                                           f"**Event host:** {ctx.message.author.mention}",
                               color=0xFCF4A3)
         await ctx.send(embed=embed)
 
+    @commands.guild_only()
     @event.command(usage="join <event name / ID>")
-    async def join(self, ctx, event_name=None):
+    async def join(self, ctx, event_id=None):
         """
         Joins an event using the event name or ID.
         When joining with the event name the first matching event is chosen. \
@@ -770,40 +619,64 @@ class Information(commands.Cog):
         - `{prefix}event join 420BlazeIt`
         - `{prefix}event join 42`
         """
-        conn = self.get_connection()
-        c = conn.cursor()
-        try:
-            guild_id = ctx.message.guild.id
-        except AttributeError:
-            guild_id = 0
+        await self.join_or_leave_message(ctx, event_id, "join")
 
-        event_result, res, uniqueID = await check_join_leave_condition(c, "join", conn, ctx, event_name, guild_id)
-
-        # Joining part
-        if res is not None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, you already joined the event `{event_result[1]}`.", delete_after=10)
+    async def join_or_leave_message(self, ctx, event_id, command):
+        if event_id is None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to {command}.", delete_after=10)
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
+        if not event_id.isnumeric():
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, the given event ID is not an integer.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+        event = SQLFunctions.get_event_by_id(int(event_id), self.conn)
+        if event is None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+        success = await self.join_leave_event(ctx.message.author, ctx.message.guild.id, command, event_id=event.EventID)
+        if success and command == "join":
+            embed = discord.Embed(
+                title="Joined Event",
+                description=f"Added {ctx.message.author.mention} to event `{event.EventName}`."
+                            f"You can leave the event with `$event leave {event.EventID}`",
+                color=0xFCF4A3)
+            await ctx.send(embed=embed)
 
-        # Joins the user to the event
-        c.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID) VALUES (?,?)", (event_result[0], uniqueID))
-        conn.commit()
-        embed = discord.Embed(
-            title="Joined Event",
-            description=f"Added {ctx.message.author.mention} to event `{event_result[1]}`."
-                        f"You can leave the event with `$event leave {event_result[0]}`",
-            color=0xFCF4A3)
-        await ctx.send(embed=embed)
+            if event.SpecificChannelID is not None:
+                try:
+                    await self.set_event_channel_perms(ctx.message.author, event.SpecificChannelID, "join")
+                except discord.Forbidden:
+                    await ctx.send("Couldn't add you to the channel. Best to tag Mark.")
+                except AttributeError:
+                    await ctx.send("I can't see the event channel anymore. Can't add you :'(\nBest to tag Mark.")
+        elif success and command == "leave":
+            embed = discord.Embed(
+                title="Left Event",
+                description=f"Removed {ctx.message.author.mention} from the event `{event.EventName}`."
+                            f"You can join the event again with `$event join {event.EventID}`",
+                color=0xFCF4A3)
+            await ctx.send(embed=embed)
 
-        try:
-            await self.set_event_channel_perms(ctx.message.author, event_result[2], "join")
-        except discord.Forbidden:
-            await ctx.send("Couldn't add you to the channel. Best to tag Mark.")
-        except AttributeError:
-            await ctx.send("I can't see the event channel anymore. Can't add you :'(\nBest to tag Mark.")
+            if event.SpecificChannelID is not None:
+                try:
+                    await self.set_event_channel_perms(ctx.message.author, event.SpecificChannelID, "join")
+                except discord.Forbidden:
+                    await ctx.send("Couldn't remove you from the channel. Best to tag Mark.")
+                except AttributeError:
+                    await ctx.send("I can't see the event channel anymore, so I can't remove you from it :'(\nBest to tag Mark.")
+        elif command == "join":
+            await ctx.send("Whoops something went wrong. You probably already joined the event. Can't join twice.")
+        elif command == "leave":
+            await ctx.send("Whoops something went wrong. You can't leave an event you haven't even joined <:BRUH:747783377159061545>")
+        else:
+            await ctx.send("Whoops... if you see this message, don't even bother pinging Mark, cause this error shouldn't ever show up and"
+                           "he doesn't have any logs to find the problem anyway.")
 
+    @commands.guild_only()
     @event.command(usage="leave <event name / ID>")
-    async def leave(self, ctx, event_name=None):
+    async def leave(self, ctx, event_id=None):
         """
         Leaves an event using the event name or ID.
         When leaving with the event name the first matching event is chosen. \
@@ -813,43 +686,12 @@ class Information(commands.Cog):
         - `{prefix}event leave 420BlazeIt`
         - `{prefix}event leave 42`
         """
-        conn = self.get_connection()
-        c = conn.cursor()
-        try:
-            guild_id = ctx.message.guild.id
-        except AttributeError:
-            guild_id = 0
+        await self.join_or_leave_message(ctx, event_id, "leave")
 
-        event_result, res, uniqueID = await check_join_leave_condition(c, "leave", conn, ctx, event_name, guild_id)
-
-        # Leaving part
-        if res is None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, you can't leave an event you haven't even joined yet. "
-                           f"The event in question: `{event_result[1]}`.", delete_after=10)
-            await ctx.message.delete(delay=10)
-            raise discord.ext.commands.errors.BadArgument
-
-        # Removes the user from that event
-        c.execute("DELETE FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event_result[0], uniqueID))
-        conn.commit()
-
-        embed = discord.Embed(
-            title="Left Event",
-            description=f"Removed {ctx.message.author.mention} from event `{event_result[1]}`."
-                        f"You can rejoin the event with `$event join {event_result[0]}`",
-            color=0xffa500)
-        await ctx.send(embed=embed)
-
-        try:
-            await self.set_event_channel_perms(ctx.message.author, event_result[2], "leave")
-        except discord.Forbidden:
-            await ctx.send("Couldn't remove your perms from the channel. Best to tag Mark.")
-        except AttributeError:
-            await ctx.send("I can't see the event channel anymore. Can't add you :'(\nBest to tag Mark.")
-
+    @commands.guild_only()
     @event.command(usage="update <event ID>")
     @has_permissions(kick_members=True)
-    async def update(self, ctx, event_name=None):
+    async def update(self, ctx, event_id=None):
         """
         Creates an updating event message, which constantly gets updated with \
         the joined members and the remaining time to start.
@@ -859,49 +701,41 @@ class Information(commands.Cog):
 
         Permissions: kick_members
         """
-        conn = self.get_connection()
-        c = conn.cursor()
-        try:
-            guild_id = ctx.message.guild.id
-        except AttributeError:
-            guild_id = 0
-
-        # Sends a message that gets update
-        if guild_id == 0:
-            await ctx.send("Can't send an updating event messagee in direct messages.", delete_after=10)
-            await ctx.message.delete(delay=10)
-            raise discord.ext.commands.errors.BadArgument
-        if event_name is None:
+        if event_id is None:
             await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to create an updating message for.", delete_after=10)
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
-
+        if not event_id.isnumeric():
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, the given event ID is not an integer.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
         # Checks if the Event exists
-        res = get_event_details(c, event_name, guild_id)
-        if res is None:
+        event = SQLFunctions.get_event_by_id(int(event_id), self.conn)
+        if event is None:
             await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
 
         # Checks if there already exists an updating message, if there does, deletes old one
-        if res[6] is not None:
+        if event.UpdatedChannelID is not None:
             try:
-                channel = self.bot.get_channel(int(res[7]))
-                msg_to_delete = await channel.fetch_message(int(res[6]))
+                channel = self.bot.get_channel(event.UpdatedChannelID)
+                msg_to_delete = await channel.fetch_message(event.UpdatedMessageID)
                 await msg_to_delete.delete()
-            except discord.NotFound:
+            except (discord.NotFound, AttributeError):
                 pass
 
         # Creates embed and sends the message
-        embed = create_event_embed(c, res)
+        joined_members = SQLFunctions.get_event_joined_users(event, self.conn)
+        embed = create_event_embed(event, joined_members)
         msg = await ctx.send(embed=embed)
         await msg.add_reaction(f"<a{self.emote}>")
 
-        c.execute("UPDATE Events SET UpdatedMessageID=?, UpdatedChannelID=? WHERE EventID=?", (msg.id, msg.channel.id, event_name))
-        conn.commit()
+        SQLFunctions.add_event_updated_message(msg.id, msg.channel.id, event.EventID, self.conn)
         await ctx.send("Successfully added updating event to DB.", delete_after=3)
         await ctx.message.delete()
 
+    @commands.guild_only()
     @event.command(usage="channel <event ID> <channel ID>")
     @has_permissions(kick_members=True)
     async def channel(self, ctx, event_id=None, channel_id=None):
@@ -912,18 +746,7 @@ class Information(commands.Cog):
 
         Permissions: kick_members
         """
-        conn = self.get_connection()
-        c = conn.cursor()
-        try:
-            guild_id = ctx.message.guild.id
-        except AttributeError:
-            guild_id = 0
-
         # parsing user input
-        if guild_id == 0:
-            await ctx.send("Can't create an event channel in DMs", delete_after=10)
-            await ctx.message.delete(delay=10)
-            raise discord.ext.commands.errors.BadArgument
         if event_id is None:
             await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to create an updating message for.",
                            delete_after=10)
@@ -931,25 +754,27 @@ class Information(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
 
         # Checks if the Event exists
-        res = get_event_details(c, event_id, guild_id)
-        if res is None:
+        if not event_id.isnumeric():
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, the given event ID is not an integer.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+        event = SQLFunctions.get_event_by_id(int(event_id), self.conn)
+        if event is None:
             await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
 
         # if no channel is given, clears the channel
         if channel_id is None:
-            c.execute("UPDATE Events SET SpecificChannel=NULL WHERE EventID=?", (event_id,))
-            conn.commit()
+            SQLFunctions.set_specific_event_channel(event.EventID, conn=self.conn)
             await ctx.send(f"Successfully cleared the linked channel for event {event_id}.")
             return
 
-        try:
-            channel_id = int(channel_id)
-        except ValueError:
+        if not channel_id.isnnumeric():
             await ctx.send("ERROR! Channel ID is not a valid integer.", delete_after=10)
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
+
         # Gets the channel and makes sure the ID is valid
         channel = self.bot.get_channel(channel_id)
         if channel is None:
@@ -965,25 +790,22 @@ class Information(commands.Cog):
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
 
-        c.execute("UPDATE Events SET SpecificChannel=? WHERE EventID=?", (channel_id, event_id))
-        conn.commit()
+        SQLFunctions.set_specific_event_channel(event.EventID, channel.id, self.conn)
 
         await ctx.send(f"Successfully linked channel with event {event_id}.")
 
         # goes through all users to add their correct perms to the channel
-        sql = """   SELECT U.DiscordUserID
-                    FROM EventJoinedUsers E
-                    INNER JOIN DiscordMembers U on E.UniqueMemberID = U.UniqueMemberID
-                    WHERE E.EventID=?"""
-        c.execute(sql, (event_id,))
-        result = c.fetchall()
+        join_members = SQLFunctions.get_event_joined_users(event, self.conn)
 
-        for row in result:
-            member = ctx.message.guild.get_member(row[0])
+        for m in join_members:
+            member = ctx.message.guild.get_member(m.DiscordUserID)
+            if member is None:
+                continue
             await self.set_event_channel_perms(member, channel_id, "join")
 
         await ctx.send(f"Successfully added the perms for all joined users for the event {event_id}.", delete_after=3)
 
+    @commands.guild_only()
     @commands.cooldown(1, 120, BucketType.guild)
     @event.command(usage="ping <event ID>", name="ping")
     async def mention(self, ctx, event_id=None):
@@ -995,32 +817,27 @@ class Information(commands.Cog):
                            delete_after=10)
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
+        if not event_id.isnumeric():
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, the given event ID is not an integer.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
 
-        conn = self.get_connection()
-        c = conn.cursor()
-        try:
-            guild_id = ctx.message.guild.id
-        except AttributeError:
-            guild_id = 0
+        event = SQLFunctions.get_event_by_id(event_id, self.conn)
+        if event is None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
 
-        sql = """   SELECT U.DiscordUserID, E2.EventName
-                            FROM EventJoinedUsers E
-                            INNER JOIN DiscordMembers U on E.UniqueMemberID = U.UniqueMemberID
-                            INNER JOIN Events E2 on E.EventID = E2.EventID
-                            WHERE E.EventID=?"""
-        c.execute(sql, (event_id,))
-        result = c.fetchall()
-
-        if len(result) == 0:
+        joined_members = SQLFunctions.get_event_joined_users(event, self.conn)
+        if len(joined_members) == 0:
             await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID or the event has no joined users.", delete_after=10)
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
 
         ping_msg = ""
-        event_name = ""
-        for row in result:
-            event_name = row[1]
-            ping_msg += f"<@{row[0]}> "
+        event_name = event.EventName
+        for member in joined_members:
+            ping_msg += f"<@{member.DiscordUserID}> "
 
         if str(ctx.message.author.id) not in ping_msg:
             await ctx.send(f"ERROR! {ctx.message.author.mention}, you are not in the event. Can't ping it then.",

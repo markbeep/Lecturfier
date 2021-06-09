@@ -106,7 +106,8 @@ Events = """     CREATE TABLE IF NOT EXISTS Events (
                                     UniqueMemberID integer NOT NULL,
                                     UpdatedMessageID integer,
                                     UpdatedChannelID integer,
-                                    IsDone integer,
+                                    SpecificChannelID integer,
+                                    IsDone integer DEFAULT 0,
                                     FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
                                     );"""
 

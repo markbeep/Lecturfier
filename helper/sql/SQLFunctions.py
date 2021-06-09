@@ -9,11 +9,12 @@ logger.setLevel(logging.DEBUG)
 
 
 def connect() -> sqlite3.Connection:
-    conn = sqlite3.connect("./data/test.db")
+    conn = sqlite3.connect("./data/discord.db")
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.commit()
     return conn
+
 
 def get_datetime(dt: str) -> datetime:
     if dt is None:
@@ -221,3 +222,158 @@ def get_statistic_rows(column, limit, conn=connect()):
         stats.append((member, row[6]))
     return stats
 
+
+class Event:
+    def __init__(self, event_id, event_name, event_created_at, event_starting_at, event_description, unique_member_id, updated_message_id,
+                 updated_channel_id, is_done, specific_channel_id, discord_member=None):
+        self.EventID = event_id
+        self.EventName = event_name
+        self.EventCreatedAt = get_datetime(event_created_at)
+        self.EventStartingAt = get_datetime(event_starting_at)
+        self.EventDescription = event_description
+        self.UniqueMemberID = unique_member_id
+        self.DiscordMember: DiscordMember = discord_member
+        self.UpdatedMessageID = updated_message_id
+        self.UpdatedChannelID = updated_channel_id
+        self.SpecificChannelID = specific_channel_id
+        self.IsDone = bool(is_done)
+
+
+def get_events(conn=connect(), is_done=None, limit=None, guild_id: int = None, order=False, by_user_id=None, row_id=None, event_id=None) -> list:
+    """
+    Returns a list of Event objects
+    :param event_id:
+    :param row_id:
+    :param by_user_id:
+    :param order:
+    :param guild_id:
+    :param guild:
+    :param conn: SQLite connection
+    :param is_done: If only finished or only unfinished or both events should be shown
+    :param limit:
+    :return:
+    """
+    sql = """   SELECT  E.EventID, E.EventName, E.EventCreatedAt, E.EventStartingAt, E.EventDescription, E.UniqueMemberID,
+                        E.UpdatedChannelID, E.UpdatedMessageID, E.SpecificChannelID, E.IsDone, DM.UniqueMemberID,
+                        DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester
+                FROM Events as E
+                INNER JOIN DiscordMembers DM on E.UniqueMemberID = DM.UniqueMemberID
+                WHERE true"""
+    values = []
+    if is_done is not None:
+        sql += " AND E.IsDone=?"
+        values.append(int(is_done))
+    if guild_id is not None:
+        sql += " AND DM.DiscordGuildID=?"
+        values.append(guild_id)
+    if by_user_id is not None:
+        sql += " AND DM.DiscordUserID=?"
+        values.append(by_user_id)
+    if row_id is not None:
+        sql += " AND E.ROWID=?"
+        values.append(row_id)
+    if event_id is not None:
+        sql += " AND E.EventID=?"
+        values.append(event_id)
+    if order:
+        sql += " ORDER BY E.EventStartingAt"
+    if limit is not None:
+        sql += " LIMIT ?"
+        values.append(limit)
+    logger.debug(sql)
+    result = conn.execute(sql, values).fetchall()
+    events = []
+    for row in result:
+        member = DiscordMember(
+            UniqueMemberID=row[10],
+            DiscordUserID=row[11],
+            DiscordGuildID=row[12],
+            JoinedAt=row[13],
+            Nickname=row[14],
+            Semester=row[15]
+        )
+        event = Event(
+            event_id=row[0],
+            event_name=row[1],
+            event_created_at=row[2],
+            event_starting_at=row[3],
+            event_description=row[4],
+            unique_member_id=row[5],
+            updated_channel_id=row[6],
+            updated_message_id=row[7],
+            specific_channel_id=row[8],
+            is_done=row[9],
+            discord_member=member
+        )
+        events.append(event)
+    return events
+
+
+def get_event_by_id(event_id, conn=connect()) -> Event:
+    event_results = get_events(conn, event_id=int(event_id))
+    if len(event_results) == 0:
+        return None
+    return event_results[0]
+
+def create_event(event_name, event_starting_at, event_description, member: DiscordMember, conn=connect()) -> Event:
+    row_id = conn.execute("INSERT INTO Events(EventName, EventStartingAt, EventDescription, UniqueMemberID) VALUES (?,?,?,?)",
+                          (event_name, str(event_starting_at), event_description, member.UniqueMemberID)).lastrowid
+    conn.commit()
+    events = get_events(conn, row_id=row_id)
+    return events[0]
+
+
+def delete_event(event: Event, conn=connect()):
+    conn.execute("DELETE FROM Events WHERE EventID=?", (event.EventID,))
+    conn.commit()
+
+
+def get_event_joined_users(event: Event, conn=connect()) -> list:
+    if type(event) is int:
+        event_id = int(event)
+    else:
+        event_id = event.EventID
+    sql = """   SELECT DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JOinedAt, DM.Nickname, DM.Semester FROM EventJoinedUsers EJU
+                INNER JOIN DiscordMembers DM on EJU.UniqueMemberID = DM.UniqueMemberID
+                WHERE EventID=?"""
+    result = conn.execute(sql, (event_id,)).fetchall()
+    joined_members = []
+    for row in result:
+        joined_members.append(
+            DiscordMember(
+                UniqueMemberID=row[0],
+                DiscordUserID=row[1],
+                DiscordGuildID=row[2],
+                JoinedAt=row[3],
+                Nickname=row[4],
+                Semester=row[5]
+            )
+        )
+    return joined_members
+
+
+def mark_events_done(current_time=datetime.now(), conn=connect()) -> int:
+    events_changed = conn.execute("Update Events SET IsDone=1 WHERE EventStartingAt < ?", (str(current_time),)).rowcount
+    conn.commit()
+    return events_changed
+
+
+def add_member_to_event(event: Event, member_to_add: DiscordMember, conn=connect(), host=False):
+    logger.debug(f"Adding {member_to_add.DiscordUserID} to {event.EventID}")
+    conn.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID, IsHost) VALUES (?,?,?)", (event.EventID, member_to_add.UniqueMemberID, int(host)))
+    conn.commit()
+
+
+def remove_member_from_event(event: Event, member_to_remove: DiscordMember, conn=connect()):
+    logger.debug(f"Removing {member_to_remove.DiscordUserID} from {event.EventID}")
+    conn.execute("DELETE FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event.EventID, member_to_remove.UniqueMemberID))
+    conn.commit()
+
+
+def add_event_updated_message(message_id, channel_id, event_id, conn=connect()):
+    conn.execute("UPDATE Events SET UpdatedMessageID=?, UpdatedChannelID=? WHERE EventID=?", (message_id, channel_id, event_id))
+    conn.commit()
+
+def set_specific_event_channel(event_id: int, specific_channel=None, conn=connect()):
+    conn.execute("UPDATE Events SET SpecificChannelID=? WHERE EventID=?", (event_id, specific_channel))
+    conn.commit()

@@ -3,13 +3,11 @@ from discord.ext import commands, tasks
 from discord.ext.commands import CommandOnCooldown
 from datetime import datetime
 import time
-import asyncio
 from emoji import demojize
 import json
 from helper.git_backup import gitpush
 from discord.ext.commands.cooldowns import BucketType
 from helper.sql import SQLFunctions
-from helper import handySQL
 
 
 def is_in(word, list_to_check):
