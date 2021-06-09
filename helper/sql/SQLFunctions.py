@@ -377,3 +377,80 @@ def add_event_updated_message(message_id, channel_id, event_id, conn=connect()):
 def set_specific_event_channel(event_id: int, specific_channel=None, conn=connect()):
     conn.execute("UPDATE Events SET SpecificChannelID=? WHERE EventID=?", (event_id, specific_channel))
     conn.commit()
+
+
+def get_config(key, conn=connect()) -> int:
+    value = conn.execute("SELECT ConfigValue FROM Config WHERE ConfigKey=?", (key,)).fetchone()
+    if value is None:
+        return None
+    return value[0]
+
+
+def delete_config(key, conn=connect()):
+    conn.execute("DELETE FROM Config WHERE ConfigKey=?", (key,))
+    conn.commit()
+
+
+def insert_or_update_config(key, value, conn=connect()):
+    try:
+        rows_changed = conn.execute("UPDATE OR IGNORE Config SET ConfigValue=? WHERE ConfigKey=?", (value, key)).rowcount
+        if rows_changed == 0:
+            conn.execute("INSERT INTO Config(ConfigKey, ConfigValue) VALUES (?,?)", (key, value))
+    finally:
+        conn.commit()
+
+
+class CovidGuesser:
+    def __init__(self, UniqueMemberID, TotalPointsAmount, GuessCount, NextGuess, TempPoints, member: DiscordMember):
+        self.UniqueMemberID = UniqueMemberID
+        self.TotalPointsAmount = TotalPointsAmount
+        self.GuessCount = GuessCount
+        self.NextGuess = NextGuess
+        self.TempPoints = TempPoints
+        self.member = member
+        if count := GuessCount == 0:
+            count = 1
+        self.average = TotalPointsAmount / count
+
+
+def get_covid_guessers(conn=connect(), guessed=False):
+    sql = """   SELECT  CG.UniqueMemberID, CG.TotalPointsAmount, CG.GuessCount, CG.NextGuess, CG.TempPoints,
+                        DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester
+                FROM CovidGuessing CG
+                INNER JOIN DiscordMembers DM on DM.UniqueMemberID = CG.UniqueMemberID"""
+    if guessed is True:
+        sql += " WHERE CG.NextGuess IS NOT NULL"
+    results = conn.execute(sql).fetchall()
+    guessers = []
+    for row in results:
+        member = DiscordMember(
+            UniqueMemberID=row[0],
+            DiscordUserID=row[5],
+            DiscordGuildID=row[6],
+            JoinedAt=row[7],
+            Nickname=row[8],
+            Semester=row[9]
+        )
+        g = CovidGuesser(
+            UniqueMemberID=row[0],
+            TotalPointsAmount=row[1],
+            GuessCount=row[2],
+            NextGuess=row[3],
+            TempPoints=row[4],
+            member=member
+        )
+        guessers.append(g)
+    return guessers
+
+
+def clear_covid_guesses(increment=True, conn=connect()):
+    sql = """   UPDATE CovidGuessing
+                SET
+                    TotalPointsAmount=TotalPointsAmount+TempPoints,
+                    GuessCount=GuessCount+?,
+                    TempPoints=NULL,
+                    NextGuess=NULL
+                WHERE
+                    TempPoints IS NOT NULL"""
+    conn.execute(sql, (int(increment),))
+    conn.commit()

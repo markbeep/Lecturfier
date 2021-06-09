@@ -6,10 +6,8 @@ from helper.log import log
 from PIL import UnidentifiedImageError
 import aiohttp
 from bs4 import BeautifulSoup as bs
-import asyncio
 from pytz import timezone
-from helper import handySQL
-from sqlite3 import Error
+from helper.sql import SQLFunctions
 import io
 from colorthief import ColorThief
 from discord.ext.commands.cooldowns import BucketType
@@ -34,7 +32,7 @@ class Games(commands.Cog):
         with open("./data/covid19.txt") as f:
             self.cases_today = int(f.read())
         self.db_path = "./data/discord.db"
-        self.conn = handySQL.create_connection(self.db_path)
+        self.conn = SQLFunctions.connect()
         self.time_since_task_start = time.time()
         self.background_check_cases.start()
 
@@ -43,15 +41,6 @@ class Games(commands.Cog):
 
     def get_task(self):
         return self.background_check_cases
-
-    def get_connection(self):
-        """
-        Retreives the current database connection
-        :return: Database Connection
-        """
-        if self.conn is None:
-            self.conn = handySQL.create_connection(self.db_path)
-        return self.conn
 
     @tasks.loop(seconds=10)
     async def background_check_cases(self):
@@ -125,37 +114,18 @@ class Games(commands.Cog):
 
     async def point_distribute(self, guild, confirmed_cases):
         log(f"Starting COVID points distribution", "COVID")
-        conn = self.get_connection()
         lb_messages = []
         rank = 1
-        for row in conn.execute("SELECT UniqueMemberID, NextGuess FROM CovidGuessing WHERE NextGuess IS NOT NULL"):
-            conn.execute("UPDATE CovidGuessing SET TempPoints=? WHERE UniqueMemberID=?", (int(calculate_points(confirmed_cases, row[1])), row[0]))
-            conn.commit()
-        for row in conn.execute(""" SELECT
-                                        DM.DiscordUserID,
-                                        CG.UniqueMemberID,
-                                        CG.NextGuess,
-                                        CG.TempPoints
-                                    FROM
-                                        CovidGuessing as CG
-                                    INNER JOIN
-                                        DiscordMembers as DM
-                                        on CG.UniqueMemberID=DM.UniqueMemberID
-                                    WHERE CG.NextGuess IS NOT NULL AND DM.DiscordGuildID=?
-                                    ORDER BY CG.TempPoints DESC""", (guild.id,)):
-            msg = f"**{rank}:** <@{row[0]}> got {row[3]} points *(guess: {row[2]})*"
+        guessers = SQLFunctions.get_covid_guessers(self.conn, guessed=True)
+        for g in guessers:
+            g.TempPoints = int(calculate_points(confirmed_cases, g.NextGuess))
+        # Sort the guessers by their gotten points
+        guessers.sort(key=lambda x: x.TempPoints, reverse=True)
+        for g in guessers:
+            msg = f"**{rank}:** <@{g.member.DiscordUserID}> got {g.TempPoints} points *(guess: {g.NextGuess})*"
             rank += 1
             lb_messages.append(msg)
-        conn.execute("""UPDATE
-                            CovidGuessing
-                        SET
-                            TotalPointsAmount=TotalPointsAmount+TempPoints,
-                            GuessCount=GuessCount+1,
-                            TempPoints=NULL,
-                            NextGuess=NULL
-                        WHERE
-                            TempPoints IS NOT NULL""")
-        conn.commit()
+        SQLFunctions.clear_covid_guesses(increment=True, conn=self.conn)
 
         return lb_messages
 
@@ -165,41 +135,28 @@ class Games(commands.Cog):
                 """
                 Creates a list with sorted dicts
                 """
-                conn = self.get_connection()
-                c = conn.cursor()
-                try:
-                    guild_id = ctx.message.guild.id
-                except AttributeError:
-                    guild_id = 0
+                guessers = SQLFunctions.get_covid_guessers(self.conn)
                 if average:
-                    # gets the max guess count of the server
-                    c.execute("SELECT MAX(GuessCount) FROM CovidGuessing CG INNER JOIN DiscordMembers DM on CG.UniqueMemberID=DM.UniqueMemberID WHERE DM.DiscordGuildID=?", (guild_id,))
-                    maxCount = c.fetchone()[0]
-
                     title = "Average"
-                    sql = """   SELECT DM.DiscordUserID, CG.TotalPointsAmount, CG.GuessCount, cast(CG.TotalPointsAmount as Float)/CG.GuessCount - (?-CG.GuessCount)*2
-                                FROM CovidGuessing CG
-                                INNER JOIN DiscordMembers DM on CG.UniqueMemberID=DM.UniqueMemberID
-                                WHERE DM.DiscordGuildID=?
-                                ORDER BY cast(CG.TotalPointsAmount as Float)/CG.GuessCount - (?-CG.GuessCount)*2 DESC"""
-                    c.execute(sql, (maxCount, guild_id, maxCount))
-                    user_rows = c.fetchall()
+                    max_count = 0
+                    # gets the max guess count of the server
+                    for g in guessers:
+                        max_count = max(g.GuessCount, max_count)
+                    for g in guessers:
+                        # We assign the weighted average to the TempPoints variable
+                        # for every guess less than the max your weighted average goes down by 2
+                        g.TempPoints = g.average - (max_count - g.GuessCount)*2
+                    guessers.sort(key=lambda x: x.TempPoints, reverse=True)
                 else:
                     title = "'rona"
-                    sql = """   SELECT DM.DiscordUserID, CG.TotalPointsAmount, CG.GuessCount
-                                                    FROM CovidGuessing CG
-                                                    INNER JOIN DiscordMembers DM on CG.UniqueMemberID=DM.UniqueMemberID
-                                                    WHERE DM.DiscordGuildID=?
-                                                    ORDER BY TotalPointsAmount DESC"""
-                    c.execute(sql, (guild_id,))
-                    user_rows = c.fetchall()
+                    guessers.sort(key=lambda x: x.TotalPointsAmount, reverse=True)
 
                 """
                 Creates the message content
                 """
                 i = 1
                 cont = ""
-                for profile in user_rows:
+                for g in guessers:
                     if i == 1:
                         cont += "<:gold:413030003639582731>"
                     elif i == 2:
@@ -210,22 +167,16 @@ class Games(commands.Cog):
                         cont += "<:invisible:413030446327267328>"
 
                     if average:
-                        if profile[2] != 0:
-                            avg = round(profile[1] / profile[2], 2)
-                            decay = round(profile[3], 2)
-                        else:
-                            avg = 0
-                        cont += f"**{i}.** <@{profile[0]}> | AVG Points: **{avg}** *({decay})*\n\n"
+                        # Show users with the best weighted average
+                        cont += f"**{i}.** <@{g.member.DiscordUserID}> | AVG Points: **{g.average}** *({g.TempPoints})*\n\n"
 
                     else:
-                        cont += f"**{i}.** <@{profile[0]}> | Points: {profile[1]}\n\n"
+                        # Show users with the most points
+                        cont += f"**{i}.** <@{g.member.DiscordUserID}> | Points: {g.TotalPointsAmount}\n\n"
                     i += 1
                     if i >= 11:
                         break
-                if ctx.message.guild is None:
-                    guild_name = "Direct Message Channel"
-                else:
-                    guild_name = ctx.message.guild.name
+                guild_name = ctx.message.guild.name
                 embed = discord.Embed(
                     title=f"Top {title} Guessers: **{guild_name}** <:coronavirus:767839970303410247>",
                     description=cont, color=0x00FF00)
@@ -236,6 +187,7 @@ class Games(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.cooldown(4, 10, BucketType.user)
+    @commands.guild_only()
     @commands.command(aliases=["g"], usage="guess [guess amount | lb | avg]")
     async def guess(self, ctx, number=None, confirmed_number=None):
         """
