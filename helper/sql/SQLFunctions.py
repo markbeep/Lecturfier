@@ -379,11 +379,9 @@ def set_specific_event_channel(event_id: int, specific_channel=None, conn=connec
     conn.commit()
 
 
-def get_config(key, conn=connect()) -> int:
-    value = conn.execute("SELECT ConfigValue FROM Config WHERE ConfigKey=?", (key,)).fetchone()
-    if value is None:
-        return None
-    return value[0]
+def get_config(key, conn=connect()) -> list:
+    values = conn.execute("SELECT ConfigValue FROM Config WHERE ConfigKey=?", (key,)).fetchall()
+    return [x[0] for x in values]
 
 
 def delete_config(key, conn=connect()):
@@ -413,14 +411,19 @@ class CovidGuesser:
         self.average = TotalPointsAmount / count
 
 
-def get_covid_guessers(conn=connect(), guessed=False):
+def get_covid_guessers(conn=connect(), guessed=False, discord_user_id=None) -> list[CovidGuesser]:
     sql = """   SELECT  CG.UniqueMemberID, CG.TotalPointsAmount, CG.GuessCount, CG.NextGuess, CG.TempPoints,
                         DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester
                 FROM CovidGuessing CG
-                INNER JOIN DiscordMembers DM on DM.UniqueMemberID = CG.UniqueMemberID"""
+                INNER JOIN DiscordMembers DM on DM.UniqueMemberID = CG.UniqueMemberID
+                WHERE true"""
+    values = []
     if guessed is True:
-        sql += " WHERE CG.NextGuess IS NOT NULL"
-    results = conn.execute(sql).fetchall()
+        sql += " AND CG.NextGuess IS NOT NULL"
+    if discord_user_id is not None:
+        sql += " AND DM.DiscordUserID=?"
+        values.append(discord_user_id)
+    results = conn.execute(sql, values).fetchall()
     guessers = []
     for row in results:
         member = DiscordMember(
@@ -454,3 +457,131 @@ def clear_covid_guesses(increment=True, conn=connect()):
                     TempPoints IS NOT NULL"""
     conn.execute(sql, (int(increment),))
     conn.commit()
+
+
+def insert_or_update_covid_guess(member: DiscordMember, guess: int, conn=connect()):
+    try:
+        rows_changed = conn.execute("UPDATE OR IGNORE CovidGuessing SET NextGuess=? WHERE UniqueMemberID=?", (guess, member.UniqueMemberID)).rowcount
+        if rows_changed == 0:
+            conn.execute("INSERT INTO CovidGuessing(UniqueMemberID, NextGuess) VALUES(?,?)", (member.UniqueMemberID, guess))
+    finally:
+        conn.commit()
+
+
+class Quote:
+    def __init__(self, QuoteID, QuoteText, Name, UniqueMemberID, CreatedAt, AddedByUniqueMemberID, DiscordGuildID, Member: DiscordMember = None):
+        self.QuoteID = QuoteID
+        self.QuoteText = QuoteText
+        self.Name = Name
+        self.UniqueMemberID = UniqueMemberID
+        self.Member = Member
+        self.CreatedAt = get_datetime(CreatedAt)
+        self.AddedByUniqueMemberID = AddedByUniqueMemberID
+        self.DiscordGuildID = DiscordGuildID
+
+
+def get_quote(quote_ID, conn=connect(), row_id=None) -> Quote:
+    if row_id is not None:
+        row = conn.execute("SELECT * FROM Quotes WHERE ROWID=?", (row_id,)).fetchone()
+    else:
+        row = conn.execute("SELECT * FROM Quotes WHERE QuoteID=?", (quote_ID,)).fetchone()
+    if row is None:
+        return None
+    return Quote(
+        QuoteID=row[0],
+        QuoteText=row[1],
+        Name=row[2],
+        UniqueMemberID=row[3],
+        CreatedAt=row[4],
+        AddedByUniqueMemberID=row[5],
+        DiscordGuildID=row[6]
+    )
+
+
+def get_quotes_by_user(discord_user_id=None, unique_member_id=None, name=None, quote=None, conn=connect()) -> list[Quote]:
+    if discord_user_id is None and unique_member_id is None:
+        sql = """   SELECT  Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID,
+                            DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester
+                    FROM Quotes Q
+                    INNER JOIN DiscordMembers DM on Q.UniqueMemberID = DM.UniqueMemberID
+                    INNER JOIN DiscordUsers DU on DM.DiscordUserID = DU.DiscordUserID
+                    WHERE true"""
+    else:
+        sql = """   SELECT  Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID
+                    FROM Quotes Q
+                    WHERE true"""
+    values = []
+    if discord_user_id is not None:
+        sql += " AND DU.DiscordUserID=?"
+        values.append(discord_user_id)
+    if unique_member_id is not None:
+        sql += " AND DM.UniqueMemberID=?"
+        values.append(unique_member_id)
+    if name is not None:
+        sql += " AND Q.Name LIKE ?"
+        values.append(name)
+    if quote is not None:
+        sql += " AND Q.Quote LIKE ?"
+        values.append(quote)
+    result = conn.execute(sql, values).fetchall()
+    quotes = []
+    for row in result:
+        if discord_user_id is None and unique_member_id is None:
+            member = DiscordMember(
+                UniqueMemberID=row[7],
+                DiscordUserID=row[8],
+                DiscordGuildID=row[9],
+                JoinedAt=row[10],
+                Nickname=row[11],
+                Semester=row[12]
+            )
+        else:
+            member = None
+        quote = Quote(
+            QuoteID=row[0],
+            QuoteText=row[1],
+            Name=row[2],
+            UniqueMemberID=row[3],
+            CreatedAt=row[4],
+            AddedByUniqueMemberID=row[5],
+            DiscordGuildID=row[6],
+            Member=member
+        )
+        quotes.append(quote)
+    return quotes
+
+
+def get_members_by_name(name, discord_user_id=None, conn=connect()) -> list[DiscordMember]:
+    if discord_user_id is not None:
+        fill = "DM.DiscordUserID=?"
+        values = [discord_user_id]
+    else:
+        fill = "Q.Name LIKE ?"
+        values = [name]
+    sql = f"""   SELECT DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester
+                FROM Quotes Q
+                INNER JOIN DiscordMembers DM on Q.UniqueMemberID = DM.UniqueMemberID
+                WHERE true AND {fill}
+                GROUP BY DM.UniqueMemberID"""
+    results = conn.execute(sql, values).fetchall()
+    members = []
+    for row in results:
+        members.append(DiscordMember(*row))
+    return members
+
+
+def add_quote(quote, name, member: DiscordMember, added_by: DiscordMember, guild_id, conn=connect()) -> Quote:
+    unique_member_id = None
+    if member is not None:
+        unique_member_id = member.UniqueMemberID
+    values = [quote, name, unique_member_id, added_by.UniqueMemberID, guild_id]
+    row_id = conn.execute("INSERT INTO Quotes(Quote, Name, UniqueMemberID, AddedByUniqueMemberID, DiscordGuildID) VALUES (?,?,?,?,?)", values).lastrowid
+    return get_quote(-1, row_id=row_id, conn=conn)
+
+
+def get_quote_aliases(conn=connect()) -> dict[str, str]:
+    result = conn.execute("SELECT NameFrom, NameTo FROM QuoteAliases").fetchall()
+    aliases = {}
+    for row in result:
+        aliases[row[0]] = row[1]
+    return aliases
