@@ -102,8 +102,10 @@ class Draw(commands.Cog):
         for im in imgs:
             if im.fp not in self.progress:
                 start = SQLFunctions.get_config(f"Start_{im.fp}", self.conn)
-                if start is None:
+                if len(start) == 0:
                     start = 0
+                else:
+                    start = start[0]
                 self.progress[im.fp] = {
                     "count": start,
                     "img": im,
@@ -117,8 +119,10 @@ class Draw(commands.Cog):
                 })
 
         channelID = SQLFunctions.get_config("PlaceChannel", self.conn)
-        if channelID is None:
+        if len(channelID) == 0:
             channelID = 819966095070330950
+        else:
+            channelID = channelID[0]
         channel = self.bot.get_channel(channelID)
         if channel is None:
             channel = self.bot.get_channel(402551175272202252)  # fallback test channel
@@ -128,11 +132,14 @@ class Draw(commands.Cog):
             drawing = self.queue[0]
             start = SQLFunctions.get_config(f"Start_{drawing['ID']}", self.conn)
             end = SQLFunctions.get_config(f"End_{drawing['ID']}", self.conn)
-            if start is None:
+            if len(start) == 0:
                 start = 0
-            if end is None:
+            else:
+                start = start[0]
+            if len(end) == 0:
                 end = drawing["img"].size
-
+            else:
+                end = end[0]
             done = await self.draw_pixels(drawing["ID"], channel, start, end)
 
             print(done)

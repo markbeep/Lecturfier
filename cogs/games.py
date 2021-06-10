@@ -35,6 +35,7 @@ class Games(commands.Cog):
         self.conn = SQLFunctions.connect()
         self.time_since_task_start = time.time()
         self.background_check_cases.start()
+        self.cases_updated = False
 
     def heartbeat(self):
         return self.background_check_cases.is_running()
@@ -59,7 +60,8 @@ class Games(commands.Cog):
             if guild is None:
                 return
             channel = guild.get_channel(747752542741725247)
-            await self.send_message(channel, guild, new_cases)
+            await self.send_message(channel, new_cases)
+        self.cases_updated = True
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -86,15 +88,15 @@ class Games(commands.Cog):
                 if str(reaction) == "<:checkmark:776717335242211329>":
                     await self.confirm_msg.delete()
                     self.confirm_msg = None
-                    await self.send_message(reaction.message.channel, reaction.message.guild, self.confirmed_cases)
+                    await self.send_message(reaction.message.channel, self.confirmed_cases)
                 elif str(reaction) == "<:xmark:776717315139698720>":
                     await self.confirm_msg.delete()
                     self.confirm_msg = None
                     self.confirmed_cases = 0
                     await reaction.message.channel.send("Confirmed cases amount was stated as being wrong and was therefore deleted.")
 
-    async def send_message(self, channel, guild, confirmed_cases):
-        points_list = await self.point_distribute(guild, confirmed_cases)
+    async def send_message(self, channel, confirmed_cases):
+        points_list = await self.point_distribute(confirmed_cases)
         embed = discord.Embed(title="Covid Guesses",
                               description=f"Confirmed cases: `{confirmed_cases}`",
                               color=0xFF0000)
@@ -112,7 +114,7 @@ class Games(commands.Cog):
         # Pings the Covid Guesser Role on sending the leaderboard message
         await channel.send(content="<@&770968106679926868>", embed=embed)
 
-    async def point_distribute(self, guild, confirmed_cases):
+    async def point_distribute(self, confirmed_cases):
         log(f"Starting COVID points distribution", "COVID")
         lb_messages = []
         rank = 1
@@ -206,27 +208,18 @@ class Games(commands.Cog):
         hour = int(datetime.now(timezone("Europe/Zurich")).strftime("%H"))
         minute = int(datetime.now(timezone("Europe/Zurich")).strftime("%M"))
 
-        # Gets the proper guild id (0 if in DM)
-        try:
-            guild_obj = ctx.message.guild
-        except AttributeError:
-            guild_obj = None
-
         await ctx.message.delete()
 
-        conn = self.get_connection()
-        c = conn.cursor()
-        uniqueID = handySQL.get_or_create_member(conn, ctx.message.author, guild_obj)
 
         if number is None:
             # No values were given in the command:
             async with ctx.typing():
-                c.execute("SELECT TotalPointsAmount, GuessCount, NextGuess FROM CovidGuessing WHERE UniqueMemberID=?", (uniqueID,))
-                row = c.fetchone()
-                if row is None:
+                guesser = SQLFunctions.get_covid_guessers(self.conn, discord_user_id=ctx.message.author.id)
+                if len(guesser) is None:
                     await ctx.send(f"{ctx.message.author.mention}, you have not made any guesses yet. Guess with `$guess <integer>`.", delete_after=7)
                     return
-                image_url = f"https://robohash.org/{uniqueID}.png"
+                guesser = guesser[0]
+                image_url = f"https://robohash.org/{guesser.member.UniqueMemberID}.png"
                 try:
                     async with aiohttp.ClientSession() as cs:
                         async with cs.get(image_url) as r:
@@ -236,19 +229,11 @@ class Games(commands.Cog):
                     hex_color = int('0x%02x%02x%02x' % dominant_color, 0)
                 except UnidentifiedImageError as e:
                     hex_color = 0x808080
-                if row[1] != 0:
-                    avg = round(row[0] / row[1])
-                    acc = round(avg/10, 2)
-                else:
-                    avg = 0
-                    acc = 0.0
                 embed = discord.Embed(title="Covid Guesser Profile",
                                       description=f"**User:** <@{ctx.message.author.id}>\n"
-                                                  f"**Total Points:** `{row[0]}`\n"
-                                                  f"**Total Guesses:** `{row[1]}`\n"
-                                                  f"**Average:** `{avg}`\n"
-                                                  f"**Accuracy:** `{acc}`%\n"
-                                                  f"**Next Guess:** `{row[2]}`",
+                                                  f"**Total Points:** `{guesser.TotalPointsAmount}`\n"
+                                                  f"**Total Guesses:** `{guesser.GuessCount}`\n"
+                                                  f"**Average:** `{guesser.average}`",
                                       color=hex_color)
                 embed.set_thumbnail(url=image_url)
             await ctx.send(embed=embed, delete_after=7)
@@ -279,11 +264,8 @@ class Games(commands.Cog):
                         raise ValueError
                     if number > 1000000:
                         number = 1000000
-                    try:
-                        c.execute("INSERT INTO CovidGuessing(UniqueMemberID, NextGuess) VALUES(?,?)", (uniqueID, number))
-                    except Error as e:
-                        c.execute("UPDATE CovidGuessing SET NextGuess=? WHERE UniqueMemberID=?", (number, uniqueID))
-                    conn.commit()
+                    member = SQLFunctions.get_or_create_discord_member(ctx.message.author, conn=self.conn)
+                    SQLFunctions.insert_or_update_covid_guess(member, number, conn=self.conn)
                     await ctx.send(f"{ctx.message.author.mention}, received your guess.", delete_after=7)
             except ValueError:
                 await ctx.send(f"{ctx.message.author.mention}, no proper positive integer given.", delete_after=7)
