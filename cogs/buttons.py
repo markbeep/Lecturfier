@@ -1,29 +1,23 @@
-import asyncio
 import discord
-from discord.ext import commands, tasks
-from datetime import datetime
+from discord.ext import commands
 from discord_components import DiscordComponents, Button, ButtonStyle, InteractionType
 import time
+
 
 class Buttons(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         DiscordComponents(self.bot)
 
-    @commands.Cog.listener()
-    async def on_button_click(self, res):
-        print("Button clicked")
-        await asyncio.sleep(1)
-        if not res.responded:
-            await res.respond(type=InteractionType.ChannelMessageWithSource, content="These buttons seem to be broken.")
-
     @commands.command(aliases=["calc"], usage="calculator")
     async def calculator(self, ctx):
         c = Calculator(self.bot, ctx, 180)
         await c.handle_calculator()
 
+
 def setup(bot):
     bot.add_cog(Buttons(bot))
+
 
 class Calculator:
     def __init__(self, bot, ctx, seconds=60):
@@ -127,8 +121,7 @@ class Calculator:
             ],
             [
                 Button(style=ButtonStyle.grey, label="ANS"),
-                Button(style=ButtonStyle.red, label="OFF"),
-                Button(style=ButtonStyle.grey, label="^")
+                Button(style=ButtonStyle.red, label="OFF")
             ]
         ]
         # checks if the operators can be used
@@ -137,7 +130,6 @@ class Calculator:
                 Button(style=ButtonStyle.grey, label="x", disabled=True),
                 Button(style=ButtonStyle.grey, label="/", disabled=True)
             ]
-            components[4][2] = Button(style=ButtonStyle.grey, label="^", disabled=True)
             components[3][1] = Button(style=ButtonStyle.grey, label=".", disabled=True)
         # when to allow + -
         if len(self.equation) > 0 and self.equation[-1] in ["x", "/", "(", ".", "^"]:

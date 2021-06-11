@@ -1,7 +1,9 @@
 import discord
+import discord_components
+from discord_components import DiscordComponents, Button, ButtonStyle, InteractionType
 from discord.ext import commands
 import asyncio
-from helper import handySQL
+from helper.sql import SQLFunctions
 from datetime import datetime
 from pytz import timezone
 import json
@@ -19,22 +21,15 @@ class Admin(commands.Cog):
             self.all_prefix = json.load(f)
         self.secret_channels = {}
         self.db_path = "./data/discord.db"
-        self.conn = handySQL.create_connection(self.db_path)
-
-    def get_connection(self):
-        """
-        Retreives the current database connection
-        :return: Database Connection
-        """
-        if self.conn is None:
-            self.conn = handySQL.create_connection(self.db_path)
-        return self.conn
+        self.conn = SQLFunctions.connect()
+        self.welcome_message_id = SQLFunctions.get_config("WelcomeMessage", self.conn)
+        self.yes = []
+        self.no = []
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
         # adds the user to the db
-        conn = self.get_connection()
-        handySQL.get_or_create_member(conn, member, member.guild)
+        SQLFunctions.get_or_create_discord_member(member, self.conn)
 
         if member.bot:
             return
@@ -191,6 +186,49 @@ class Admin(commands.Cog):
                     # This means there is possibly a description at the end
                     desc = args[3:]
                 await self.send_prefix(message, command, prefix, desc)
+
+    @commands.Cog.listener()
+    async def on_button_click(self, res: discord_components.Interaction):
+        if res.message is None:
+            return
+        if res.component.id in ["yesUser", "noUser"]:
+            if res.component.id == "yesUser":
+                if res.user.id in self.yes:
+                    self.yes.pop(self.yes.index(res.user.id))
+                else:
+                    self.yes.append(res.user.id)
+            else:
+                if res.user.id in self.no:
+                    self.no.pop(self.no.index(res.user.id))
+                else:
+                    self.no.append(res.user.id)
+            embed = res.message.embeds[0]
+            description = embed.description
+            results = description.split("\n")
+            first_split = results[0].split(" ")
+            second_split = results[1].split(" ")
+            embed.description = f"{first_split[0]} {len(self.yes)}\n{second_split[0]} {len(self.no)}"
+            await res.respond(type=InteractionType.UpdateMessage, embed=embed, ephemeral=True)
+
+    @commands.command()
+    @commands.has_permissions(administrator=True)
+    async def poll(self, ctx):
+        embed = discord.Embed(
+            title="Welcome to the D-INFK ETH Server!",
+            description=f"**To get the full experience of the server press one of the following reactions:**\n"
+                        f"*(If you have any issues, private message one of the admins or moderators and they can help)*\n\n"
+                        f"Click the corresponding button below to get access to the server."
+        )
+        yes_emoji = self.bot.get_emoji(776717335242211329)
+        no_emoji = self.bot.get_emoji(776717315139698720)
+        components = [
+            [
+                Button(label="Verify ETH Student", style=ButtonStyle.URL, url="https://dauth.spclr.ch/"),
+                Button(label="Teaching Assistant", style=ButtonStyle.blue, id="taRequest", emoji="🧑‍🏫"),
+                Button(label="Non-ETH Student", style=ButtonStyle.green, id="external", emoji=no_emoji)
+            ]
+        ]
+        await ctx.send(embed=embed, components=components)
 
     async def send_prefix(self, message, command=None, prefix=None, args=[]):
         channel = message.channel
