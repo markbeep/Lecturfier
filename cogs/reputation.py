@@ -3,7 +3,7 @@ from discord.ext import commands
 import datetime
 import time
 import json
-from helper import handySQL
+from helper.sql import SQLFunctions
 
 
 def get_most_recent_time(conn, uniqueMemberID):
@@ -38,23 +38,15 @@ class Reputation(commands.Cog):
         with open("./data/ignored_users.json") as f:
             self.ignored_users = json.load(f)
         self.db_path = "./data/discord.db"
-        self.conn = handySQL.create_connection(self.db_path)
+        self.conn = SQLFunctions.connect()
         self.time_to_wait = 20 * 3600  # Wait 20 hours before repping again
-
-    def get_connection(self):
-        """
-        Retreives the current database connection
-        :return: Database Connection
-        """
-        if self.conn is None:
-            self.conn = handySQL.create_connection(self.db_path)
-        return self.conn
 
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot:
             return
 
+    @commands.guild_only()
     @commands.command(aliases=["reputation", "commend", "praise"], usage="rep [<user> [<rep message>]]")
     async def rep(self, ctx, user_mention=None, *, rep=None):
         """
@@ -112,10 +104,8 @@ class Reputation(commands.Cog):
             await ctx.message.delete()
 
         else:
-            conn = self.get_connection()
-            guild_id = get_valid_guild_id(ctx.message)
-            uniqueID = handySQL.get_uniqueMemberID(conn, ctx.message.author.id, guild_id)
-            last_sent_time = get_most_recent_time(conn, uniqueID)
+            discord_member = SQLFunctions.get_or_create_discord_member(ctx.message.author, conn=self.conn)
+            last_sent_time = get_most_recent_time(self.conn, discord_member.UniqueMemberID)
             if last_sent_time is not None:
                 seconds = datetime.datetime.strptime(last_sent_time, '%Y-%m-%d %H:%M:%S.%f').timestamp() + self.time_to_wait
                 next_time = datetime.datetime.fromtimestamp(seconds).strftime("%A at %H:%M")
@@ -130,25 +120,16 @@ class Reputation(commands.Cog):
                                       color=discord.Color.red())
                 await ctx.send(embed=embed, delete_after=10)
 
-
-    async def send_reputations(self, message, member):
+    async def send_reputations(self, message: discord.Message, member: discord.Member):
         reputation_msg = ""
-        conn = self.get_connection()
-        c = conn.cursor()
-        guild_id = get_valid_guild_id(message)
-        sql = """   SELECT R.IsPositive, R.ReputationMessage
-                    FROM Reputations R
-                    INNER JOIN DiscordMembers DM on R.UniqueMemberID = DM.UniqueMemberID
-                    WHERE DM.DiscordUserID=? AND DM.DiscordGuildID=?"""
-        c.execute(sql, (member.id, guild_id))
-        rows = c.fetchall()
+        rows = SQLFunctions.get_reputations(member, self.conn)
 
         # Create reputation message
         if len(rows) == 0:
             reputation_msg = "--- it's pretty empty here, go help some people out"
         else:
             for r in rows:
-                if r[0] == 1:  # If message is positive
+                if r[0]:  # If message is positive
                     reputation_msg += "+ "
                 else:
                     reputation_msg += "- "
@@ -171,19 +152,20 @@ class Reputation(commands.Cog):
         """
         Adds the reputation to the file
         """
-        conn = self.get_connection()
+        conn = self.conn
 
         # To avoid errors when commands are used in DMs
         try:
             guild_id = message.guild.id
         except AttributeError:
             guild_id = 0
-        uniqueID = handySQL.get_uniqueMemberID(conn, member.id, guild_id)
 
         # Can the user rep yet?
-        authorUniqueID = handySQL.get_uniqueMemberID(conn, author.id, guild_id)
-        if not self.check_valid_time(conn, authorUniqueID):
+        author_member = SQLFunctions.get_or_create_discord_member(author, conn=self.conn)
+        if not self.check_valid_time(conn, author_member.UniqueMemberID):
             return False
+
+        receiver_member = SQLFunctions.get_or_create_discord_member(member, conn=self.conn)
 
         # Format the reputation message
         msg_list = message.content.split(" ")
@@ -194,23 +176,13 @@ class Reputation(commands.Cog):
 
         # Check if the rep is positive
         if msg.startswith("-"):
-            isPositive = 0
+            isPositive = False
             msg = msg[1:].strip()
         else:
-            isPositive = 1
+            isPositive = True
 
         # Add to DB
-        c = conn.cursor()
-        sql = """   INSERT INTO Reputations(
-                        UniqueMemberID,
-                        ReputationMessage,
-                        CreatedAt,
-                        AddedByUniqueMemberID,
-                        IsPositive
-                    )
-                    VALUES (?,?,?,?,?)"""
-        c.execute(sql, (uniqueID, msg, datetime.datetime.now(), authorUniqueID, isPositive))
-        conn.commit()
+        SQLFunctions.add_reputation(author_member, receiver_member, msg, isPositive, self.conn)
         return True
 
 

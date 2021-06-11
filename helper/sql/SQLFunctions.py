@@ -664,3 +664,22 @@ def get_quotes_to_remove(conn=connect()) -> list[QuoteToRemove]:
 def insert_quote_to_remove(quote_id, member: DiscordMember, conn=connect()):
     conn.execute("INSERT INTO QuotesToRemove(QuoteID, UniqueMemberID) VALUES(?,?)", (quote_id, member.UniqueMemberID))
     conn.commit()
+
+
+def get_reputations(member: discord.Member, conn=connect()) -> list[(bool, str)]:
+    sql = """   SELECT R.IsPositive, R.ReputationMessage
+                FROM Reputations R
+                INNER JOIN DiscordMembers DM on R.UniqueMemberID = DM.UniqueMemberID
+                WHERE DM.DiscordUserID=? AND DM.DiscordGuildID=?"""
+    reputations = conn.execute(sql, (member.id, member.guild.id)).fetchall()
+    # makes the IsPositive into a boolean
+    for i in range(len(reputations)):
+        row = reputations[i]
+        reputations[i] = [bool(row[0]), row[1]]
+    return reputations
+
+
+def add_reputation(author: DiscordMember, receiver: DiscordMember, reputation_message: str, is_positive: bool, conn=connect()):
+    sql = "INSERT INTO Reputations(UniqueMemberID, ReputationMessage, AddedByUniqueMemberID, IsPositive) VALUES (?,?,?,?)"
+    conn.execute(sql, (receiver.UniqueMemberID, reputation_message, author.UniqueMemberID, int(is_positive)))
+    conn.commit()
