@@ -20,14 +20,11 @@ def isascii(s):
     return total < 300
 
 
-async def send_quote(channel: discord.channel, quote, date, name, index=None):
-    embed = discord.Embed(description=quote, color=0x404648)
-    footer_txt = ""
+async def send_quote(channel: discord.channel, quote: SQLFunctions.Quote):
+    embed = discord.Embed(description=quote.QuoteText, color=0x404648)
     local_tz = timezone("Europe/Zurich")
-    dt = datetime.datetime.strptime(date, "%Y-%m-%d %H:%M:%S").astimezone(local_tz).strftime("%d.%b %Y").lstrip("0")
-    if index is not None:
-        footer_txt += f" | Quote ID: {index}"
-    embed.set_footer(text=f"-{name}, {dt}" + footer_txt)
+    dt = quote.CreatedAt.astimezone(local_tz).strftime("%d.%b %Y").lstrip("0")
+    embed.set_footer(text=f"-{quote.Name}, {dt} | Quote ID: {quote.QuoteID}")
     await channel.send(embed=embed)
 
 
@@ -67,13 +64,12 @@ class Quote(commands.Cog):
             await self.add_quote(user=user, message=message, quote=message.content, quoteAdder=quoteAdder, reactionQuote=True)
 
     @commands.cooldown(4, 10, BucketType.user)
-    @commands.group(aliases=["q", "quotes"], usage="quote [user] [quote/command/index]", invoke_without_command=True)
+    @commands.guild_only()
+    @commands.group(aliases=["q", "quotes"], usage="quote [user [quote/index]]", invoke_without_command=True)
     async def quote(self, ctx, name=None, *, quote=""):
         """
         Sends a completely random quote from the server if all parameters are empty. \
         If only a name is given, it sends a random quote from that user.
-        By using `-name` for any name that has quotes you can display a random quote from that person \
-        directly.
 
         Some examples:
         `$quote`   - sends a random quote from any user
@@ -82,13 +78,7 @@ class Quote(commands.Cog):
         `$quote ueli all`   - displays all quotes from the user ueli
         `$quote ueli 23`   - displays the 23rd indexed quote from the user ueli
         `$quote names`   - displays all names that have a quote
-        `-ueli`   - displays a random quote from the one and only ueli
         """
-
-        # creates the db connection
-        conn = self.get_connection()
-        c = conn.cursor()
-
         if ctx.invoked_subcommand is not None:
             return
 
@@ -103,46 +93,42 @@ class Quote(commands.Cog):
 
         if name is None:  # no user is given, so send a random quote
             # If $quote is written on its own, send a random quote from any user
-            c.execute("SELECT Quote, QuoteID, Name, CreatedAt FROM Quotes WHERE DiscordGuildID=? ORDER BY RANDOM() LIMIT 1", (ctx.message.guild.id,))
-            res = c.fetchone()
-            if res is None:
+            quote = SQLFunctions.get_quote(-1, guild_id=ctx.message.guild.id, conn=self.conn, random=True)
+            if quote is None:
                 embed = discord.Embed(title="Quote Error", description="There are no quotes on this server yet.", color=0xFF0000)
                 await ctx.send(embed=embed)
                 raise discord.ext.commands.errors.BadArgument
-            await send_quote(ctx, res[0], res[3], res[2], res[1])
+            await send_quote(ctx, quote)
 
         else:  # there's a user given
             # if there is only a name/ID given, send a random quote from that user
             if len(quote) == 0:
 
-                # tries to first query if its a quote ID
-                c.execute("SELECT Quote, QuoteID, Name, CreatedAt FROM Quotes WHERE QuoteID=? AND DiscordGuildID=?", (name, ctx.message.guild.id))
-                res = c.fetchone()
-
-                username = name
-
-                if res is None:
+                q = None
+                try:
+                    quote_id = int(name.replace("<@", "").replace(">", "").replace("!", ""))
+                    # tries to first query if its a quote ID
+                    q = SQLFunctions.get_quote(quote_id, guild_id=ctx.message.guild.id, conn=self.conn)
+                except ValueError:
+                    pass
+                if q is None:  # its not a valid quote ID in this case
                     # if its a user ID, gets a random quote from the user with that ID
-                    member, multUniqueIDs = await self.get_quote_members(ctx, conn, name)
+                    member, multUniqueIDs = await self.get_quote_members(ctx, name)
                     if member is not None:
-                        username = str(member)
-                        uniqueID = multUniqueIDs[0]
-                        c.execute(
-                            "SELECT Quote, QuoteID, Name, CreatedAt FROM Quotes WHERE UniqueMemberID=? AND DiscordGuildID=? ORDER BY RANDOM() LIMIT 1",
-                            (uniqueID, ctx.message.guild.id))
+                        quotes = SQLFunctions.get_quotes_by_user(unique_member_id=member.UniqueMemberID, guild_id=ctx.message.guild.id, conn=self.conn, random=True)
                     else:
-                        c.execute(
-                            "SELECT Quote, QuoteID, Name, CreatedAt FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=? ORDER BY RANDOM() LIMIT 1",
-                            (name, ctx.message.guild.id))
-                    res = c.fetchone()
-
-                if res is None:
+                        quotes = SQLFunctions.get_quotes_by_user(name=name, guild_id=ctx.message.guild.id, conn=self.conn, random=True)
+                    if len(quotes) == 0:
+                        q = None
+                    else:
+                        q = quotes[0]
+                if q is None:
                     # userID has no quote on this server
-                    embed = discord.Embed(title="Quotes", description=f"No quote found from user or with ID `{username}`")
+                    embed = discord.Embed(title="Quotes", description=f"No quote found from user or with ID `{name}`")
                     await ctx.send(embed=embed)
                     raise discord.ext.commands.errors.BadArgument
 
-                await send_quote(ctx, res[0], res[3], res[2], res[1])
+                await send_quote(ctx, q)
                 return
 
             else:
@@ -151,7 +137,28 @@ class Quote(commands.Cog):
                 # if its an index behind the user
                 if quote.isnumeric():
                     index = int(quote)
-                    await self.get_quote_by_index(ctx, name, index)
+                    user_id = name.replace("<@", "").replace(">", "").replace("!", "")
+                    if user_id.isnumeric():
+                        quotes = SQLFunctions.get_quotes_by_user(discord_user_id=int(user_id), guild_id=ctx.message.guild.id, conn=self.conn)
+                    else:
+                        quotes = SQLFunctions.get_quotes_by_user(name=name, guild_id=ctx.message.guild.id, conn=self.conn)
+                    if len(quotes) == 0:
+                        embed = discord.Embed(
+                            title="Quotes Error",
+                            description=f"There does not exist any quote for the user `{name}`",
+                            color=0xFF0000)
+                        await ctx.send(embed=embed)
+                        raise discord.ext.commands.errors.BadArgument
+                    if index < 0 or index >= len(quotes):
+                        embed = discord.Embed(
+                            title="Quotes Error",
+                            description=f"There does not exist a quote with that index for the user \"{name}\". "
+                                        f"Keep the index between `0 <= index < {len(quotes)}`.",
+                            color=0xFF0000)
+                        await ctx.send(embed=embed)
+                        raise discord.ext.commands.errors.BadArgument
+                    q = quotes[index]
+                    await send_quote(ctx.channel, q)
 
                 else:  # its a new quote to add
                     if quote.lower().split(" ")[0] == "all":
@@ -160,74 +167,27 @@ class Quote(commands.Cog):
 
                     await self.add_quote(user=name, quote=quote, message=ctx.message)
 
-    async def get_quote_members(self, channel: discord.channel, username: str) -> (SQLFunctions.DiscordMember, list[int]):
+    async def get_quote_members(self, channel: discord.TextChannel, username: str) -> (SQLFunctions.DiscordMember, list[int]):
         uniqueIDs = []  # list of all matching uniqueIDs
 
         user_id = username.replace("<@", "").replace(">", "").replace("!", "")
         if user_id.isnumeric():
             member = channel.guild.get_member(int(user_id))
-            all_discord_members = SQLFunctions.get_members_by_name("none", discord_user_id=member.id, conn=self.conn)
-            if len(all_discord_members) == 0:
-                return None, []
-            discord_member = all_discord_members[0]
-            uniqueIDs.append(discord_member.UniqueMemberID)
-        else:
-            # Not a discord member ID
-            # We make a list of all uniqueIDs with the matching name)
-            all_discord_members = SQLFunctions.get_members_by_name(username, self.conn)
-            uniqueIDs = [m.UniqueMemberID for m in all_discord_members]
-            discord_member = None
+            if member is not None:
+                all_discord_members = SQLFunctions.get_members_by_name("none", channel.guild.id, discord_user_id=member.id, conn=self.conn)
+                if len(all_discord_members) == 0:
+                    return None, []
+                discord_member = all_discord_members[0]
+                uniqueIDs.append(discord_member.UniqueMemberID)
+                return discord_member, uniqueIDs
+
+        # Not a discord member ID
+        # We make a list of all uniqueIDs with the matching name)
+        all_discord_members = SQLFunctions.get_members_by_name(username, channel.guild.id, conn=self.conn)
+        uniqueIDs = [m.UniqueMemberID for m in all_discord_members]
+        discord_member = None
 
         return discord_member, uniqueIDs
-
-    async def get_quote_by_index(self, message: discord.Message, user, index):
-        conn = self.get_connection()
-        c = conn.cursor()
-        channel = message.channel
-
-        member, multUniqueIDs = await self.get_quote_members(channel, conn, user)
-        guild_id = await self.get_guild_for_quotes(channel)
-        name = user
-        uniqueID = -1
-        if member is not None:
-            uniqueID = multUniqueIDs[0]
-            name = str(member)
-
-        # checks if the user even has any quotes
-        if member is not None:
-            c.execute("SELECT * FROM Quotes WHERE UniqueMemberID=? AND DiscordGuildID=?", (uniqueID, guild_id))
-        else:
-            c.execute("SELECT * FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=?", (name, guild_id))
-        res = c.fetchall()
-
-        # checks if there are any quotes from that user
-        quote_amt = len(res)  # this is used to display the index below
-        if quote_amt == 0:
-            embed = discord.Embed(
-                title="Quotes Error",
-                description=f"There does not exist any quote for the user `{name}`",
-                color=0xFF0000)
-            await channel.send(embed=embed)
-            raise discord.ext.commands.errors.BadArgument
-
-        # checks if the index exists
-        if member is not None:
-            c.execute(
-                "SELECT Quote, Name, CreatedAt, QuoteID FROM Quotes WHERE UniqueMemberID=? AND DiscordGuildID=? ORDER BY QuoteID LIMIT 1 OFFSET ?",
-                (uniqueID, guild_id, index))
-        else:
-            c.execute("SELECT Quote, Name, CreatedAt, QuoteID FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=? ORDER BY QuoteID LIMIT 1 OFFSET ?",
-                      (name, guild_id, index))
-        res = c.fetchone()
-        if res is None:
-            embed = discord.Embed(
-                title="Quotes Error",
-                description=f"There does not exist a quote with that index for the user \"{name}\". "
-                            f"Keep the index between `0 <= index < {quote_amt}`.",
-                color=0xFF0000)
-            await channel.send(embed=embed)
-            raise discord.ext.commands.errors.BadArgument
-        await send_quote(channel, res[0], res[2], res[1], res[3])
 
     async def add_quote(self, user, message: discord.Message, quote, quoteAdder: discord.Member = None, reactionQuote=False):
         channel = message.channel
@@ -245,7 +205,7 @@ class Quote(commands.Cog):
                 color=0xFF0000)
             if reactionQuote:
                 try:
-                    await message.add_reaction("<:failedQuote:840988109578698782>")
+                    await message.add_reaction("<:tooLongQuote:852876951407820820>")
                 except discord.errors.Forbidden:
                     pass
             else:
@@ -260,7 +220,7 @@ class Quote(commands.Cog):
                 color=0xFF0000)
             if reactionQuote:
                 try:
-                    await message.add_reaction("<:failedQuote:840988109578698782>")
+                    await message.add_reaction("<:tooLongQuote:852876951407820820>")
                 except discord.errors.Forbidden:
                     pass
             else:
@@ -278,7 +238,7 @@ class Quote(commands.Cog):
                 color=0xFF0000)
             if reactionQuote:
                 try:
-                    await message.add_reaction("<:failedQuote:840988109578698782>")
+                    await message.add_reaction("<:blockedFromQuoting:840988109578698782>")
                 except discord.errors.Forbidden:
                     pass
             else:
@@ -290,12 +250,12 @@ class Quote(commands.Cog):
         if member is None:  # that user is not a discord user and has no uniqueID
             quoted_name = user
         else:
-            quoted_name = member.name
+            quoted_name = member.User.DisplayName
             uniqueID = multipleUniqueIDs[0]
         addedBy = SQLFunctions.get_or_create_discord_member(quoteAdder, conn=self.conn)
 
         # checks if its a self quote
-        if addedBy.DiscordUserID in multipleUniqueIDs:
+        if addedBy.UniqueMemberID in multipleUniqueIDs:
             embed = discord.Embed(
                 title="Quote Error",
                 description="You can't quote yourself. That's pretty lame.",
@@ -303,7 +263,7 @@ class Quote(commands.Cog):
             embed.set_footer(text="(Or your username is the same as the person you're trying to quote.)")
             if reactionQuote:
                 try:
-                    await message.add_reaction("<:failedQuote:840988109578698782>")
+                    await message.add_reaction("<:selfQuote:852877064515092520>")
                 except discord.errors.Forbidden:
                     pass
             else:
@@ -311,11 +271,10 @@ class Quote(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
 
         # checks if the quote exists already
-        SQLFunctions.get_quote()
         if uniqueID is None:
-            res = SQLFunctions.get_quotes_by_user(quote=quote, name=user)
+            res = SQLFunctions.get_quotes_by_user(quote=quote, guild_id=channel.guild.id, name=user)
         else:
-            res = SQLFunctions.get_quotes_by_user(quote=quote, unique_member_id=uniqueID)
+            res = SQLFunctions.get_quotes_by_user(quote=quote, guild_id=channel.guild.id, unique_member_id=uniqueID)
         if len(res) > 0:
             embed = discord.Embed(
                 title="Quote Error",
@@ -336,10 +295,11 @@ class Quote(commands.Cog):
         if quote_object is not None:
             quoteID = quote_object.QuoteID
 
-        try:
-            await message.add_reaction("<:addedQuote:840985556304265237>")
-        except discord.errors.NotFound:
-            pass
+        if reactionQuote:
+            try:
+                await message.add_reaction("<:addedQuote:840985556304265237>")
+            except discord.errors.NotFound:
+                pass
 
         embed = discord.Embed(title="Added Quote", description=f"Added quote for {quoted_name}\nQuoteID: `{quoteID}`", color=0x00FF00)
 
@@ -348,6 +308,7 @@ class Quote(commands.Cog):
         else:
             await channel.send(embed=embed)
 
+    @commands.guild_only()
     @quote.command(name="all", usage="all <user>")
     async def all_quotes(self, ctx, user=None):
         """
@@ -359,12 +320,7 @@ class Quote(commands.Cog):
         quote pages delete after 120 seconds.
         """
         if user is None:
-            conn = self.get_connection()
-            c = conn.cursor()
-            c.execute("SELECT COUNT(*) FROM Quotes")
-            total_quotes = c.fetchone()[0]
-            c.execute("SELECT COUNT(DISTINCT Name) FROM Quotes")
-            total_names = c.fetchone()[0]
+            total_quotes, total_names = SQLFunctions.get_quote_stats(self.conn)
 
             embed = discord.Embed(
                 title="All Quotes Stats",
@@ -397,12 +353,9 @@ class Quote(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
         quoteID = int(quoteID)
 
-        conn = self.get_connection()
-        c = conn.cursor()
-
         # check if quote ID is a valid ID
-        c.execute("SELECT * FROM Quotes WHERE QuoteID=?", (quoteID,))
-        if c.fetchone() is None:
+        quote = SQLFunctions.get_quote(quote_ID=quoteID, guild_id=ctx.message.guild.id, conn=self.conn)
+        if quote is None:
             embed = discord.Embed(
                 title="Quotes Error",
                 description=f"The given quote ID can't be assigned to a valid quote. Did you type the right ID?",
@@ -411,18 +364,19 @@ class Quote(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
 
         # check if quote ID is already listed in db
-        c.execute("SELECT * FROM QuotesToRemove WHERE QuoteID=?", (quoteID,))
-        if c.fetchone() is not None:
-            embed = discord.Embed(
-                title="Quotes Error",
-                description=f"The given quote ID is already listed in the quotes to remove list.",
-                color=0xFF0000)
-            await ctx.send(embed=embed, delete_after=5)
-            raise discord.ext.commands.errors.BadArgument
+        quotes_to_remove = SQLFunctions.get_quotes_to_remove(self.conn)
+        for q in quotes_to_remove:
+            if quote.QuoteID == q.Quote.QuoteID:
+                embed = discord.Embed(
+                    title="Quotes Error",
+                    description=f"The given quote ID is already listed in the quotes to remove list.",
+                    color=0xFF0000)
+                await ctx.send(embed=embed, delete_after=5)
+                raise discord.ext.commands.errors.BadArgument
         
         # At this point we have a valid Quote ID, so add it to the database
-        c.execute("INSERT INTO QuotesToRemove(QuoteID, ReporterID) VALUES(?,?)", (quoteID, ctx.message.author.id))
-        conn.commit()
+        member = SQLFunctions.get_or_create_discord_member(ctx.message.author, conn=self.conn)
+        SQLFunctions.insert_quote_to_remove(quoteID, member, self.conn)
         embed = discord.Embed(
             title="Added Quote Report",
             description=f"Succesfully requested quote {quoteID} to be deleted.",
@@ -430,6 +384,7 @@ class Quote(commands.Cog):
         await ctx.send(embed=embed, delete_after=5)
 
     @commands.is_owner()
+    @commands.guild_only()
     @report.command(aliases=["show", "all"], usage="showReports")
     async def showReports(self, ctx):
         """
@@ -437,27 +392,21 @@ class Quote(commands.Cog):
         Permissions: Owner
         """
         # get all the reports
-        conn = self.get_connection()
-        c = conn.cursor()
-        c.execute("SELECT QuoteID, ReporterID FROM QuotesToRemove")
-        rows = c.fetchall()
+        quotes_to_remove = SQLFunctions.get_quotes_to_remove(self.conn)
 
         # fetches each quote and adds it to a page
         # 1 quote per page
         pages = []
-        while len(rows) > 0:
-            quoteID, reporterID = rows.pop()
-            c.execute("SELECT UniqueMemberID, Quote, Name FROM Quotes WHERE QuoteID=?", (quoteID,))
-            res = c.fetchone()
-            # res can be None if the quote was removed in another way
-            if res is None:
-                # remove the quote from the table and continue
-                c.execute("DELETE FROM QuotesToRemove WHERE QuoteID=?", (quoteID,))
-                conn.commit()
-                continue
-            uniqueID, quote, name = res
-            userID = handySQL.get_DiscordUserID(conn, uniqueID)
-            pages.append([userID, quoteID, quote, reporterID, name])
+        while len(quotes_to_remove) > 0:
+            quote = quotes_to_remove.pop()
+            # userID, quoteID, quote, reporterID, name
+            pages.append([
+                quote.Quote.Member.DiscordUserID,
+                quote.Quote.QuoteID,
+                quote.Quote.QuoteText,
+                quote.Reporter.DiscordUserID,
+                quote.Quote.Name
+            ])
 
         # should have a list of page lists, each with a max of 10 elements
         # in each page element we have user ID, quoute ID and the quote itself
@@ -465,50 +414,40 @@ class Quote(commands.Cog):
             await ctx.send("There are no reported quotes to remove.")
             return
         
-        m = QuotesToRemove(pages, conn)
+        m = QuotesToRemove(pages, self.conn)
         await m.start(ctx=ctx, channel=ctx.channel)
 
     async def get_all_quotes(self, ctx, user):
-        channel = ctx.message.channel
-        conn = self.get_connection()
-        c = conn.cursor()
-
-        guild_id = await self.get_guild_for_quotes(channel)
-        member, multUniqueIDs = await self.get_quote_members(channel, conn, user)
+        member, multUniqueIDs = await self.get_quote_members(ctx.message.channel, user)
 
         quote_list = ""
 
         # executes query to get all quotes
         if member is not None:
-            c.execute("SELECT Quote, Name, CreatedAt, QuoteID FROM Quotes WHERE UniqueMemberID=? AND DiscordGuildID=? ORDER BY QuoteID",
-                      (multUniqueIDs[0], guild_id))
+            all_quotes = SQLFunctions.get_quotes_by_user(unique_member_id=member.UniqueMemberID, guild_id=ctx.message.guild.id, conn=self.conn)
         else:
-            c.execute("SELECT Quote, Name, CreatedAt, QuoteID FROM Quotes WHERE Name LIKE ? AND DiscordGuildID=? ORDER BY QuoteID", (user, guild_id))
-        res = c.fetchall()
+            all_quotes = SQLFunctions.get_quotes_by_user(name=user, guild_id=ctx.message.guild.id, conn=self.conn)
 
         # If there are no quotes for the given person;
-        if len(res) == 0:
+        if len(all_quotes) == 0:
             embed = discord.Embed(title="Quotes Error", description=f"{user} doesn't have any quotes yet.", color=0xFF0000)
-            await channel.send(embed=embed)
+            await ctx.send(embed=embed)
             raise discord.ext.commands.errors.BadArgument
 
         i = 0
-        for row in res:
-            quote_to_add = row[0].replace("*", "").replace("~", "").replace("\\", "").replace("`", "")
+        for quote in all_quotes:
+            quote_to_add = quote.QuoteText.replace("*", "").replace("~", "").replace("\\", "").replace("`", "")
             if quote_to_add.count("\n") > 2:
-                # makes multiline quotes not show too much
+                # makes multiline quotes not fill too many lines
                 split_lines = quote_to_add.split("\n")
                 quote_to_add = "\n".join(split_lines[:2]) + "\n **[...]**"
             if len(quote_to_add) > 150:
                 quote_to_add = quote_to_add[:150] + "**[...]**"
-            quote_list += f"\n**#{i}:** {quote_to_add} `[ID: {row[3]}]`"
+            quote_list += f"\n**#{i}:** {quote_to_add} `[ID: {quote.QuoteID}]`"
             i += 1
 
         # splits the messages into different pages by character length
         pages = []
-        quoted_name = user
-        if member is not None:
-            quoted_name = member.name
 
         # creates the pages
         while len(quote_list) > 0:
@@ -526,11 +465,9 @@ class Quote(commands.Cog):
             pages.append(quote_list[0:rind2])
             quote_list = quote_list[rind2:]
 
-        p = Pages(self.bot, ctx, pages, ctx.message.author.id, f"All quotes from {quoted_name}", 180)
+        p = Pages(self.bot, ctx, pages, ctx.message.author.id, f"All quotes from {all_quotes[0].Name}", 180)
         if len(pages) > 1:
-            #m = QuoteMenu(pages, quoted_name)
             await p.handle_pages()
-            #await m.start(channel)
         else:
             await ctx.message.delete(delay=120)
             await ctx.send(embed=p.create_embed(), delete_after=120)
@@ -542,13 +479,10 @@ class Quote(commands.Cog):
         Deletes the quote with the given ID.
         Permissions: Owner
         """
-        conn = self.get_connection()
-        c = conn.cursor()
         try:
             quote_id = int(quoteID)
             try:
-                c.execute("DELETE FROM Quotes WHERE QuoteID=?", (quote_id,))
-                conn.commit()
+                SQLFunctions.delete_quote(quoteID, self.conn)
 
                 await ctx.send(f"Deleted quote with quote ID {quote_id}.")
             except IndexError:
@@ -556,49 +490,66 @@ class Quote(commands.Cog):
         except (IndexError, ValueError):
             await ctx.send("You forgot to add an index.")
 
+    @commands.guild_only()
     @quote.command(name="names", aliases=["name"], usage="names")
-    async def quote_names(self, channel: discord.channel):
+    async def quote_names(self, ctx):
         """
         Lists all names/discord id's that have at least one quote.
         It's sorted by amount of quotes each user has in descending order.
         """
-        conn = self.get_connection()
-        c = conn.cursor()
-        guild_id = await self.get_guild_for_quotes(channel)
-        sql = """   SELECT Q.Name, Q.UniqueMemberID
-                                    FROM Quotes Q
-                                    WHERE Q.DiscordGuildID=?
-                                    GROUP BY Q.Name
-                                    ORDER BY COUNT(*) DESC"""
-        c.execute(sql, (guild_id,))
-        res = c.fetchall()
+        quoted_names = SQLFunctions.get_quoted_names(ctx.message.guild, self.conn)
 
-        embed = discord.Embed(title="Quote Names")
         # If there are no quotes on the server
-        if len(res) == 0:
+        if len(quoted_names) == 0:
             embed = discord.Embed(title="Quote Error", description="There are no quotes on this server yet.", color=0xFF0000)
-            await channel.send(embed=embed)
+            await ctx.send(embed=embed)
             raise discord.ext.commands.errors.BadArgument
-        else:
-            embed.description = "Everybody with a quote as of now:"
-            MAX_FIELDS = 21
-            per_field = math.ceil(len(res) / MAX_FIELDS)  # the amount of names per field to have a max of 21 fields
-            index = 0
 
-            # splits the names into the given amount of MAX_FIELDS
-            msg_number = 1
-            while len(res[index:]) > 0:
-                field_msg = ""
-                for row in res[index: index + per_field]:
-                    if row[1] is None:
-                        quoted_name = row[0]
-                    else:
-                        quoted_name = f"<@{handySQL.get_DiscordUserID(conn, row[1])}>"
-                    field_msg += f"- {quoted_name}\n"
-                embed.add_field(name=f"Field #{msg_number}", value=field_msg)
-                index += per_field
-                msg_number += 1
-            await channel.send(embed=embed)
+        MAX_FIELDS = 21
+        per_field = math.ceil(len(quoted_names) / MAX_FIELDS)  # the amount of names per field to have a max of 21 fields
+
+        # create mention message to cache the mentions for the watching discord users
+        mention_message = ""
+        messages_to_send = []
+        for name in quoted_names:
+            if len(mention_message) > 1970:
+                messages_to_send.append(mention_message)
+                mention_message = ""
+            if name.member is not None:
+                mention_message += f"<@{name.member.DiscordUserID}> "
+        if len(mention_message) > 0:
+            messages_to_send.append(mention_message)
+
+        # splits the names into the given amount of MAX_FIELDS
+        names_message = ""
+        for name in quoted_names:
+            name_to_use = name.quote.Name
+            if name.member is not None:
+                name_to_use = f"<@{name.member.DiscordUserID}>"
+            names_message += f"-{name_to_use} `({name.total_quotes} quotes)`\n"
+
+        # splits the messages into sub 2000 char chunks
+        pages = []
+        while len(names_message) > 1000:
+            print(len(names_message))
+            index = names_message.rindex("\n", 0, 1000)
+            pages.append(names_message[:index])
+            names_message = names_message[index:]
+        if len(names_message) > 0:
+            pages.append(names_message)
+
+        # sends the initial message, then edits it to a mention message and deletes it afterwards
+        for m in messages_to_send:
+            msg = await ctx.send("mentions go brrrrrrr <a:partypoop:412336219175780353>")
+            await msg.edit(content=m)
+            await msg.delete()
+
+        p = Pages(self.bot, ctx, pages, ctx.message.author.id, "All Quote Names")
+        if len(pages) > 1:
+            await p.handle_pages()
+        else:
+            await ctx.send(embed=p.create_embed(), delete_after=60)
+            await ctx.message.delete(delay=60)
 
 
 def setup(bot):
@@ -669,7 +620,7 @@ class QuotesToRemove(menus.Menu):
         if userID is not None:
             embed.add_field(name=f"ID: {quoteID} | {name}", value=f"Discord User: <@{userID}>\nReported by: <@{reporterID}>\n**Quote:**\n{quote}")
         else:
-            embed.add_field(name=f"ID: {quoteID} | {name}", value=quote)
+            embed.add_field(name=f"ID: {quoteID} | {name}", value="Reported by: <@{reporterID}>\n**Quote:**\n{quote}")
         return embed
 
     @menus.button("⬅️")
@@ -699,10 +650,7 @@ class QuotesToRemove(menus.Menu):
     @menus.button("<:DeletThis:843908352999686234>")
     async def deleteQuote(self, payload):
         userID, quoteID, quote, reporterID, name = self.pages[self.page_count]
-        c = self.conn.cursor()
-        c.execute("DELETE FROM Quotes WHERE QuoteID=?", (quoteID,))
-        c.execute("DELETE FROM QuotesToRemove WHERE QuoteID=?", (quoteID,))
-        self.conn.commit()
+        SQLFunctions.delete_quote(quoteID, self.conn)
         self.pages.pop(self.page_count)
         embed = discord.Embed(title="Deleted Quote", description=f"Quote with ID {quoteID} was YEEEEEETED.", color=0xffff00)
         await self.ctx.send(content=f"Reported by <@{reporterID}>", embed=embed)
@@ -720,9 +668,7 @@ class QuotesToRemove(menus.Menu):
     @menus.button("<a:IgnoreReport:844678929751212083>")
     async def ignoreQuote(self, payload):
         userID, quoteID, quote, reporterID, name = self.pages[self.page_count]
-        c = self.conn.cursor()
-        c.execute("DELETE FROM QuotesToRemove WHERE QuoteID=?", (quoteID,))
-        self.conn.commit()
+        SQLFunctions.delete_quote_to_remove(quoteID, self.conn)
         self.pages.pop(self.page_count)
         embed = discord.Embed(title="Ignored Quote", description=f"Quote with ID {quoteID} was ignored.", color=0xffff00)
         await self.ctx.send(content=f"Reported by <@{reporterID}>", embed=embed)
@@ -778,7 +724,7 @@ class Pages:
                     elif res.component.label == ">>":  # last page
                         await self.last_page()
                     # Responds by updating the message
-                    await res.respond(type=InteractionType.UpdateMessage, components=self.get_components())
+                    await res.respond(type=InteractionType.UpdateMessage, components=self.get_components(), embed=self.create_embed())
                 else:
                     await res.respond(type=InteractionType.ChannelMessageWithSource, content="This page wasn't called by you.")
         try:

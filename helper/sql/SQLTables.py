@@ -145,8 +145,8 @@ Config = """   CREATE TABLE IF NOT EXISTS "Config" (
 QuotesToRemove = """   CREATE TABLE IF NOT EXISTS "QuotesToRemove" (
                                     "QuoteID" INTEGER PRIMARY KEY,
                                     "UniqueMemberID" INTEGER,
-                                    FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID"),
-                                    FOREIGN KEY("QuoteID") REFERENCES "DiscordMembers"("QuoteID")
+                                    FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID") ON DELETE CASCADE,
+                                    FOREIGN KEY("QuoteID") REFERENCES "Quotes"("QuoteID") ON DELETE CASCADE
                                     );"""
 
 all_tables = [DiscordUsers, DiscordGuilds, DiscordChannels, DiscordMembers, Subjects, WeekDayTimes,
