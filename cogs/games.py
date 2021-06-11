@@ -35,7 +35,6 @@ class Games(commands.Cog):
         self.conn = SQLFunctions.connect()
         self.time_since_task_start = time.time()
         self.background_check_cases.start()
-        self.cases_updated = False
 
     def heartbeat(self):
         return self.background_check_cases.is_running()
@@ -61,7 +60,6 @@ class Games(commands.Cog):
                 return
             channel = guild.get_channel(747752542741725247)
             await self.send_message(channel, new_cases)
-        self.cases_updated = True
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -210,7 +208,6 @@ class Games(commands.Cog):
 
         await ctx.message.delete()
 
-
         if number is None:
             # No values were given in the command:
             async with ctx.typing():
@@ -256,8 +253,6 @@ class Games(commands.Cog):
                     await self.send_leaderboard(ctx)
                 elif number.lower() in average_aliases:
                     await self.send_leaderboard(ctx, True)
-                elif 13 <= hour < 16:
-                    await ctx.send("Can't guess from 13:00 till 16:00. The confirmed amount of cases will be released soon.", delete_after=7)
                 else:
                     number = int(number)
                     if number < 0:

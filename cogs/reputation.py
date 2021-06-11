@@ -6,15 +6,6 @@ import json
 from helper.sql import SQLFunctions
 
 
-def get_most_recent_time(conn, uniqueMemberID):
-    c = conn.cursor()
-    c.execute("SELECT CreatedAt from Reputations WHERE AddedByUniqueMemberID=? ORDER BY CreatedAt DESC", (uniqueMemberID,))
-    result = c.fetchone()
-    if result is None:
-        return None
-    return result[0]
-
-
 def get_valid_guild_id(message):
     # To avoid errors when commands are used in DMs
     try:
@@ -101,13 +92,12 @@ class Reputation(commands.Cog):
             embed.add_field(name="Comment:", value=f"```{rep}```")
             embed.set_author(name=str(ctx.message.author))
             await ctx.send(embed=embed)
-            await ctx.message.delete()
 
         else:
             discord_member = SQLFunctions.get_or_create_discord_member(ctx.message.author, conn=self.conn)
-            last_sent_time = get_most_recent_time(self.conn, discord_member.UniqueMemberID)
+            last_sent_time = SQLFunctions.get_most_recent_time(discord_member, self.conn)
             if last_sent_time is not None:
-                seconds = datetime.datetime.strptime(last_sent_time, '%Y-%m-%d %H:%M:%S.%f').timestamp() + self.time_to_wait
+                seconds = datetime.datetime.fromisoformat(last_sent_time).timestamp() + self.time_to_wait
                 next_time = datetime.datetime.fromtimestamp(seconds).strftime("%A at %H:%M")
                 embed = discord.Embed(
                     title="Error",
@@ -139,11 +129,11 @@ class Reputation(commands.Cog):
         msg = f"```diff\nReputations: {display_name}\n__________________________\n{reputation_msg}```"
         await message.channel.send(msg)
 
-    def check_valid_time(self, conn, uniqueMemberID):
-        result = get_most_recent_time(conn, uniqueMemberID)
+    def check_valid_time(self, member: SQLFunctions.DiscordMember):
+        result = SQLFunctions.get_most_recent_time(member, self.conn)
         if result is None:
             return True
-        time_sent = datetime.datetime.strptime(result, '%Y-%m-%d %H:%M:%S.%f')
+        time_sent = datetime.datetime.fromisoformat(result)
         if time.time() - time_sent.timestamp() > self.time_to_wait:
             return True
         return False
@@ -152,17 +142,9 @@ class Reputation(commands.Cog):
         """
         Adds the reputation to the file
         """
-        conn = self.conn
-
-        # To avoid errors when commands are used in DMs
-        try:
-            guild_id = message.guild.id
-        except AttributeError:
-            guild_id = 0
-
         # Can the user rep yet?
         author_member = SQLFunctions.get_or_create_discord_member(author, conn=self.conn)
-        if not self.check_valid_time(conn, author_member.UniqueMemberID):
+        if not self.check_valid_time(author_member):
             return False
 
         receiver_member = SQLFunctions.get_or_create_discord_member(member, conn=self.conn)

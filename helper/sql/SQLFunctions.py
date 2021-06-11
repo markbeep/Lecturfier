@@ -679,6 +679,14 @@ def get_reputations(member: discord.Member, conn=connect()) -> list[(bool, str)]
     return reputations
 
 
+def get_most_recent_time(member: DiscordMember, conn=connect()):
+    result = conn.execute("SELECT CreatedAt from Reputations WHERE AddedByUniqueMemberID=? ORDER BY CreatedAt DESC", (member.UniqueMemberID,)).fetchone()
+    if result is None:
+        return None
+    # doesnt return the milliseconds of the datetime
+    return result[0].split(".")[0]
+
+
 def add_reputation(author: DiscordMember, receiver: DiscordMember, reputation_message: str, is_positive: bool, conn=connect()):
     sql = "INSERT INTO Reputations(UniqueMemberID, ReputationMessage, AddedByUniqueMemberID, IsPositive) VALUES (?,?,?,?)"
     conn.execute(sql, (receiver.UniqueMemberID, reputation_message, author.UniqueMemberID, int(is_positive)))
