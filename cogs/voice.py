@@ -1,11 +1,9 @@
-import asyncio
 import math
 import random
-import time
 from sqlite3 import Error
 import discord
 from discord.ext import commands, tasks
-from helper import handySQL
+from helper.sql import SQLFunctions
 from discord.ext.commands.cooldowns import BucketType
 
 
@@ -31,9 +29,7 @@ def number_split(num):
 class Voice(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
-        self.db_path = "./data/discord.db"
-        self.conn = handySQL.create_connection(self.db_path)
+        self.conn = SQLFunctions.connect()
         self.background_save_levels.start()
 
     def heartbeat(self):
@@ -42,21 +38,12 @@ class Voice(commands.Cog):
     def get_task(self):
         return self.background_save_levels
 
-    def get_connection(self):
-        """
-        Retreives the current database connection
-        :return: Database Connection
-        """
-        if self.conn is None:
-            self.conn = handySQL.create_connection(self.db_path)
-        return self.conn
-
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot:
+        if message.author.bot or message.guild is None:
             return
         # add xp to user
-        await self.add_xp(message.guild, message.author, 3, 5)
+        await self.add_xp(message.author, 3, 5)
 
     @tasks.loop(seconds=10)
     async def background_save_levels(self):
@@ -78,85 +65,47 @@ class Voice(commands.Cog):
                     # Goes through every member in that voice channel
                     # If the user is afk, a bot or muted
                     if not (u.voice.afk or u.bot or u.voice.self_mute or u.voice.self_deaf or u.voice.mute):
-                        await self.add_xp(guild, u, amount_min, amount_max)
+                        await self.add_xp(u, amount_min, amount_max)
 
-    async def add_xp(self, guild, user, amount_min, amount_max):
+    async def add_xp(self, member: discord.Member, amount_min, amount_max):
         """
         Adds xp to a specific user in that guild
-        :param guild:
-        :param user:
+        :param member:
         :param amount_min:
         :param amount_max:
         :return:
         """
-        conn = self.get_connection()
-        if conn is not None:
-            rand_amount = random.randrange(1, 10)
+        rand_amount = random.randrange(amount_min, amount_max)
 
-            # Creates new voice level entry
-            handySQL.create_voice_level_entry(conn, user, guild)
-            if guild is None:
-                guild_id = 0
-            else:
-                guild_id = guild.id
-
-            # Retreives the UniqueMemberID
-            uniqueMemberID = handySQL.get_uniqueMemberID(conn, user.id, guild_id)
-
-            sql = f"""UPDATE VoiceLevels SET ExperienceAmount = ExperienceAmount + {rand_amount} WHERE UniqueMemberID=?"""
-            c = conn.cursor()
-            c.execute(sql, (uniqueMemberID,))
-            conn.commit()
-        else:
-            print("ERROR! conn was a None type")
+        SQLFunctions.insert_or_update_voice_level(member, rand_amount, self.conn)
 
     @commands.cooldown(4, 10, BucketType.user)
+    @commands.guild_only()
     @commands.command(usage="rank [user]")
     async def rank(self, ctx, user=None):
         """
         This command sends the users voice XP rank. If no user is defined, the command user's rank is sent.
         """
         if user is None:
-            u_id = str(ctx.message.author.id)
+            member = ctx.message.author
         else:
             member = ctx.message.guild.get_member_named(user)
-            if member is None:
-                u_id = user.replace("<@", "").replace(">", "").replace("!", "")
-            else:
-                u_id = member.id
 
-        # Query User experience
-        conn = self.get_connection()
-        try:
-            c = conn.cursor()
-            if ctx.message.guild is None:
-                guild_id = 0
-            else:
-                guild_id = ctx.message.guild.id
-            sql = """SELECT ExperienceAmount FROM VoiceLevels INNER JOIN DiscordMembers DM on DM.UniqueMemberID=VoiceLevels.UniqueMemberID
-                            WHERE DM.DiscordUserID=? AND DM.DiscordGuildID=?"""
-            c.execute(sql, (u_id, guild_id))
-            line = c.fetchone()
-            if line is None:
-                await ctx.send(f"{ctx.message.author.mention}, invalid mention or user ID. Can't display rank for that user.")
-                raise ValueError
-            try:
-                experience = int(line[0])
-            except ValueError as e:
-                await ctx.send(f"There was a lil' problem:\n`{e}`")
-                raise ValueError
-        except Error as e:
-            await ctx.send(f"There was a lil' problem:\n`{e}`")
+        if member is None:
+            await ctx.send(f"{ctx.message.author.mention}, invalid mention or user ID. Can't display rank for that user.")
             raise ValueError
 
-        level = levefier(experience)
-        pre_level = round(experience - xpfier(level))
+        # Query User experience
+        voice_level = SQLFunctions.get_voice_level(member, self.conn)
+
+        level = levefier(voice_level.experience)
+        pre_level = round(voice_level.experience - xpfier(level))
         aft_level = round(xpfier(level + 1) - xpfier(level))
-        embed = discord.Embed(title="Voice Level", description=f"User: <@!{u_id}>\n"
+        embed = discord.Embed(title="Voice Level", description=f"User: <@!{voice_level.member.DiscordUserID}>\n"
                                                                f"Current Level: `{level}`\n"
                                                                f"Level XP: `{pre_level}` / `{aft_level}`\n"
-                                                               f"Total XP: `{number_split(experience)}`\n"
-                                                               f"Estimated Hours: `{round(experience / 3600, 1)}`", color=0x00FF00)
+                                                               f"Total XP: `{number_split(voice_level.experience)}`\n"
+                                                               f"Estimated Hours: `{round(voice_level.experience / 3600, 1)}`", color=0x00FF00)
         await ctx.send(embed=embed)
 
     @commands.cooldown(2, 10, BucketType.user)
@@ -165,7 +114,7 @@ class Voice(commands.Cog):
         """
         This command sends the top 10 users with the most voice XP on this server.
         """
-        conn = self.get_connection()
+        conn = self.conn
         if conn is not None:
             c = conn.cursor()
             try:
