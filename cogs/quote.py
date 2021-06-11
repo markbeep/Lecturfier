@@ -531,7 +531,6 @@ class Quote(commands.Cog):
         # splits the messages into sub 2000 char chunks
         pages = []
         while len(names_message) > 1000:
-            print(len(names_message))
             index = names_message.rindex("\n", 0, 1000)
             pages.append(names_message[:index])
             names_message = names_message[index:]
@@ -711,22 +710,25 @@ class Pages:
                 res = await self.bot.wait_for("button_click", timeout=10)
             except asyncio.TimeoutError:
                 continue
-            if res.message is not None and type(res.component) != type(list) and res.message.id == self.message.id:
-                if res.user.id == self.user_id:
-                    if res.component.label == "<":  # prev page
-                        await self.page_down()
-                    elif res.component.label == ">":  # next page
-                        await self.page_up()
-                    elif res.component.label == "X":  # break resulting in deleting the page and user message
-                        break
-                    elif res.component.label == "<<":  # first page
-                        await self.first_page()
-                    elif res.component.label == ">>":  # last page
-                        await self.last_page()
-                    # Responds by updating the message
-                    await res.respond(type=InteractionType.UpdateMessage, components=self.get_components(), embed=self.create_embed())
-                else:
-                    await res.respond(type=InteractionType.ChannelMessageWithSource, content="This page wasn't called by you.")
+            if res.message is not None and res.message.id == self.message.id:
+                try:
+                    if res.user.id == self.user_id:
+                        if res.component.label == "<":  # prev page
+                            await self.page_down()
+                        elif res.component.label == ">":  # next page
+                            await self.page_up()
+                        elif res.component.label == "X":  # break resulting in deleting the page and user message
+                            break
+                        elif res.component.label == "<<":  # first page
+                            await self.first_page()
+                        elif res.component.label == ">>":  # last page
+                            await self.last_page()
+                        # Responds by updating the message
+                        await res.respond(type=InteractionType.UpdateMessage, components=self.get_components(), embed=self.create_embed())
+                    else:
+                        await res.respond(type=InteractionType.ChannelMessageWithSource, content="This page wasn't called by you.")
+                except AttributeError:
+                    await res.respond(type=InteractionType.ChannelMessageWithSource, content="Sorry got a little error. Simply press the button again.")
         try:
             await self.ctx.message.delete()
         except discord.errors.NotFound:

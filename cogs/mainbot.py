@@ -34,7 +34,7 @@ class MainBot(commands.Cog):
         log(f"Name: {self.bot.user.name}")
         log(f"ID: {self.bot.user.id}")
         log(f"Version: {discord.__version__}")
-        await self.bot.change_presence(activity=discord.Activity(name="myself startup", type=discord.ActivityType.watching))
+        await self.bot.change_presence(activity=discord.Activity(name="students", type=discord.ActivityType.watching))
         print("-------------")
         count = await self.load_all_extensions(self.startup_extensions)
         log(f"Started up bot with {count}/{len(self.startup_extensions)-2} extensions loaded successfully.")
