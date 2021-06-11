@@ -3,12 +3,11 @@ from discord.ext import commands, tasks
 from discord.ext.commands import CommandOnCooldown
 from datetime import datetime
 import time
-import asyncio
 from emoji import demojize
 import json
 from helper.git_backup import gitpush
-from helper import handySQL
 from discord.ext.commands.cooldowns import BucketType
+from helper.sql import SQLFunctions
 
 
 def is_in(word, list_to_check):
@@ -26,24 +25,16 @@ class Statistics(commands.Cog):
         self.time_counter = 0  # So statistics dont get saved every few seconds, and instead only every 2 mins
         self.bot_changed_to_yesterday = {}
         self.db_path = "./data/discord.db"
-        self.conn = handySQL.create_connection(self.db_path)
         self.background_git_backup.start()
         self.sent_file = False
+        self.current_subject = [-1, 0]
+        self.conn = SQLFunctions.connect()
 
     def heartbeat(self):
         return self.background_git_backup.is_running()
 
     def get_task(self):
         return self.background_git_backup
-
-    def get_connection(self):
-        """
-        Retreives the current database connection
-        :return: Database Connection
-        """
-        if self.conn is None:
-            self.conn = handySQL.create_connection(self.db_path)
-        return self.conn
 
     @tasks.loop(seconds=10)
     async def background_git_backup(self):
@@ -96,15 +87,11 @@ class Statistics(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        # Creates a connection with the DB
-        conn = self.get_connection()
-        try:
-            # This is in case a message is a direct message
-            guild_obj = message.guild
-        except AttributeError:
-            guild_obj = None
+        # only count stats in servers
+        if message.guild is None:
+            return
 
-        SUBJECT_ID = self.get_current_subject_id()
+        SUBJECT_ID = self.get_current_subject()
         # Makes it better to work with the message
         msg = demojize(message.content)
 
@@ -122,277 +109,408 @@ class Statistics(commands.Cog):
             if f.height is not None and f.height > 0:
                 images_amt += 1
 
-        uniqueID = handySQL.get_or_create_member(conn, message.author, guild_obj)
+        SQLFunctions.update_statistics(message.author,
+                                       SUBJECT_ID,
+                                       conn=self.conn,
+                                       messages_sent=1,
+                                       characters_sent=char_count,
+                                       words_sent=word_count,
+                                       spoilers_sent=spoiler_count,
+                                       emojis_sent=emoji_count,
+                                       files_sent=files_amount,
+                                       file_size_sent=file_sizes,
+                                       images_sent=images_amt)
 
-        c = conn.cursor()
-        c.execute(f"SELECT * FROM UserMessageStatistic WHERE UniqueMemberID=? AND SubjectID=?", (uniqueID, SUBJECT_ID))
-        if c.fetchone() is None:
-            result = handySQL.create_message_statistic_entry(conn, message.author, guild_obj, SUBJECT_ID, "UserMessageStatistic")
-            if not result[0]:
-                return
-        values = (char_count, word_count, spoiler_count, emoji_count, files_amount, file_sizes, images_amt, uniqueID, SUBJECT_ID)
-        sql = """   UPDATE UserMessageStatistic
-                    SET MessageSentCount=MessageSentCount+1,
-                        CharacterCount=CharacterCount+?,
-                        WordCount=WordCount+?,
-                        SpoilerCount=SpoilerCount+?,
-                        EmojiCount=EmojiCount+?,
-                        FileSentCount=FileSentCount+?,
-                        FileTotalSize=FileTotalSize+?,
-                        ImageCount=ImageCount+?
-                    WHERE UniqueMemberID=? AND SubjectID=?"""
-        c.execute(sql, values)
-        conn.commit()
-
-    def get_current_subject_id(self, semester=2):
-        conn = self.get_connection()
-        c = conn.cursor()
-        sql = """   SELECT WD.SubjectID
-                    FROM WeekDayTimes WD
-                    INNER JOIN Subject S on WD.SubjectID=S.SubjectID
-                    WHERE WD.DayID=? AND WD.TimeFROM<=? AND WD.TimeTo>? AND S.SubjectSemester=?"""
-        day = datetime.now().weekday()
-        hour = datetime.now().hour
-        c.execute(sql, (day, hour, hour, semester))
-        row = c.fetchone()
-        if row is None:
-            return 0
-        return row[0]
+    def get_current_subject(self, semester=2) -> int:
+        """
+        Minor cache system to only make a subject query if it's a new minute
+        Returns the current subject ID
+        """
+        minute = datetime.now().minute
+        if self.current_subject[0] != minute:
+            subject_id = SQLFunctions.get_current_subject_id(semester, conn=self.conn)
+            self.current_subject = [minute, subject_id]
+        return self.current_subject[1]
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
-        # Update messages to be "deleted"
-        conn = self.get_connection()
-
-        try:
-            # This is in case a message is a direct message
-            guild_obj = message.guild
-        except AttributeError:
-            guild_obj = None
-
-        SUBJECT_ID = self.get_current_subject_id()
-
-        # Increments deleted message count
-        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "MessageDeletedCount", "UserMessageStatistic")
-        if not result[0]:
-            print(f"ERROR! MessageDeletedCount: {result[2]} | UserID: {message.author.id}")
+        if message.guild is None:
+            return
+        SUBJECT_ID = self.get_current_subject()
+        SQLFunctions.update_statistics(message.author, SUBJECT_ID, messages_deleted=1)
 
     @commands.Cog.listener()
     async def on_message_edit(self, before, message):
         # Adds the edited message to the table
-        if before.content == message.content:
+        if message.guild is None:
             return
-        conn = self.get_connection()
 
-        try:
-            # This is in case a message is a direct message
-            guild_obj = message.guild
-        except AttributeError:
-            guild_obj = None
+        # gets the char difference between the two messages
+        b_cont = before.content
+        a_cont = message.content
+        before_char_count = len(b_cont)
+        before_word_count = len(b_cont.split(" "))
+        before_emoji_count = b_cont.count(":") // 2
+        before_spoiler_count = b_cont.count("||") // 2
+        after_char_count = len(a_cont)
+        after_word_count = len(a_cont.split(" "))
+        after_emoji_count = a_cont.count(":") // 2
+        after_spoiler_count = a_cont.count("||") // 2
 
-        SUBJECT_ID = self.get_current_subject_id()
-
-        # Increments edited message count
-        result = handySQL.increment_message_statistic(conn, message.author, guild_obj, SUBJECT_ID, "MessageEditedCount", "UserMessageStatistic")
-        if not result[0]:
-            print(f"ERROR! MessageEditedCount: {result[2]} | UserID: {message.author.id}")
+        SUBJECT_ID = self.get_current_subject()
+        SQLFunctions.update_statistics(message.author,
+                                       SUBJECT_ID,
+                                       messages_edited=1,
+                                       characters_sent=after_char_count - before_char_count,
+                                       words_sent=after_word_count - before_word_count,
+                                       emojis_sent=after_emoji_count - before_emoji_count,
+                                       spoilers_sent=after_spoiler_count - before_spoiler_count)
 
     @commands.Cog.listener()
-    async def on_reaction_add(self, reaction, user):
-        conn = self.get_connection()
-
-        try:
-            # This is in case a message is a direct message
-            guild_obj = reaction.message.guild
-        except AttributeError:
-            guild_obj = None
-
-        SUBJECT_ID = self.get_current_subject_id()
-
-        # Increments added reaction count for reaction giver
-        result = handySQL.increment_message_statistic(conn, user, guild_obj, SUBJECT_ID, "ReactionAddedCount", "UserReactionStatistic")
-        if not result[0]:
-            print(f"ERROR! ReactionAddedCount: {result[2]} | UserID: {user.id}")
-
-        # User can't up the statistic on his own message
-        if user.id == reaction.message.author.id:
+    async def on_reaction_add(self, reaction, member):
+        if reaction.message.guild is None or member.bot:
             return
-
-        # Increments gotten reaction count for reaction receiver
-        result = handySQL.increment_message_statistic(conn, reaction.message.author, guild_obj, SUBJECT_ID, "GottenReactionCount",
-                                                      "UserReactionStatistic")
-        if not result[0]:
-            print(f"ERROR! GottenReactionCount: {result[2]} | UserID: {user.id}")
+        SUBJECT_ID = self.get_current_subject()
+        SQLFunctions.update_statistics(member, SUBJECT_ID, reactions_added=1)
+        if member.id == reaction.message.author.id:
+            return
+        SQLFunctions.update_statistics(reaction.message.author, SUBJECT_ID, reactions_received=1)
 
     @commands.Cog.listener()
-    async def on_reaction_remove(self, reaction, user):
-        conn = self.get_connection()
-
-        try:
-            # This is in case a message is a direct message
-            guild_obj = reaction.message.guild
-        except AttributeError:
-            guild_obj = None
-
-        SUBJECT_ID = self.get_current_subject_id()
-
-        # Increments removed reaction count for reaction giver
-        result = handySQL.increment_message_statistic(conn, user, guild_obj, SUBJECT_ID, "ReactionRemovedCount", "UserReactionStatistic")
-        if not result[0]:
-            print(f"ERROR! ReactionRemovedCount: {result[2]} | UserID: {user.id}")
-
-        # User can't up the statistic on his own message
-        if user.id == reaction.message.author.id:
+    async def on_reaction_remove(self, reaction, member):
+        if reaction.message.guild is None or member.bot:
             return
+        SUBJECT_ID = self.get_current_subject()
+        SQLFunctions.update_statistics(member, SUBJECT_ID, reactions_removed=1)
+        if member.id == reaction.message.author.id:
+            return
+        SQLFunctions.update_statistics(reaction.message.author, SUBJECT_ID, reactions_taken_away=1)
 
-        # Increments removed gotten reaction count for reaction receiver
-        result = handySQL.increment_message_statistic(conn, reaction.message.author, guild_obj, SUBJECT_ID, "GottenReactionRemovedCount",
-                                                      "UserReactionStatistic")
-        if not result[0]:
-            print(f"ERROR! GottenReactionRemovedCount: {result[2]} | UserID: {user.id}")
-
-    async def create_embed(self, display_name, guild_id, user_id, message_columns, reaction_columns):
-        embed = discord.Embed(title=f"Statistics for {display_name}")
-        conn = self.get_connection()
-        c = conn.cursor()
-        uniqueID = handySQL.get_uniqueMemberID(conn, user_id, guild_id)
-        for column in message_columns:
-            sql = f"""  SELECT ums.UniqueMemberID, SUM({column}) as sm
-                        FROM UserMessageStatistic ums
-                        INNER JOIN DiscordMembers as dm on dm.UniqueMemberID=ums.UniqueMemberID
-                        INNER JOIN DiscordUsers DU on dm.DiscordUserID = DU.DiscordUserID
-                        WHERE DU.IsBot=0
-                        GROUP BY ums.UniqueMemberID
-                        ORDER BY sm DESC"""
+    async def create_embed(self, member: discord.Member, statistic_columns) -> discord.Embed:
+        """
+        Creates an embed for a user's single statistics
+        """
+        embed = discord.Embed(title=f"Statistics for {str(member)}")
+        for key in statistic_columns.keys():
+            column = statistic_columns[key]
+            size = len(column)
             rank = 0
             val = None
-            for row in c.execute(sql):
+            for row in column:
                 rank += 1
-                if row[0] == uniqueID:
+                if row[0].DiscordUserID == member.id and row[0].DiscordGuildID == member.guild.id:
                     val = row[1]
                     break
-            if val is None:
-                continue
-            if column == "FileTotalSize":
+            if val is not None and key == "FileSizeSent":
                 val = round(val / 1000000.0, 2)
                 val = f"{val} MB"
-            embed.add_field(name=column, value=f"{val} *({rank}.)*\n")
-        for column in reaction_columns:
-            sql = f"""  SELECT ums.UniqueMemberID, SUM({column}) as sm
-                        FROM UserReactionStatistic ums
-                        INNER JOIN DiscordMembers as dm on dm.UniqueMemberID=ums.UniqueMemberID
-                        INNER JOIN DiscordUsers DU on dm.DiscordUserID = DU.DiscordUserID
-                        WHERE DU.IsBot=0
-                        GROUP BY ums.UniqueMemberID
-                        ORDER BY sm DESC"""
-            rank = 0
-            val = None
-            for row in c.execute(sql):
-                rank += 1
-                if row[0] == uniqueID:
-                    val = row[1]
-                    break
-            if val is None:
-                continue
-            embed.add_field(name=column, value=f"{val} *({rank}.)*\n")
+            if val is None:  # if the user's stats are out of the limit
+                embed.add_field(name=key, value=f"Can't show rank >{size}")
+            else:
+                embed.add_field(name=key, value=f"{val} *({rank}.)*\n")
         return embed
 
-    async def get_rows(self, column, table, guild_id, limit):
-        conn = self.get_connection()
-        sql = f"""  SELECT dm.DiscordUserID, SUM({column}) as sm
-                    FROM {table} as ums
-                    INNER JOIN DiscordMembers as dm on dm.UniqueMemberID=ums.UniqueMemberID
-                    INNER JOIN DiscordUsers DU on dm.DiscordUserID = DU.DiscordUserID
-                    WHERE dm.DiscordGuildID=? AND DU.IsBot=0
-                    GROUP BY ums.UniqueMemberID
-                    ORDER BY sm DESC
-                    LIMIT ?"""
-        result = conn.execute(sql, (guild_id, limit))
-        rows = result.fetchall()
-        return rows
+    async def get_top_users(self, statistic_columns=None, single_statistic=None, single_statistic_name=None, name="Top User Statistics"):
+        """
+        Gets the top results in either a given dictionary of multiple columns or a single column.
+        In a single column the column name must be given, underwise an AssertionError is thrown.
+        """
+        if single_statistic is None:
+            single_statistic = []
+        if statistic_columns is None:
+            statistic_columns = {}
+            assert single_statistic_name is not None
+            statistic_columns[single_statistic_name] = single_statistic
 
-    async def get_top_users(self, guild_id, message_columns=(), reaction_columns=(), name="Top User Statistics", limit=3):
         embed = discord.Embed(title=name)
-        for column in message_columns:
-            rows = await self.get_rows(column, "UserMessageStatistic", guild_id, limit)
-            if rows is None:
-                continue
+        for key in statistic_columns.keys():
+            column = statistic_columns[key]
             lb_msg = ""
-            for i in range(len(rows)):
-                val = rows[i][1]
-                if column == "FileTotalSize":
-                    val = round(val / 1000000.0, 2)
-                    val = f"{val} MB"
-                lb_msg += f"**{i+1}.** <@!{rows[i][0]}> *({val})*\n"
-            embed.add_field(name=column, value=lb_msg)
-        for column in reaction_columns:
-            rows = await self.get_rows(column, "UserReactionStatistic", guild_id, limit)
-            if rows is None:
-                continue
-            lb_msg = ""
-            for i in range(len(rows)):
-                lb_msg += f"**{i + 1}.** <@!{rows[i][0]}> *({rows[i][1]})*\n"
-            embed.add_field(name=column, value=lb_msg)
+            for i, row in enumerate(column):
+                member: SQLFunctions.DiscordMember = row[0]
+                value = row[1]
+                if key == "FileSentSize":
+                    value = round(value / 1000000.0, 2)
+                    value = f"{value} MB"
+                lb_msg += f"**{i + 1}.** <@{member.DiscordUserID}> *({value})*\n"
+            embed.add_field(name=key, value=lb_msg)
         return embed
 
     @commands.cooldown(4, 10, BucketType.user)
-    @commands.command(aliases=["stats"], usage="statistics [user]")
+    @commands.guild_only()
+    @commands.group(aliases=["stats"], usage="statistics [user]", invoke_without_command=True)
     async def statistics(self, ctx, user=None):
         """
         Used to call the statistics page of a user or of the server.
         The user parameter can be another user or "top" to get the top three users \
         of each category.
         """
-        message_columns = [
-            "MessageSentCount",
-            "MessageDeletedCount",
-            "MessageEditedCount",
-            "CharacterCount",
-            "WordCount",
-            "SpoilerCount",
-            "EmojiCount",
-            "FileSentCount",
-            "FileTotalSize",
-            "ImageCount"
-        ]
-        reaction_columns = [
-            "ReactionAddedCount",
-            "ReactionRemovedCount",
-            "GottenReactionCount",
-            "GottenReactionRemovedCount"
-        ]
+        if ctx.invoked_subcommand is None:
+            statistic_columns = {
+                "MessagesSent": [],
+                "MessagesDeleted": [],
+                "MessagesEdited": [],
+                "CharactersSent": [],
+                "WordsSent": [],
+                "SpoilersSent": [],
+                "EmojisSent": [],
+                "FilesSent": [],
+                "FileSizeSent": [],
+                "ImagesSent": [],
+                "ReactionsAdded": [],
+                "ReactionsRemoved": [],
+                "ReactionsReceived": [],
+                "ReactionsTakenAway": []
+            }
 
-        try:
-            guild_id = ctx.message.guild.id
-        except AttributeError:
-            guild_id = 0
+            for key in statistic_columns.keys():
+                statistic_columns[key] = SQLFunctions.get_statistic_rows(key, 500, self.conn)
+            if user is None:
+                embed = await self.create_embed(ctx.message.author, statistic_columns)
+                await ctx.send(embed=embed)
+            else:
+                try:
+                    memberconverter = discord.ext.commands.MemberConverter()
+                    member = await memberconverter.convert(ctx, user)
+                except discord.ext.commands.errors.BadArgument:
+                    await ctx.send("Invalid user. Mention the user for this to work.")
+                    raise discord.ext.commands.errors.BadArgument
+                embed = await self.create_embed(member, statistic_columns)
+                await ctx.send(embed=embed)
 
-        if user is not None:
-            user_message_val = is_in(user, message_columns)
-            user_reaction_val = is_in(user, reaction_columns)
+    @commands.guild_only()
+    @statistics.command()
+    async def top(self, ctx):
+        statistic_columns = {
+            "MessagesSent": [],
+            "MessagesDeleted": [],
+            "MessagesEdited": [],
+            "CharactersSent": [],
+            "WordsSent": [],
+            "SpoilersSent": [],
+            "EmojisSent": [],
+            "FilesSent": [],
+            "FileSizeSent": [],
+            "ImagesSent": [],
+            "ReactionsAdded": [],
+            "ReactionsRemoved": [],
+            "ReactionsReceived": [],
+            "ReactionsTakenAway": []
+        }
+        for key in statistic_columns.keys():
+            statistic_columns[key] = SQLFunctions.get_statistic_rows(key, 3, self.conn)
+        embed = await self.get_top_users(statistic_columns)
+        await ctx.send(embed=embed)
 
-        if user is None:
-            embed = await self.create_embed(ctx.message.author.display_name, guild_id, ctx.message.author.id, message_columns, reaction_columns)
-            await ctx.send(embed=embed)
-        elif user == "top":
-            embed = await self.get_top_users(guild_id, message_columns, reaction_columns)
-            await ctx.send(embed=embed)
-        elif user_message_val:
-            embed = await self.get_top_users(guild_id, (user_message_val,), (), f"Top {user}", 10)
-            await ctx.send(embed=embed)
-        elif user_reaction_val:
-            embed = await self.get_top_users(guild_id, (), (user_reaction_val,), f"Top {user}", 10)
-            await ctx.send(embed=embed)
-        else:
-            try:
-                memberconverter = discord.ext.commands.MemberConverter()
-                user = await memberconverter.convert(ctx, user)
-            except discord.ext.commands.errors.BadArgument:
-                await ctx.send("Invalid user. Mention the user for this to work.")
-                raise discord.ext.commands.errors.BadArgument
-            embed = await self.create_embed(user.display_name, guild_id, user.id, message_columns, reaction_columns)
-            await ctx.send(embed=embed)
+    @commands.guild_only()
+    @statistics.command(aliases=["messages", "messagessent"], usage="MessagesSent [amount shown]")
+    async def MessagesSent(self, ctx, mx=10):
+        """
+        See MessagesSent Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("MessagesSent", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Messages Sent")
+        await ctx.send(embed=embed)
 
+    @commands.guild_only()
+    @statistics.command(aliases=["messagesdeleted"], usage="MessagesDeleted [amount shown]")
+    async def MessagesDeleted(self, ctx, mx=10):
+        """
+        See MessagesDeleted Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("MessagesDeleted", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Messages Deleted")
+        await ctx.send(embed=embed)
+
+    @commands.guild_only()
+    @statistics.command(aliases=["messagesedited"], usage="MessagesEdited [amount shown]")
+    async def MessagesEdited(self, ctx, mx=10):
+        """
+        See MessagesEdited Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("MessagesEdited", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Messages Edited")
+        await ctx.send(embed=embed)
+
+    @commands.guild_only()
+    @statistics.command(aliases=["characterssent", "characters", "chars"], usage="CharactersSent [amount shown]")
+    async def CharactersSent(self, ctx, mx=10):
+        """
+        See CharactersSent Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("CharactersSent", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Characters Sent")
+        await ctx.send(embed=embed)
+
+    @commands.guild_only()
+    @statistics.command(aliases=["wordssent", "words"], usage="WordsSent [amount shown]")
+    async def WordsSent(self, ctx, mx=10):
+        """
+        See WordsSent Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("WordsSent", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Words Sent")
+        await ctx.send(embed=embed)
+
+    @commands.guild_only()
+    @statistics.command(aliases=["spoilerssend", "spoilers"], usage="SpoilersSent [amount shown]")
+    async def SpoilersSent(self, ctx, mx=10):
+        """
+        See SpoilersSent Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("SpoilersSent", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Spoilers Sent")
+        await ctx.send(embed=embed)
+
+    @commands.guild_only()
+    @statistics.command(aliases=["emojissent", "emoji", "emojis"], usage="EmojisSent [amount shown]")
+    async def EmojisSent(self, ctx, mx=10):
+        """
+        See EmojisSent Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("EmojisSent", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Emojis Sent")
+        await ctx.send(embed=embed)
+
+    @commands.guild_only()
+    @statistics.command(aliases=["filessent", "files", "file"], usage="FilesSent [amount shown]")
+    async def FilesSent(self, ctx, mx=10):
+        """
+        See FilesSent Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("FilesSent", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Files Sent")
+        await ctx.send(embed=embed)
+
+    @commands.guild_only()
+    @statistics.command(aliases=["filesizesent", "filesize", "size"], usage="FileSizeSent [amount shown]")
+    async def FileSizeSent(self, ctx, mx=10):
+        """
+        See FileSizeSent Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("FileSizeSent", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Total File Size Sent")
+        await ctx.send(embed=embed)
+
+    @commands.guild_only()
+    @statistics.command(aliases=["imagessent", "img", "image", "images"], usage="ImagesSent [amount shown]")
+    async def ImagesSent(self, ctx, mx=10):
+        """
+        See ImagesSent Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("ImagesSent", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Images Sent")
+        await ctx.send(embed=embed)
+
+    @commands.guild_only()
+    @statistics.command(aliases=["reactionsadded", "reactions", "reaction"], usage="ReactionsAdded [amount shown]")
+    async def ReactionsAdded(self, ctx, mx=10):
+        """
+        See ReactionsAdded Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("ReactionsAdded", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Reactions Added")
+        await ctx.send(embed=embed)
+
+    @commands.guild_only()
+    @statistics.command(aliases=["reactionsremoved"], usage="ReactionsRemoved [amount shown]")
+    async def ReactionsRemoved(self, ctx, mx=10):
+        """
+        See ReactionsRemoved Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("ReactionsRemoved", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Reactions Removed")
+        await ctx.send(embed=embed)
+
+    @commands.guild_only()
+    @statistics.command(aliases=["reactionsreceived"], usage="ReactionsReceived [amount shown]")
+    async def ReactionsReceived(self, ctx, mx=10):
+        """
+        See only ReactionsReceived Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("ReactionsReceived", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Reactions Received")
+        await ctx.send(embed=embed)
+
+    @commands.guild_only()
+    @statistics.command(aliases=["reactionstakenaway"], usage="ReactionsTakenAway [amount shown]")
+    async def ReactionsTakenAway(self, ctx, mx=10):
+        """
+        See only ReactionsTakenAway Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("ReactionsTakenAway", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Reactions Taken Away")
+        await ctx.send(embed=embed)
 
 def setup(bot):
     bot.add_cog(Statistics(bot))

@@ -2,6 +2,7 @@ import os
 import json
 from helper.log import log
 from helper import handySQL
+from helper.sql.SQLTables import *
 
 
 def createFiles():
@@ -31,10 +32,10 @@ def createFiles():
         with open("../LECTURFIER.json", "w") as f:
             f.write('{"token":""}')
 
-    if os.path.exists("./data/discord.db"):
-        print("Creating DB tables")
-        handySQL.create_all_tables("./data/discord.db")
-        print("Created DB tables successfully")
+    if not os.path.exists("./data/discord.db"):
+        print("Creating rewrite DB table")
+        create_tables()
+        print("Created rewrite DB tables successfully")
 
     if not os.path.exists("./data/settings.json"):
         log("Creating settings.json", keyword)

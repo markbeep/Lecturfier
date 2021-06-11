@@ -6,7 +6,7 @@ import asyncio
 import os
 import time
 import json
-from helper import handySQL
+from helper.sql import SQLFunctions
 from sqlite3 import Error
 import sqlite3
 from tabulate import tabulate
@@ -37,17 +37,7 @@ class Owner(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.db_path = "./data/discord.db"
-        self.conn = handySQL.create_connection(self.db_path)
-
-    def get_connection(self):
-        """
-        Retreives the current database connection
-        :return: Database Connection
-        """
-
-        if self.conn is None:
-            self.conn = handySQL.create_connection(self.db_path)
-        return self.conn
+        self.conn = SQLFunctions.connect()
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -61,7 +51,7 @@ class Owner(commands.Cog):
         Use SQL
         Permissions: Owner
         """
-        conn = self.get_connection()
+        conn = self.conn
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         start_time = time.perf_counter()
@@ -94,200 +84,6 @@ class Owner(commands.Cog):
             index = cont.rindex("\n", 0, 1900)
             cont = cont[0:index] + "\n  ...```"
         await ctx.send(cont)
-
-    @commands.command(usage="moveToDB <file>")
-    async def moveToDB(self, ctx, file=""):
-        """
-        Used to move data from json files to the database
-        Permissions: Owner
-        """
-        conn = self.get_connection()
-        if await self.bot.is_owner(ctx.author):
-            if file == "levels":
-                with open("./data/levels.json", "r") as f:
-                    levels = json.load(f)
-                for guild_id in levels:
-                    count = 0
-                    guild_obj = self.bot.get_guild(int(guild_id))
-                    if guild_obj is None:
-                        print(f"Didn't find Guild with ID: {guild_id}")
-                        continue
-                    for member_id in levels[guild_id]:
-                        if member_id == "on":
-                            continue
-                        member_obj = guild_obj.get_member(int(member_id))
-                        if member_obj is None:
-                            print(f"Didn't find Member with ID: {member_id}")
-                            continue
-
-                        handySQL.create_voice_level_entry(conn, member_obj, guild_obj)
-                        uniqueID = handySQL.get_uniqueMemberID(conn, member_id, guild_id)
-                        conn.execute("UPDATE VoiceLevels SET ExperienceAmount=? WHERE UniqueMemberID=?", (levels[guild_id][member_id], uniqueID))
-                        conn.commit()
-                        count += 1
-                    await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
-            elif file == "covid":
-                with open("./data/covid_points.json", "r") as f:
-                    covid = json.load(f)
-                for guild in covid:
-                    count = 0
-                    guild_obj = self.bot.get_guild(int(guild))
-                    if guild_obj is None:
-                        print(f"Didn't find Guild with ID: {guild}")
-                        continue
-                    for member in covid[guild]:
-                        member_obj = guild_obj.get_member(int(member))
-                        if member_obj is None:
-                            print(f"Didn't find Member with ID: {member}")
-                            continue
-                        handySQL.create_covid_guessing_entry(conn, member_obj, guild_obj)
-                        uniqueID = handySQL.get_uniqueMemberID(conn, member, guild)
-                        total = int(covid[guild][member][1])
-                        guessCount = covid[guild][member][2]
-                        conn.execute("UPDATE CovidGuessing SET TotalPointsAmount=?, GuessCount=? WHERE UniqueMemberID=?", (total, guessCount, uniqueID))
-                        conn.commit()
-                        count += 1
-                    await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
-            elif file == "statistics":
-                with open("./data/statistics.json", "r") as f:
-                    statistics = json.load(f)
-                for guild in statistics:
-                    guild_obj = self.bot.get_guild(int(guild))
-                    if guild_obj is None:
-                        print(f"Didn't find Guild with ID: {guild}")
-                        continue
-                    count = 0
-                    for member in statistics[guild]["messages_sent"]:
-                        member_obj = guild_obj.get_member(int(member))
-                        if member_obj is None:
-                            print(f"Didn't find Member with ID: {member}")
-                            continue
-                        # Create DB entries
-                        msg_result = handySQL.create_message_statistic_entry(conn, member_obj, guild_obj, 0, "UserMessageStatistic")
-                        reaction_result = handySQL.create_message_statistic_entry(conn, member_obj, guild_obj, 0, "UserReactionStatistic")
-                        uniqueID = handySQL.get_uniqueMemberID(conn, member, guild)
-                        sql = """   UPDATE UserMessageStatistic
-                                    SET
-                                        MessageSentCount=?,
-                                        MessageDeletedCount=?,
-                                        MessageEditedCount=?,
-                                        CharacterCount=?,
-                                        WordCount=?,
-                                        SpoilerCount=?,
-                                        EmojiCount=?,
-                                        FileSentCount=?
-                                    WHERE UniqueMemberID=? AND SubjectID=0
-                                    """
-                        s = statistics[guild]
-                        for v in ("messages_sent", "messages_deleted", "messages_edited", "chars_sent", "words_sent", "spoilers", "emojis", "files_sent", "reactions_added", "reactions_received"):
-                            if member not in s[v]:
-                                s[v][member] = 0
-                        conn.execute(sql, (
-                            s["messages_sent"][member],
-                            s["messages_deleted"][member],
-                            s["messages_edited"][member],
-                            s["chars_sent"][member],
-                            s["words_sent"][member],
-                            s["spoilers"][member],
-                            s["emojis"][member],
-                            s["files_sent"][member],
-                            uniqueID
-                        ))
-                        sql = """   UPDATE UserReactionStatistic
-                                    SET
-                                        ReactionAddedCount=?,
-                                        GottenReactionCount=?
-                                    WHERE UniqueMemberID=? AND SubjectID=0"""
-                        conn.execute(sql, (
-                            s["reactions_added"][member],
-                            s["reactions_received"][member],
-                            uniqueID
-                        ))
-                        conn.commit()
-                        if not msg_result[0]:
-                            print(f"Message {msg_result[2]}")
-                        if not reaction_result[0]:
-                            print(f"Reaction {reaction_result[2]}")
-                        if reaction_result[0] and msg_result[0]:
-                            count += 1
-                    await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
-            elif file == "reputations":
-                with open("./data/reputation.json", "r") as f:
-                    reputations = json.load(f)
-                for guild in reputations:
-                    guild_obj = self.bot.get_guild(int(guild))
-                    if guild_obj is None:
-                        print(f"Didn't find Guild with ID: {guild}")
-                        continue
-                    count = 0
-                    for member in reputations[guild]["rep"]:
-                        member_obj = guild_obj.get_member(int(member))
-                        if member_obj is None:
-                            print(f"Didn't find Member with ID: {member}")
-                            continue
-                        for message in reputations[guild]["rep"][member]:
-                            sql = """   INSERT INTO Reputations(
-                                            UniqueMemberID,
-                                            ReputationMessage,
-                                            IsPositive)
-                                        VALUES (?,?,?)"""
-                            uniqueID = handySQL.get_or_create_member(conn, member_obj, guild_obj)
-                            # Check if the rep is positive
-                            if message.startswith("-"):
-                                isPositive = 0
-                            else:
-                                isPositive = 1
-                            conn.execute(sql, (uniqueID, message, isPositive))
-                            conn.commit()
-                            count += 1
-                    await ctx.send(f"{count} successful DB entry transfers on guild `{guild_obj.name}`")
-            elif file == "quotes":
-                with open("./data/quotes.json", "r") as f:
-                    quotes = json.load(f)
-                for guild_id in quotes:
-                    finished = []
-                    total_count = 0
-                    count = 0
-                    guild_obj = self.bot.get_guild(int(guild_id))
-                    if guild_obj is None:
-                        print(f"Didn't find Guild with ID: {guild_id}")
-                        continue
-                    for name in quotes[guild_id]:
-                        if len(quotes[guild_id][name]) == 0:
-                            continue
-                        try:
-                            member = discord.utils.find(lambda m: m.name.lower() == name, guild_obj.members)
-                        except discord.ext.commands.errors.UserNotFound:
-                            member = None
-                        uniqueID = None
-                        quoted_name = name
-                        if member is not None:
-                            uniqueID = handySQL.get_uniqueMemberID(conn, member.id, guild_id)
-                            quoted_name = member.name
-                        for q in quotes[guild_id][name]:
-                            if not isascii(q[1]):
-                                continue
-                            date = datetime.strptime(q[0], "%d/%m/%Y").strftime("%Y-%m-%d %H:%M:%S")
-                            sql = """   INSERT INTO Quotes(Quote, Name, UniqueMemberID, DiscordGuildID, CreatedAt)
-                                        VALUES(?,?,?,?,?)"""
-                            conn.execute(sql, (q[1], quoted_name, uniqueID, guild_id, date))
-                            conn.commit()
-                            count += 1
-                            total_count += 1
-                        finished.append(quoted_name)
-
-                        if count >= 200:
-                            await ctx.send(f"{count} successful DB entry transfers for names:\n`{', '.join(finished)}`")
-                            finished = []
-                            count = 0
-                    if len(finished) > 0:
-                        await ctx.send(f"{count} successful DB entry transfers for names:\n`{', '.join(finished)}`")
-                    await ctx.send(f"{total_count} successful DB entry transfers on guild `{guild_obj.name}`")
-
-            else:
-                await ctx.send("Unknown file")
-        else:
-            raise discord.ext.commands.errors.NotOwner
 
     @commands.command(usage="bully <user>")
     async def bully(self, ctx, user=None):
@@ -323,7 +119,6 @@ class Owner(commands.Cog):
             }
 
             msg = ""
-            cur_time = time.time()
             for name in all_loops.keys():
                 if all_loops[name]:
                     msg += f"\n**{name}:** <:checkmark:776717335242211329>"

@@ -1,6 +1,5 @@
 import discord
 from discord.ext import commands
-from helper import handySQL
 from helper import git_tools
 import json
 import os

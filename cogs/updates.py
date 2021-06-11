@@ -8,7 +8,7 @@ from helper.lecture_scraper.scrape import scraper
 import json
 import traceback
 from helper.log import log
-from helper import handySQL
+from helper.sql import SQLFunctions
 
 
 async def create_lecture_embed(subject_name, stream_url, zoom_url, subject_website_url, subject_room=None, color=discord.colour.Color.light_gray()):
@@ -55,8 +55,9 @@ class Updates(commands.Cog):
         self.send_message_to_finn = self.settings["send_message_to_finn"]
         self.lecture_updater_version = "v2.4"
         self.db_path = "./data/discord.db"
-        self.conn = handySQL.create_connection(self.db_path)
-        self.background_loop.start()
+        self.conn = SQLFunctions.connect()
+        # WE CURRENTLY DON'T RUN THE BACKGROUND LOOP FOR LECTURE UPDATES
+        # self.background_loop.start()
         self.current_activity = ""
         self.sent_updates = False
         self.sent_covid = False
@@ -67,21 +68,12 @@ class Updates(commands.Cog):
     def get_task(self):
         return self.background_loop
 
-    def get_connection(self):
-        """
-        Retreives the current database connection
-        :return: Database Connection
-        """
-        if self.conn is None:
-            self.conn = handySQL.create_connection(self.db_path)
-        return self.conn
-
     def get_time_till_next_lesson(self):
         dt = datetime.now()
         minute = dt.hour
         hour = dt.hour
         day = dt.weekday()
-        conn = self.get_connection()
+        conn = self.conn
         c = conn.cursor()
 
         # Display lectures that are about to start
@@ -91,8 +83,8 @@ class Updates(commands.Cog):
 
         sql = f"""  SELECT S.SubjectAbbreviation, WD.DayID, WD.TimeFrom
                     FROM WeekDayTimes WD
-                    INNER JOIN Subject S on WD.SubjectID = S.SubjectID
-                    WHERE WD.TimeFrom{greater_sign}? AND WD.DayID==? OR WD.DayID>?
+                    INNER JOIN Subjects S on WD.SubjectID = S.SubjectID
+                    WHERE WD.TimeFrom {greater_sign}? AND WD.DayID==? OR WD.DayID>?
                     ORDER BY WD.DayID, WD.TimeFrom"""
         c.execute(sql, (hour, day, day))
         result = c.fetchone()
@@ -198,9 +190,8 @@ class Updates(commands.Cog):
                 await ctx.send("ERROR! Can't retreive channel with that channel ID")
                 raise discord.ext.commands.CommandError
 
-            conn = self.get_connection()
-            c = conn.cursor()
-            c.execute("SELECT SubjectID, SubjectName, SubjectLink FROM Subject WHERE SubjectID=? LIMIT 1", (subject_id,))
+            c = self.conn.cursor()
+            c.execute("SELECT SubjectID, SubjectName, SubjectLink FROM Subjects WHERE SubjectID=? LIMIT 1", (subject_id,))
             subject = c.fetchone()
             if subject is None:
                 await ctx.send("ERROR! That SubjectID does not exist in the DB")
@@ -213,11 +204,10 @@ class Updates(commands.Cog):
             raise discord.ext.commands.errors.NotOwner
 
     def get_starting_subject(self, semester=2):
-        conn = self.get_connection()
-        c = conn.cursor()
+        c = self.conn.cursor()
         sql = """   SELECT WD.SubjectID, S.SubjectName, S.SubjectLink, WD.StreamLink, WD.ZoomLink, WD.OnSiteLocation
                     FROM WeekDayTimes WD
-                    INNER JOIN Subject S on WD.SubjectID=S.SubjectID
+                    INNER JOIN Subjects S on WD.SubjectID=S.SubjectID
                     WHERE WD.DayID=? AND WD.TimeFROM=? AND S.SubjectSemester=?"""
         day = datetime.now().weekday()
         hour = datetime.now().hour

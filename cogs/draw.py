@@ -4,7 +4,8 @@ from discord.ext import commands, tasks
 import random
 import asyncio
 import os
-from helper import handySQL, image2queue as im2q
+from helper import image2queue as im2q
+from helper.sql import SQLFunctions
 from PIL import Image
 import PIL
 import io
@@ -87,40 +88,24 @@ class Draw(commands.Cog):
         self.background_draw.start()
         self.db_path = "./data/discord.db"
         self.place_path = "./place/"
-        self.conn = handySQL.create_connection(self.db_path)
+        self.conn = SQLFunctions.connect()
 
     def get_task(self):
         self.pause_draws = True
         return self.background_draw
 
-    def get_connection(self):
-        """
-        Retreives the current database connection
-        :return: Database Connection
-        """
-
-        if self.conn is None:
-            self.conn = handySQL.create_connection(self.db_path)
-        return self.conn
-
     @tasks.loop(seconds=5)
     async def background_draw(self):
         await self.bot.wait_until_ready()
-
-        conn = self.get_connection()
-        c = conn.cursor()
-
         # opens and readies all the files
         imgs = self.get_all_queues(self.place_path)
         for im in imgs:
             if im.fp not in self.progress:
-                c.execute("SELECT ConfigValue FROM Config WHERE ConfigKey LIKE ?", (f"Start_{im.fp}",))
-                start = c.fetchone()
-                if start is None:
+                start = SQLFunctions.get_config(f"Start_{im.fp}", self.conn)
+                if len(start) == 0:
                     start = 0
                 else:
                     start = start[0]
-
                 self.progress[im.fp] = {
                     "count": start,
                     "img": im,
@@ -133,9 +118,8 @@ class Draw(commands.Cog):
                         "queue": im.get_queue()
                 })
 
-        c.execute("SELECT ConfigValue FROM Config WHERE ConfigKey LIKE 'PlaceChannel'")
-        channelID = c.fetchone()
-        if channelID is None:
+        channelID = SQLFunctions.get_config("PlaceChannel", self.conn)
+        if len(channelID) == 0:
             channelID = 819966095070330950
         else:
             channelID = channelID[0]
@@ -146,19 +130,16 @@ class Draw(commands.Cog):
         # keeps going through all lists
         while len(self.queue) > 0 and not self.pause_draws:
             drawing = self.queue[0]
-            c.execute("SELECT ConfigValue FROM Config WHERE ConfigKey LIKE ?", (f"Start_{drawing['ID']}",))
-            start = c.fetchone()
-            c.execute("SELECT ConfigValue FROM Config WHERE ConfigKey LIKE ?", (f"End_{drawing['ID']}",))
-            end = c.fetchone()
-            if start is None:
+            start = SQLFunctions.get_config(f"Start_{drawing['ID']}", self.conn)
+            end = SQLFunctions.get_config(f"End_{drawing['ID']}", self.conn)
+            if len(start) == 0:
                 start = 0
             else:
                 start = start[0]
-            if end is None:
+            if len(end) == 0:
                 end = drawing["img"].size
             else:
                 end = end[0]
-
             done = await self.draw_pixels(drawing["ID"], channel, start, end)
 
             print(done)
@@ -166,10 +147,8 @@ class Draw(commands.Cog):
                 self.remove_drawing(drawing["ID"])
 
     def remove_drawing(self, ID):
-        conn = self.get_connection()
         # removes the drawing from the sql table
-        conn.execute("DELETE FROM Config WHERE ConfigKey LIKE ?", (f"%{ID}",))
-        conn.commit()
+        SQLFunctions.delete_config(f"%{ID}", self.conn)
         # removes it from the queue and progress bar
         if ID in self.progress:
             self.progress.pop(ID)
@@ -187,8 +166,6 @@ class Draw(commands.Cog):
 
     async def draw_pixels(self, ID, channel, start, end) -> bool:
         pixels_queue = self.progress[ID]["queue"][start:end]
-        conn = self.get_connection()
-        c = conn.cursor()
         # draws the pixels
         while len(pixels_queue) > 0:
             if self.cancel_all or str(ID) in self.cancel_draws:
@@ -205,8 +182,7 @@ class Draw(commands.Cog):
                 self.progress[ID]["count"] += 1
                 pixels_queue.pop(0)
                 if self.progress[ID]["count"] % 10 == 0:
-                    c.execute("UPDATE Config SET ConfigValue=? WHERE ConfigKey LIKE ?", (self.progress[ID]["count"], f"Start_{ID}"))
-                    conn.commit()
+                    SQLFunctions.insert_or_update_config(f"Start_{ID}", self.progress[ID]["count"], self.conn)
             except Exception:
                 await asyncio.sleep(5)
         return True
@@ -322,10 +298,8 @@ class Draw(commands.Cog):
             "queue": img.get_queue()
         })
 
-        conn = self.get_connection()
-        conn.execute("INSERT INTO Config(ConfigKey, ConfigValue) VALUES (?, ?)", (f"Start_{ID}", 0))
-        conn.execute("INSERT INTO Config(ConfigKey, ConfigValue) VALUES (?, ?)", (f"End_{ID}", img.size))
-        conn.commit()
+        SQLFunctions.insert_or_update_config(f"Start_{ID}", 0, self.conn)
+        SQLFunctions.insert_or_update_config(f"End_{ID}", img.size, self.conn)
 
         # saves the img as a numpy file so it can easily be reload when the bot restarts
         img.save_array(f"{self.place_path}{ID}")
@@ -366,10 +340,8 @@ class Draw(commands.Cog):
             "queue": img.get_queue()
         })
 
-        conn = self.get_connection()
-        conn.execute("INSERT INTO Config(ConfigKey, ConfigValue) VALUES (?, ?)", (f"Start_{ID}", 0))
-        conn.execute("INSERT INTO Config(ConfigKey, ConfigValue) VALUES (?, ?)", (f"End_{ID}", img.size))
-        conn.commit()
+        SQLFunctions.insert_or_update_config(f"Start_{ID}", 0, self.conn)
+        SQLFunctions.insert_or_update_config(f"End_{ID}", img.size, self.conn)
 
         # saves the img as a numpy file so it can easily be reload when the bot restarts
         img.save_array(f"{self.place_path}{ID}")
