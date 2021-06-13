@@ -23,13 +23,14 @@ class Admin(commands.Cog):
         self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
         self.welcome_message_id = SQLFunctions.get_config("WelcomeMessage", self.conn)
-        self.yes = []
-        self.no = []
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
         # adds the user to the db
-        SQLFunctions.get_or_create_discord_member(member, self.conn)
+        try:
+            SQLFunctions.get_or_create_discord_member(member, conn=self.conn)
+        except Exception as e:
+            print(e)
 
         if member.bot:
             return
@@ -190,28 +191,61 @@ class Admin(commands.Cog):
     @commands.Cog.listener()
     async def on_button_click(self, res: discord_components.Interaction):
         if res.message is None:
-            return
-        if res.component.id in ["yesUser", "noUser"]:
-            if res.component.id == "yesUser":
-                if res.user.id in self.yes:
-                    self.yes.pop(self.yes.index(res.user.id))
-                else:
-                    self.yes.append(res.user.id)
-            else:
-                if res.user.id in self.no:
-                    self.no.pop(self.no.index(res.user.id))
-                else:
-                    self.no.append(res.user.id)
-            embed = res.message.embeds[0]
-            description = embed.description
-            results = description.split("\n")
-            first_split = results[0].split(" ")
-            second_split = results[1].split(" ")
-            embed.description = f"{first_split[0]} {len(self.yes)}\n{second_split[0]} {len(self.no)}"
-            await res.respond(type=InteractionType.UpdateMessage, embed=embed, ephemeral=True)
+            comp_id = res.component["custom_id"]
+        else:
+            comp_id = res.component.id
+        if comp_id == "first_external":
+            yes_emoji = self.bot.get_emoji(776717335242211329)
+            no_emoji = self.bot.get_emoji(776717315139698720)
+            msg = "Are you sure you want to skip verifying? **You won't have access to a lot of study channels.**"
+            buttons = [[
+                Button(label="No, I'll verify", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=yes_emoji),
+                Button(label="Yes, skip verification", id="second_external", style=ButtonStyle.red, emoji=no_emoji)
+            ]]
+            await res.respond(ephemeral=True, content=msg, components=buttons)
+        elif comp_id == "second_external":
+            yes_emoji = self.bot.get_emoji(776717335242211329)
+            no_emoji = self.bot.get_emoji(776717315139698720)
+            msg = "You sure? You know this won't be easy."
+            buttons = [[
+                Button(label="No, I'll verify", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=yes_emoji),
+                Button(label="Yes, skip verification", id="third_external", style=ButtonStyle.red, emoji=no_emoji)
+            ]]
+            await res.respond(ephemeral=True, content=msg, components=buttons)
+        elif comp_id == "third_external":
+            yes_emoji = self.bot.get_emoji(776717335242211329)
+            no_emoji = self.bot.get_emoji(776717315139698720)
+            msg = "No pls, verify"
+            buttons = [[
+                Button(label="Yes, skip verification", id="fourth_external", style=ButtonStyle.green, emoji=yes_emoji),
+                Button(label="No, I'll verify", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=no_emoji)
+            ]]
+            await res.respond(ephemeral=True, content=msg, components=buttons)
+        elif comp_id == "fourth_external":
+            yes_emoji = self.bot.get_emoji(776717335242211329)
+            no_emoji = self.bot.get_emoji(776717315139698720)
+            msg = "Okay last one. pls"
+            buttons = [[
+                Button(label="No, I'll verify", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=yes_emoji),
+                Button(label="Yes, skip verification", id="giveExternal", style=ButtonStyle.red, emoji=no_emoji)
+            ]]
+            await res.respond(ephemeral=True, content=msg, components=buttons)
+        elif comp_id == "giveExternal":
+            await res.respond(ephemeral=True, content="Giving you the external role...")
+        elif comp_id == "ta_request":
+            await res.respond(ephemeral=True, content="You're not a TA lol")
+        elif comp_id == "help":
+            help_buttons = [[
+                Button(label="Verifying my ETH account"),
+                Button(label="What is Discord?"),
+                Button(label="Why can't I see any channels?"),
+                Button(label="Other")
+            ]]
+            embed = discord.Embed(title="Help Page", description="What do you need help with?")
+            await res.respond(components=help_buttons, embed=embed)
 
-    @commands.command()
     @commands.has_permissions(administrator=True)
+    @commands.command()
     async def poll(self, ctx):
         embed = discord.Embed(
             title="Welcome to the D-INFK ETH Server!",
@@ -223,9 +257,10 @@ class Admin(commands.Cog):
         no_emoji = self.bot.get_emoji(776717315139698720)
         components = [
             [
-                Button(label="Verify ETH Student", style=ButtonStyle.URL, url="https://dauth.spclr.ch/"),
-                Button(label="Teaching Assistant", style=ButtonStyle.blue, id="taRequest", emoji="🧑‍🏫"),
-                Button(label="Non-ETH Student", style=ButtonStyle.green, id="external", emoji=no_emoji)
+                Button(label="Verify ETH Student", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=yes_emoji),
+                Button(label="Join server\nwithout verifying", style=ButtonStyle.grey, id="first_external", emoji=no_emoji),
+                Button(label="I'm a teaching assistant", style=ButtonStyle.grey, id="ta_request", emoji="🧑‍🏫"),
+                Button(label="I need help", style=ButtonStyle.green, id="help", emoji="🙋‍♀️")
             ]
         ]
         await ctx.send(embed=embed, components=components)

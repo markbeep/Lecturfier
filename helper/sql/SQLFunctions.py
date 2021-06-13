@@ -5,7 +5,7 @@ from datetime import datetime
 
 logger = logging.getLogger()
 logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.WARNING)
 
 
 def connect() -> sqlite3.Connection:
@@ -38,12 +38,14 @@ def get_or_create_discord_user(user: discord.User, conn=connect()) -> DiscordUse
     result = conn.execute("SELECT * FROM DiscordUsers WHERE DiscordUserID = ?", (user.id,)).fetchone()
     if result is None:
         # The user doesn't exist in the db
-        conn.execute(
-            """INSERT INTO DiscordUsers(DiscordUserID, DisplayName, Discriminator, IsBot, AvatarURL, CreatedAt)
-                VALUES (?,?,?,?,?,?)""",
-            (user.id, user.display_name, user.discriminator, int(user.bot), user.avatar_url, user.created_at)
-        )
-        conn.commit()
+        try:
+            conn.execute(
+                """INSERT INTO DiscordUsers(DiscordUserID, DisplayName, Discriminator, IsBot, AvatarURL, CreatedAt)
+                    VALUES (?,?,?,?,?,?)""",
+                (user.id, user.display_name, user.discriminator, int(user.bot), user.avatar_url, user.created_at)
+            )
+        finally:
+            conn.commit()
         return get_or_create_discord_user(user, conn)
     return DiscordUser(
         DiscordUserID=result[0],
@@ -69,11 +71,13 @@ def get_or_create_discord_guild(guild: discord.Guild, conn=connect()) -> Discord
     result = conn.execute("SELECT * FROM DiscordGuilds WHERE DiscordGuildID = ?", (guild.id,)).fetchone()
     if result is None:
         # The guild doesn't exist in the db
-        conn.execute(
-            """INSERT INTO DiscordGuilds(DiscordGuildID, GuildName, GuildRegion, GuildChannelCount, GuildMemberCount, GuildRoleCount) VALUES (?,?,?,?,?,?)""",
-            (guild.id, guild.name, str(guild.region), len(guild.channels), guild.member_count, len(guild.roles))
-        )
-        conn.commit()
+        try:
+            conn.execute(
+                """INSERT INTO DiscordGuilds(DiscordGuildID, GuildName, GuildRegion, GuildChannelCount, GuildMemberCount, GuildRoleCount) VALUES (?,?,?,?,?,?)""",
+                (guild.id, guild.name, str(guild.region), len(guild.channels), guild.member_count, len(guild.roles))
+            )
+        finally:
+            conn.commit()
         return get_or_create_discord_guild(guild, conn)
     return DiscordGuild(result)
 
@@ -98,11 +102,13 @@ def get_or_create_discord_member(member: discord.Member, semester=0, conn=connec
     result = conn.execute(sql, (member.id, member.guild.id)).fetchone()
     if result is None:
         try:
-            conn.execute(
-                "INSERT INTO DiscordMembers(DiscordUserID, DiscordGuildID, Nickname, JoinedAt, Semester) VALUES (?,?,?,?,?)",
-                (member.id, member.guild.id, member.nick, str(member.joined_at), semester)
-            )
-            conn.commit()
+            try:
+                conn.execute(
+                    "INSERT INTO DiscordMembers(DiscordUserID, DiscordGuildID, Nickname, JoinedAt, Semester) VALUES (?,?,?,?,?)",
+                    (member.id, member.guild.id, member.nick, str(member.joined_at), semester)
+                )
+            finally:
+                conn.commit()
         except sqlite3.IntegrityError:
             get_or_create_discord_user(member, conn=conn)
             get_or_create_discord_guild(member.guild, conn=conn)
@@ -138,8 +144,10 @@ def get_or_create_user_statistics(member: discord.Member, subject_id, conn=conne
                  WHERE DM.DiscordUserID = ? AND DM.DiscordGuildID = ?""", (member.id, member.guild.id)).fetchone()
     if result is None:
         dm = get_or_create_discord_member(member, conn=conn)
-        conn.execute("""INSERT INTO UserStatistics(UniqueMemberID, SubjectID) VALUES (?,?)""", (dm.UniqueMemberID, subject_id))
-        conn.commit()
+        try:
+            conn.execute("""INSERT INTO UserStatistics(UniqueMemberID, SubjectID) VALUES (?,?)""", (dm.UniqueMemberID, subject_id))
+        finally:
+            conn.commit()
         return get_or_create_user_statistics(member, subject_id, conn)
     return UserStatistics(result)
 
@@ -169,12 +177,12 @@ def update_statistics(member: discord.Member, subject_id: int, conn=connect(), m
                     ReactionsReceived = ReactionsReceived + ?,
                     ReactionsTakenAway = ReactionsTakenAway + ?
                 WHERE UniqueMemberID = ? AND SubjectID = ?"""
+    value = False
     try:
         conn.execute(sql, (messages_sent, messages_deleted, messages_edited, characters_sent, words_sent, spoilers_sent, emojis_sent, files_sent,
                            file_size_sent, images_sent, reactions_added, reactions_removed, reactions_received, reactions_taken_away,
                            dm.UniqueMemberID, subject_id))
         conn.commit()
-        return False
     except sqlite3.IntegrityError:
         # The user doesn't have a statistics entry yet
         get_or_create_user_statistics(member, subject_id, conn)
@@ -182,7 +190,10 @@ def update_statistics(member: discord.Member, subject_id: int, conn=connect(), m
                            file_size_sent, images_sent, reactions_added, reactions_removed, reactions_received, reactions_taken_away,
                            dm.UniqueMemberID, subject_id))
         conn.commit()
-        return True
+        value = True
+    finally:
+        conn.commit()
+    return value
 
 
 def get_current_subject_id(semester: int, conn=connect()) -> int:
@@ -316,17 +327,22 @@ def get_event_by_id(event_id, conn=connect()) -> Event:
         return None
     return event_results[0]
 
+
 def create_event(event_name, event_starting_at, event_description, member: DiscordMember, conn=connect()) -> Event:
-    row_id = conn.execute("INSERT INTO Events(EventName, EventStartingAt, EventDescription, UniqueMemberID) VALUES (?,?,?,?)",
+    try:
+        row_id = conn.execute("INSERT INTO Events(EventName, EventStartingAt, EventDescription, UniqueMemberID) VALUES (?,?,?,?)",
                           (event_name, str(event_starting_at), event_description, member.UniqueMemberID)).lastrowid
-    conn.commit()
+    finally:
+        conn.commit()
     events = get_events(conn, row_id=row_id)
     return events[0]
 
 
 def delete_event(event: Event, conn=connect()):
-    conn.execute("DELETE FROM Events WHERE EventID=?", (event.EventID,))
-    conn.commit()
+    try:
+        conn.execute("DELETE FROM Events WHERE EventID=?", (event.EventID,))
+    finally:
+        conn.commit()
 
 
 def get_event_joined_users(event: Event, conn=connect()) -> list:
@@ -361,23 +377,31 @@ def mark_events_done(current_time=datetime.now(), conn=connect()) -> int:
 
 def add_member_to_event(event: Event, member_to_add: DiscordMember, conn=connect(), host=False):
     logger.debug(f"Adding {member_to_add.DiscordUserID} to {event.EventID}")
-    conn.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID, IsHost) VALUES (?,?,?)", (event.EventID, member_to_add.UniqueMemberID, int(host)))
-    conn.commit()
+    try:
+        conn.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID, IsHost) VALUES (?,?,?)", (event.EventID, member_to_add.UniqueMemberID, int(host)))
+    finally:
+        conn.commit()
 
 
 def remove_member_from_event(event: Event, member_to_remove: DiscordMember, conn=connect()):
     logger.debug(f"Removing {member_to_remove.DiscordUserID} from {event.EventID}")
-    conn.execute("DELETE FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event.EventID, member_to_remove.UniqueMemberID))
-    conn.commit()
+    try:
+        conn.execute("DELETE FROM EventJoinedUsers WHERE EventID=? AND UniqueMemberID=?", (event.EventID, member_to_remove.UniqueMemberID))
+    finally:
+        conn.commit()
 
 
 def add_event_updated_message(message_id, channel_id, event_id, conn=connect()):
-    conn.execute("UPDATE Events SET UpdatedMessageID=?, UpdatedChannelID=? WHERE EventID=?", (message_id, channel_id, event_id))
-    conn.commit()
+    try:
+        conn.execute("UPDATE Events SET UpdatedMessageID=?, UpdatedChannelID=? WHERE EventID=?", (message_id, channel_id, event_id))
+    finally:
+        conn.commit()
 
 def set_specific_event_channel(event_id: int, specific_channel=None, conn=connect()):
-    conn.execute("UPDATE Events SET SpecificChannelID=? WHERE EventID=?", (event_id, specific_channel))
-    conn.commit()
+    try:
+        conn.execute("UPDATE Events SET SpecificChannelID=? WHERE EventID=?", (event_id, specific_channel))
+    finally:
+        conn.commit()
 
 
 def get_config(key, conn=connect()) -> list:
@@ -386,8 +410,10 @@ def get_config(key, conn=connect()) -> list:
 
 
 def delete_config(key, conn=connect()):
-    conn.execute("DELETE FROM Config WHERE ConfigKey=?", (key,))
-    conn.commit()
+    try:
+        conn.execute("DELETE FROM Config WHERE ConfigKey=?", (key,))
+    finally:
+        conn.commit()
 
 
 def insert_or_update_config(key, value, conn=connect()):
@@ -456,8 +482,10 @@ def clear_covid_guesses(increment=True, conn=connect()):
                     NextGuess=NULL
                 WHERE
                     TempPoints IS NOT NULL"""
-    conn.execute(sql, (int(increment),))
-    conn.commit()
+    try:
+        conn.execute(sql, (int(increment),))
+    finally:
+        conn.commit()
 
 
 def insert_or_update_covid_guess(member: DiscordMember, guess: int, conn=connect()):
@@ -582,19 +610,25 @@ def add_quote(quote, name, member: DiscordMember, added_by: DiscordMember, guild
     if member is not None:
         unique_member_id = member.UniqueMemberID
     values = [quote, name, unique_member_id, added_by.UniqueMemberID, guild_id]
-    row_id = conn.execute("INSERT INTO Quotes(Quote, Name, UniqueMemberID, AddedByUniqueMemberID, DiscordGuildID) VALUES (?,?,?,?,?)", values).lastrowid
-    conn.commit()
+    try:
+        row_id = conn.execute("INSERT INTO Quotes(Quote, Name, UniqueMemberID, AddedByUniqueMemberID, DiscordGuildID) VALUES (?,?,?,?,?)", values).lastrowid
+    finally:
+        conn.commit()
     return get_quote(-1, guild_id=guild_id, row_id=row_id, conn=conn)
 
 
 def delete_quote(quote_id, conn=connect()):
-    conn.execute("DELETE FROM Quotes WHERE QuoteID=?", (quote_id,))
-    conn.commit()
+    try:
+        conn.execute("DELETE FROM Quotes WHERE QuoteID=?", (quote_id,))
+    finally:
+        conn.commit()
 
 
 def delete_quote_to_remove(quote_id, conn=connect()):
-    conn.execute("DELETE FROM main.QuotesToRemove WHERE QuoteID=?", (quote_id,))
-    conn.commit()
+    try:
+        conn.execute("DELETE FROM main.QuotesToRemove WHERE QuoteID=?", (quote_id,))
+    finally:
+        conn.commit()
 
 
 def get_quote_aliases(conn=connect()) -> dict[str, str]:
@@ -662,8 +696,10 @@ def get_quotes_to_remove(conn=connect()) -> list[QuoteToRemove]:
 
 
 def insert_quote_to_remove(quote_id, member: DiscordMember, conn=connect()):
-    conn.execute("INSERT INTO QuotesToRemove(QuoteID, UniqueMemberID) VALUES(?,?)", (quote_id, member.UniqueMemberID))
-    conn.commit()
+    try:
+        conn.execute("INSERT INTO QuotesToRemove(QuoteID, UniqueMemberID) VALUES(?,?)", (quote_id, member.UniqueMemberID))
+    finally:
+        conn.commit()
 
 
 def get_reputations(member: discord.Member, conn=connect()) -> list[(bool, str)]:
@@ -689,5 +725,42 @@ def get_most_recent_time(member: DiscordMember, conn=connect()):
 
 def add_reputation(author: DiscordMember, receiver: DiscordMember, reputation_message: str, is_positive: bool, conn=connect()):
     sql = "INSERT INTO Reputations(UniqueMemberID, ReputationMessage, AddedByUniqueMemberID, IsPositive) VALUES (?,?,?,?)"
-    conn.execute(sql, (receiver.UniqueMemberID, reputation_message, author.UniqueMemberID, int(is_positive)))
-    conn.commit()
+    try:
+        conn.execute(sql, (receiver.UniqueMemberID, reputation_message, author.UniqueMemberID, int(is_positive)))
+    finally:
+        conn.commit()
+
+
+class VoiceLevel:
+    def __init__(self, member: DiscordMember, experience):
+        self.member = member
+        self.experience = experience
+
+
+def get_voice_level(member: discord.Member, conn=connect()) -> VoiceLevel:
+    sql = """   SELECT VL.ExperienceAmount, DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester
+                FROM VoiceLevels VL
+                INNER JOIN DiscordMembers DM on VL.UniqueMemberID = DM.UniqueMemberID
+                WHERE DM.DiscordUserID=? AND DM.DiscordGuildID=?"""
+    result = conn.execute(sql, (member.id, member.guild.id)).fetchone()
+    if result is None:
+        insert_or_update_voice_level(member, conn=connect())
+        return get_voice_level(member, conn)
+    member = DiscordMember(*result[1:])
+    return VoiceLevel(member, result[0])
+
+
+def insert_or_update_voice_level(member: discord.Member, experience_amount=0, conn=connect()):
+    discord_member = get_or_create_discord_member(member, conn=conn)
+    sql = """   UPDATE OR IGNORE VoiceLevels
+                SET ExperienceAmount = ExperienceAmount + ?
+                WHERE UniqueMemberID =?"""
+    try:
+        rows_changed = conn.execute(sql, (experience_amount, discord_member.UniqueMemberID)).rowcount
+    finally:
+        conn.commit()
+    if rows_changed == 0:
+        try:
+            conn.execute("INSERT INTO VoiceLevels(UniqueMemberID, ExperienceAmount) VALUES (?,?)", (discord_member.UniqueMemberID, experience_amount))
+        finally:
+            conn.commit()
