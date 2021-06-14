@@ -60,7 +60,6 @@ class Updates(commands.Cog):
         # self.background_loop.start()
         self.current_activity = ""
         self.sent_updates = False
-        self.sent_covid = False
 
     def heartbeat(self):
         return self.background_loop.is_running()
@@ -107,20 +106,6 @@ class Updates(commands.Cog):
     async def background_loop(self):
         await self.bot.wait_until_ready()
         try:
-            cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
-            if self.test_livestream_message:
-                cur_time = "test"
-            # if int(datetime.now(timezone("Europe/Zurich")).strftime("%M")) % 10 == 0:  # Only check updates every 10 minutes
-                # await self.check_updates(channel, cur_time, self.lecture_updater_version)
-
-            # Send the covid guesser notification
-            if not self.sent_covid and "10:00" in cur_time and "Sat" not in cur_time and "Sun" not in cur_time:
-                self.sent_covid = True
-                general = self.bot.get_channel(747752542741725247)
-                await general.send("<@&770968106679926868> it's time to guess today's covid cases using `$g <guess>`!")
-            if "10:00" not in cur_time:
-                self.sent_covid = False
-
             # Check what lectures are starting
             minute = datetime.now().minute
             if not self.sent_updates and minute <= 5:

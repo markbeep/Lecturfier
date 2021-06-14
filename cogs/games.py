@@ -35,6 +35,7 @@ class Games(commands.Cog):
         self.conn = SQLFunctions.connect()
         self.time_since_task_start = time.time()
         self.background_check_cases.start()
+        self.sent_covid = False
 
     def heartbeat(self):
         return self.background_check_cases.is_running()
@@ -45,6 +46,20 @@ class Games(commands.Cog):
     @tasks.loop(seconds=10)
     async def background_check_cases(self):
         await self.bot.wait_until_ready()
+
+        # Send the covid guesser notification
+        try:
+            cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
+            if not self.sent_covid and "10:00" in cur_time and "Sat" not in cur_time and "Sun" not in cur_time:
+                self.sent_covid = True
+                general = self.bot.get_channel(747752542741725247)
+                await general.send("<@&770968106679926868> it's time to guess today's covid cases using `$g <guess>`!")
+            if "10:00" not in cur_time:
+                self.sent_covid = False
+        except Exception as e:
+            print(e)
+
+        # checks the daily cases
         async with aiohttp.ClientSession() as cs:
             async with cs.get("https://www.covid19.admin.ch/en/overview") as r:
                 response = await r.read()
