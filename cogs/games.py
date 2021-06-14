@@ -79,9 +79,9 @@ class Games(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot:
-            if message.content == "Hello there <@!755781649643470868>":
-                await message.channel.send("General kenobi <@!306523617188118528>")
             return
+        if message.content.lower().replace("!", "") == "hello there <@755781649643470868>":
+            await message.channel.send(f"General Kenobi {message.author.mention}")
         if time.time() - self.time > 10:
             self.clap_counter = 0
         if "👏" in message.content:
@@ -183,7 +183,7 @@ class Games(commands.Cog):
 
                     if average:
                         # Show users with the best weighted average
-                        cont += f"**{i}.** <@{g.member.DiscordUserID}> | AVG Points: **{g.average}** *({g.TempPoints})*\n\n"
+                        cont += f"**{i}.** <@{g.member.DiscordUserID}> | AVG Points: **{round(g.average, 2)}** *({round(g.TempPoints, 2)})*\n\n"
 
                     else:
                         # Show users with the most points
@@ -226,7 +226,7 @@ class Games(commands.Cog):
         if number is None:
             # No values were given in the command:
             async with ctx.typing():
-                guesser = SQLFunctions.get_covid_guessers(self.conn, discord_user_id=ctx.message.author.id)
+                guesser = SQLFunctions.get_covid_guessers(self.conn, discord_user_id=ctx.message.author.id, guild_id=ctx.message.guild.id)
                 if len(guesser) is None:
                     await ctx.send(f"{ctx.message.author.mention}, you have not made any guesses yet. Guess with `$guess <integer>`.", delete_after=7)
                     return
@@ -241,14 +241,18 @@ class Games(commands.Cog):
                     hex_color = int('0x%02x%02x%02x' % dominant_color, 0)
                 except UnidentifiedImageError as e:
                     hex_color = 0x808080
+                already_guessed = "<:xmark:776717315139698720>"
+                if guesser.NextGuess is not None:
+                    already_guessed = "<:checkmark:776717335242211329>"
                 embed = discord.Embed(title="Covid Guesser Profile",
                                       description=f"**User:** <@{ctx.message.author.id}>\n"
                                                   f"**Total Points:** `{guesser.TotalPointsAmount}`\n"
                                                   f"**Total Guesses:** `{guesser.GuessCount}`\n"
-                                                  f"**Average:** `{guesser.average}`",
+                                                  f"**Average:** `{round(guesser.average, 2)}`\n"
+                                                  f"**Guessed:** {already_guessed}",
                                       color=hex_color)
                 embed.set_thumbnail(url=image_url)
-            await ctx.send(embed=embed, delete_after=7)
+            await ctx.send(embed=embed, delete_after=15)
         else:
             try:
                 if number.lower() == "confirm" and ctx.author.guild_permissions.kick_members:

@@ -438,7 +438,7 @@ class CovidGuesser:
         self.average = TotalPointsAmount / count
 
 
-def get_covid_guessers(conn=connect(), guessed=False, discord_user_id=None) -> list[CovidGuesser]:
+def get_covid_guessers(conn=connect(), guessed=False, discord_user_id=None, guild_id=None) -> list[CovidGuesser]:
     sql = """   SELECT  CG.UniqueMemberID, CG.TotalPointsAmount, CG.GuessCount, CG.NextGuess, CG.TempPoints,
                         DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester
                 FROM CovidGuessing CG
@@ -450,6 +450,9 @@ def get_covid_guessers(conn=connect(), guessed=False, discord_user_id=None) -> l
     if discord_user_id is not None:
         sql += " AND DM.DiscordUserID=?"
         values.append(discord_user_id)
+    if guild_id is not None:
+        sql += " AND DM.DiscordGuildID=?"
+        values.append(guild_id)
     results = conn.execute(sql, values).fetchall()
     guessers = []
     for row in results:
