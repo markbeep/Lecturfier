@@ -481,7 +481,7 @@ def clear_covid_guesses(increment=True, conn=connect()):
                     TempPoints=NULL,
                     NextGuess=NULL
                 WHERE
-                    TempPoints IS NOT NULL"""
+                    NextGuess IS NOT NULL"""
     try:
         conn.execute(sql, (int(increment),))
     finally:
