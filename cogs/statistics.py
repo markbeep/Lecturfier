@@ -378,7 +378,7 @@ class Statistics(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["spoilerssend", "spoilers"], usage="SpoilersSent [amount shown]")
+    @statistics.command(aliases=["spoilerssent", "spoilers"], usage="SpoilersSent [amount shown]")
     async def SpoilersSent(self, ctx, mx=10):
         """
         See SpoilersSent Stats. `amount shown` is the amount of users that \
@@ -511,6 +511,7 @@ class Statistics(commands.Cog):
         column = SQLFunctions.get_statistic_rows("ReactionsTakenAway", mx, self.conn)
         embed = await self.get_top_users(single_statistic=column, single_statistic_name="Reactions Taken Away")
         await ctx.send(embed=embed)
+
 
 def setup(bot):
     bot.add_cog(Statistics(bot))

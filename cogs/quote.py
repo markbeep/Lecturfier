@@ -61,7 +61,7 @@ class Quote(commands.Cog):
                 print("Blocked Quote Channel. Ignoring quote.")
                 return
 
-            await self.add_quote(user=user, message=message, quote=message.content, quoteAdder=quoteAdder, reactionQuote=True)
+            await self.add_quote(username=user, message=message, quote=message.content, quoteAdder=quoteAdder, reactionQuote=True)
 
     @commands.cooldown(4, 10, BucketType.user)
     @commands.guild_only()
@@ -165,7 +165,7 @@ class Quote(commands.Cog):
                         await self.get_all_quotes(ctx, name)
                         return
 
-                    await self.add_quote(user=name, quote=quote, message=ctx.message)
+                    await self.add_quote(username=name, quote=quote, message=ctx.message)
 
     async def get_quote_members(self, channel: discord.TextChannel, username: str) -> (SQLFunctions.DiscordMember, list[int]):
         uniqueIDs = []  # list of all matching uniqueIDs
@@ -189,12 +189,13 @@ class Quote(commands.Cog):
 
         return discord_member, uniqueIDs
 
-    async def add_quote(self, user, message: discord.Message, quote, quoteAdder: discord.Member = None, reactionQuote=False):
+    async def add_quote(self, username, message: discord.Message, quote, quoteAdder: discord.Member = None, reactionQuote=False):
+        username = username.replace("<@", "").replace(">", "").replace("!", "")
         channel = message.channel
         if quoteAdder is None:
             quoteAdder = message.author
 
-        member, multipleUniqueIDs = await self.get_quote_members(channel, user)
+        member, multipleUniqueIDs = await self.get_quote_members(channel, username)
 
         # Some error messages ------------------------------
         # If the quote is too long
@@ -247,8 +248,13 @@ class Quote(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
 
         uniqueID = None
-        if member is None:  # that user is not a discord user and has no uniqueID
-            quoted_name = user
+        if member is None:  # that username is not a discord username or has no uniqueID
+            quoted_name = username
+            # is it a DiscordUserID though?
+            if username.isnumeric():
+                quoted_member = channel.guild.get_member(int(username))
+                member = SQLFunctions.get_or_create_discord_member(quoted_member, conn=self.conn)
+                quoted_name = quoted_member.name
         else:
             quoted_name = member.User.DisplayName
             uniqueID = multipleUniqueIDs[0]
@@ -272,7 +278,7 @@ class Quote(commands.Cog):
 
         # checks if the quote exists already
         if uniqueID is None:
-            res = SQLFunctions.get_quotes_by_user(quote=quote, guild_id=channel.guild.id, name=user)
+            res = SQLFunctions.get_quotes_by_user(quote=quote, guild_id=channel.guild.id, name=username)
         else:
             res = SQLFunctions.get_quotes_by_user(quote=quote, guild_id=channel.guild.id, unique_member_id=uniqueID)
         if len(res) > 0:
