@@ -10,6 +10,7 @@ from pytz import timezone
 from helper.sql import SQLFunctions
 import io
 from colorthief import ColorThief
+import asyncio
 from discord.ext.commands.cooldowns import BucketType
 
 
@@ -29,13 +30,15 @@ class Games(commands.Cog):
         self.time = 0
         self.confirmed_cases = 0
         self.confirm_msg = None  # Confirmed message
-        with open("./data/covid19.txt") as f:
-            self.cases_today = int(f.read())
-        self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
         self.time_since_task_start = time.time()
         self.background_check_cases.start()
         self.sent_covid = False
+        result = SQLFunctions.get_config("COVID_Cases", self.conn)
+        if len(result) > 0:
+            self.cases_today = result[0]
+        else:
+            self.cases_today = 0
 
     def heartbeat(self):
         return self.background_check_cases.is_running()
@@ -45,36 +48,41 @@ class Games(commands.Cog):
 
     @tasks.loop(seconds=10)
     async def background_check_cases(self):
-        await self.bot.wait_until_ready()
-
-        # Send the covid guesser notification
         try:
-            cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
-            if not self.sent_covid and "10:00" in cur_time and "Sat" not in cur_time and "Sun" not in cur_time:
-                self.sent_covid = True
-                general = self.bot.get_channel(747752542741725247)
-                await general.send("<@&770968106679926868> it's time to guess today's covid cases using `$g <guess>`!")
-            if "10:00" not in cur_time:
-                self.sent_covid = False
-        except Exception as e:
-            print(e)
+            await self.bot.wait_until_ready()
 
-        # checks the daily cases
-        async with aiohttp.ClientSession() as cs:
-            async with cs.get("https://www.covid19.admin.ch/en/overview") as r:
-                response = await r.read()
-        soup = bs(response.decode('utf-8'), "html.parser")
-        new_cases = int(soup.find_all("span", class_="bag-key-value-list__entry-value")[0].get_text().replace(" ", ""))
-        if self.cases_today != new_cases:
-            self.cases_today = new_cases
-            with open("./data/covid19.txt", "w") as f:
-                f.write(str(new_cases))
-            log("Daily cases have been updated", "COVID")
-            guild = self.bot.get_guild(747752542741725244)
-            if guild is None:
-                return
-            channel = guild.get_channel(747752542741725247)
-            await self.send_message(channel, new_cases)
+            # Send the covid guesser notification
+            try:
+                cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
+                if not self.sent_covid and "10:00" in cur_time and "Sat" not in cur_time and "Sun" not in cur_time:
+                    self.sent_covid = True
+                    general = self.bot.get_channel(747752542741725247)
+                    await general.send("<@&770968106679926868> it's time to guess today's covid cases using `$g <guess>`!")
+                if "10:00" not in cur_time:
+                    self.sent_covid = False
+            except Exception as e:
+                print(e)
+
+            # checks the daily cases
+            async with aiohttp.ClientSession() as cs:
+                async with cs.get("https://www.covid19.admin.ch/en/overview") as r:
+                    response = await r.read()
+            soup = bs(response.decode('utf-8'), "html.parser")
+            new_cases = int(soup.find_all("span", class_="bag-key-value-list__entry-value")[0].get_text().replace(" ", ""))
+            if self.cases_today != new_cases:
+                self.cases_today = new_cases
+                guild = self.bot.get_guild(747752542741725244)
+                if guild is None:
+                    guild = self.bot.get_guild(237607896626495498)
+                channel = guild.get_channel(747752542741725247)
+                if channel is None:
+                    channel = guild.get_channel(402563165247766528)
+                await self.send_message(channel, new_cases)
+                log("Daily cases have been updated", print_it=True)
+                SQLFunctions.insert_or_update_config("COVID_Cases", new_cases, self.conn)
+        except Exception as e:
+            print(f"COVID loop messed up:\n{e}")
+            await asyncio.sleep(20)
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -140,7 +148,7 @@ class Games(commands.Cog):
             msg = f"**{rank}:** <@{g.member.DiscordUserID}> got {g.TempPoints} points *(guess: {g.NextGuess})*"
             rank += 1
             lb_messages.append(msg)
-        SQLFunctions.clear_covid_guesses(increment=True, conn=self.conn)
+        SQLFunctions.clear_covid_guesses(users=guessers, increment=True, conn=self.conn)
 
         return lb_messages
 
@@ -225,11 +233,11 @@ class Games(commands.Cog):
 
         if number is None:
             # No values were given in the command:
+            guesser = SQLFunctions.get_covid_guessers(self.conn, discord_user_id=ctx.message.author.id, guild_id=ctx.message.guild.id)
+            if len(guesser) == 0:
+                await ctx.send(f"{ctx.message.author.mention}, you have not made any guesses yet. Guess with `$guess <integer>`.", delete_after=7)
+                return
             async with ctx.typing():
-                guesser = SQLFunctions.get_covid_guessers(self.conn, discord_user_id=ctx.message.author.id, guild_id=ctx.message.guild.id)
-                if len(guesser) is None:
-                    await ctx.send(f"{ctx.message.author.mention}, you have not made any guesses yet. Guess with `$guess <integer>`.", delete_after=7)
-                    return
                 guesser = guesser[0]
                 image_url = f"https://robohash.org/{guesser.member.UniqueMemberID}.png"
                 try:

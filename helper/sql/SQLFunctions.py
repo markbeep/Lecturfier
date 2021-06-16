@@ -397,6 +397,7 @@ def add_event_updated_message(message_id, channel_id, event_id, conn=connect()):
     finally:
         conn.commit()
 
+
 def set_specific_event_channel(event_id: int, specific_channel=None, conn=connect()):
     try:
         conn.execute("UPDATE Events SET SpecificChannelID=? WHERE EventID=?", (event_id, specific_channel))
@@ -476,19 +477,23 @@ def get_covid_guessers(conn=connect(), guessed=False, discord_user_id=None, guil
     return guessers
 
 
-def clear_covid_guesses(increment=True, conn=connect()):
-    sql = """   UPDATE CovidGuessing
-                SET
-                    TotalPointsAmount=TotalPointsAmount+TempPoints,
-                    GuessCount=GuessCount+?,
-                    TempPoints=NULL,
-                    NextGuess=NULL
-                WHERE
-                    NextGuess IS NOT NULL"""
-    try:
-        conn.execute(sql, (int(increment),))
-    finally:
-        conn.commit()
+def clear_covid_guesses(users: list[CovidGuesser], increment=True, conn=connect()):
+    for guesser in users:
+        points_gotten = guesser.TempPoints
+        if points_gotten is None:
+            points_gotten = 0
+        sql = """   UPDATE CovidGuessing
+                    SET
+                        TotalPointsAmount=?,
+                        GuessCount=GuessCount+?,
+                        TempPoints=NULL,
+                        NextGuess=NULL
+                    WHERE
+                        UniqueMemberID=?"""
+        try:
+            conn.execute(sql, (guesser.TotalPointsAmount+points_gotten, int(increment), guesser.member.UniqueMemberID))
+        finally:
+            conn.commit()
 
 
 def insert_or_update_covid_guess(member: DiscordMember, guess: int, conn=connect()):
