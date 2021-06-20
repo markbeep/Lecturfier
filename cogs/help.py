@@ -14,7 +14,6 @@ class Help(commands.Cog):
             self.prefix = json.load(f)["prefix"]
         self.db_path = "./data/discord.db"
 
-
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot:

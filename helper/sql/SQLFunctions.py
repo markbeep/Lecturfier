@@ -10,7 +10,6 @@ logger.setLevel(logging.WARNING)
 
 def connect() -> sqlite3.Connection:
     conn = sqlite3.connect("./data/discord.db")
-    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.commit()
     return conn
