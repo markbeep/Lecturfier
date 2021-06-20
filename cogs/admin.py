@@ -23,6 +23,8 @@ class Admin(commands.Cog):
         self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
         self.welcome_message_id = SQLFunctions.get_config("WelcomeMessage", self.conn)
+        self.requested_help = []  # list of DiscordUserIDs of who requested help
+        self.requested_ta = []  # list of DiscordUserIDs which requested TA role to avoid spam
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -46,89 +48,6 @@ class Admin(commands.Cog):
         if member.guild.id == 747752542741725244:
             channel = self.bot.get_channel(815936830779555841)
             await self.send_leave_message(channel, member, member.guild)
-
-    @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload):
-        if payload.guild_id is None or payload.channel_id is None or payload.member is None:
-            return
-        channel = self.bot.get_channel(payload.channel_id)
-        guild = self.bot.get_guild(payload.guild_id)
-        try:
-            message = await channel.fetch_message(payload.message_id)
-        except discord.NotFound:
-            print("Did not find message to fetch")
-            return
-        admin_log_channel = self.bot.get_channel(774322847812157450)
-        if admin_log_channel is None:
-            return
-        member = payload.member
-        emoji = payload.emoji
-        if member.bot:
-            return
-        if message.author.id in (755781649643470868, 776713845238136843) and len(message.embeds) > 0 and message.embeds[0].title is not discord.Embed.Empty:
-            # Needs to be either Lecturfier or Lecturfier Beta
-            try:
-                if "Welcome" in message.embeds[0].title:
-                    # If the reaction is on the welcome message
-
-                    # EXTERNAL reaction
-                    if str(emoji) == "<:bach:764174568000192552>":
-                        role = discord.Object(767315361443741717)
-                        await member.add_roles(role, reason="Reaction role")
-                        embed = discord.Embed(description=f"Added **External** role to {member.mention}\n"
-                                                          f"ID: `{member.id}`", color=0xa52222)
-                        await admin_log_channel.send(embed=embed)
-
-                    # STUDENT reaction (is given to students and TAs)
-                    elif str(emoji) == "✏" or str(emoji) == "🧑‍🏫":
-                        role = discord.Object(747786383317532823)
-                        await member.add_roles(role, reason="Reaction role")
-                        embed = discord.Embed(description=f"Added **Student** role to {member.mention}\n"
-                                                          f"ID: `{member.id}`", color=0xff6c00)
-                        await admin_log_channel.send(embed=embed)
-
-                    # TA reaction
-                    if str(emoji) == "🧑‍🏫":
-                        staff_channel = self.bot.get_channel(747768907992924192)
-                        ta_embed = discord.Embed(
-                            title=f"TA|{member.id}",
-                            description=f"{member.mention} requests to be a TA\n"
-                                        f"<:checkmark:769279808244809798> to accept\n"
-                                        f"<:xmark:769279807916998728> to decline",
-                            color=discord.Color.gold())
-                        role_ping = "<@&773908766973624340> <@&815932497920917514> <@&747753814723002500>"
-                        ta_msg = await staff_channel.send(role_ping, embed=ta_embed)
-                        await ta_msg.add_reaction("<:checkmark:769279808244809798>")
-                        await ta_msg.add_reaction("<:xmark:769279807916998728>")
-                        embed = discord.Embed(description=f"{str(member)} requested to be a TA\n"
-                                                          f"ID: `{member.id}`", color=0x56aafd)
-                        await admin_log_channel.send(embed=embed)
-
-                elif "TA|" in message.embeds[0].title:
-                    # CHECKMARK reaction
-                    ta_id = int(message.embeds[0].title.split("|")[1])
-                    ta_user = guild.get_member(ta_id)
-                    if str(emoji) == "<:checkmark:769279808244809798>":
-                        embed = discord.Embed(description=f"Added **TA** role to {ta_user.mention}\n"
-                                                          f"Accepted by: {member.mention}", color=discord.Color.green())
-                        role = discord.Object(767084137361440819)
-                        await ta_user.add_roles(role, reason="Accepted TA role")
-                    elif str(emoji) == "<:xmark:769279807916998728>":
-                        embed = discord.Embed(description=f"Did **not** add TA role to {ta_user.mention}\n"
-                                                          f"Declined by: {member.mention}", color=discord.Color.red())
-                    else:
-                        return
-
-                    await admin_log_channel.send(embed=embed)
-                    await channel.send(embed=embed)
-
-                    # edits the previous sent message in the staff channel
-                    role_ping = "<@&773908766973624340> <@&815932497920917514> <@&747753814723002500>"
-                    await message.edit(content=role_ping, embed=embed)
-                    await message.clear_reactions()
-            except discord.NotFound:
-                print("Did not find the role to give to the new member")
-                return
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
@@ -160,6 +79,17 @@ class Admin(commands.Cog):
             )
 
         embed.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
+
+        # find out who deleted it
+        await asyncio.sleep(3)  # small delay as audit log sometimes takes a bit
+        audit: discord.AuditLogEntry = None
+        async for entry in message.guild.audit_logs(action=discord.AuditLogAction.message_delete, limit=10):
+            if entry.target.id == message.author.id and entry.created_at >= message.created_at:
+                audit = entry
+        if audit is None:
+            embed.add_field(name="Deleted by", value="A bot or the user")
+        else:
+            embed.add_field(name="Deleted by", value=str(audit.user))
         try:
             await channel.send(embed=embed)
         except AttributeError:
@@ -188,78 +118,165 @@ class Admin(commands.Cog):
                     desc = args[3:]
                 await self.send_prefix(message, command, prefix, desc)
 
+    @commands.is_owner()
+    @commands.command()
+    async def deleted_messages(self, ctx):
+        async for entry in ctx.guild.audit_logs(action=discord.AuditLogAction.message_delete, limit=10):
+            print('{0.user} did {0.action} to {0.target}'.format(entry))
+
     @commands.Cog.listener()
     async def on_button_click(self, res: discord_components.Interaction):
         if res.message is None:
-            comp_id = res.component["custom_id"]
+            comp_id: str = res.component["custom_id"]
+            results = comp_id.split(",")
+            comp_id = results[0]
+            if len(results) > 1:
+                guild: discord.Guild = self.bot.get_guild(int(results[2]))
+                member: discord.Member = guild.get_member(int(results[1]))
+            else:
+                member = None
+                guild = None
         else:
-            comp_id = res.component.id
-        if comp_id == "first_external":
-            yes_emoji = self.bot.get_emoji(776717335242211329)
-            no_emoji = self.bot.get_emoji(776717315139698720)
+            comp_id: str = res.component.id
+            member = res.user
+            guild = res.guild
+
+        staff_channel = self.bot.get_channel(747768907992924192)
+        admin_log_channel = self.bot.get_channel(774322031688679454)
+        yes_emoji = self.bot.get_emoji(776717335242211329)
+        no_emoji = self.bot.get_emoji(776717315139698720)
+
+        # vvvvvvvvvvvvvvv  EXTERNAL ROLE FOR NEWCOMERS vvvvvvvvvvvvvvv
+        if comp_id.startswith("first_external"):
             msg = "Are you sure you want to skip verifying? **You won't have access to a lot of study channels.**"
             buttons = [[
                 Button(label="No, I'll verify", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=yes_emoji),
-                Button(label="Yes, skip verification", id="second_external", style=ButtonStyle.red, emoji=no_emoji)
+                Button(label="Yes, skip verification", id=f"give_external,{res.user.id},{res.guild.id}", style=ButtonStyle.red, emoji=no_emoji)
             ]]
             await res.respond(ephemeral=True, content=msg, components=buttons)
-        elif comp_id == "second_external":
-            yes_emoji = self.bot.get_emoji(776717335242211329)
-            no_emoji = self.bot.get_emoji(776717315139698720)
-            msg = "You sure? You know this won't be easy."
-            buttons = [[
-                Button(label="No, I'll verify", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=yes_emoji),
-                Button(label="Yes, skip verification", id="third_external", style=ButtonStyle.red, emoji=no_emoji)
-            ]]
-            await res.respond(ephemeral=True, content=msg, components=buttons)
-        elif comp_id == "third_external":
-            yes_emoji = self.bot.get_emoji(776717335242211329)
-            no_emoji = self.bot.get_emoji(776717315139698720)
-            msg = "No pls, verify"
-            buttons = [[
-                Button(label="Yes, skip verification", id="fourth_external", style=ButtonStyle.green, emoji=yes_emoji),
-                Button(label="No, I'll verify", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=no_emoji)
-            ]]
-            await res.respond(ephemeral=True, content=msg, components=buttons)
-        elif comp_id == "fourth_external":
-            yes_emoji = self.bot.get_emoji(776717335242211329)
-            no_emoji = self.bot.get_emoji(776717315139698720)
-            msg = "Okay last one. pls"
-            buttons = [[
-                Button(label="No, I'll verify", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=yes_emoji),
-                Button(label="Yes, skip verification", id="giveExternal", style=ButtonStyle.red, emoji=no_emoji)
-            ]]
-            await res.respond(ephemeral=True, content=msg, components=buttons)
-        elif comp_id == "giveExternal":
-            await res.respond(ephemeral=True, content="Giving you the external role...")
-        elif comp_id == "ta_request":
-            await res.respond(ephemeral=True, content="You're not a TA lol")
+        elif comp_id == "give_external":
+            role = discord.Object(767315361443741717)
+            await member.add_roles(role, reason="Not verified role")
+            # for testing purposes
+            embed = discord.Embed(description=f"Added **External** role to {member.mention}\n"
+                                              f"ID: `{member.id}`", color=0xa52222)
+            await admin_log_channel.send(embed=embed)
+            await res.respond(type=InteractionType.DeferredUpdateMessage)
+        # ^^^^^^^^^^^^^^^  EXTERNAL ROLE FOR NEWCOMERS ^^^^^^^^^^^^^^^
+
+        # vvvvvvvvvvvvvvv  TA REQUEST FOR NEWCOMERS vvvvvvvvvvvvvvv
+        elif comp_id == "ta_requested":
+            if member.id in self.requested_ta:
+                await res.respond(content="You already requested TA. Hold on")
+            else:
+                ta_embed = discord.Embed(
+                    title=f"TA|{member.id}",
+                    description=f"{member.mention} requests the TA role",
+                    color=discord.Color.gold())
+                role_ping = "<@&844572520497020988>"
+                components = [[
+                    Button(label="Accept", id=f"accept_ta_request", style=ButtonStyle.green, emoji=yes_emoji),
+                    Button(label="Decline", id=f"decline_ta_request", style=ButtonStyle.red, emoji=no_emoji)
+                ]]
+                await staff_channel.send(role_ping, embed=ta_embed, components=components)
+                embed = discord.Embed(
+                    title="Successfully requested the TA role",
+                    description="Expect a direct message from a staff member to verify your TA status.",
+                    color=discord.Color.blue()
+                )
+                await res.respond(embed=embed)
+                self.requested_ta.append(member.id)
+        elif comp_id == "accept_ta_request":
+            ta_user_id = int(res.message.embeds[0].title.split("|")[1])
+            ta_user = res.message.guild.get_member(ta_user_id)
+            if ta_user is None:
+                await res.channel.send("lol, the user left before receiving the TA role")
+                await res.respond(type=InteractionType.DeferredUpdateMessage)
+            else:
+                embed = discord.Embed(description=f"Added **TA** role to {ta_user.mention}\n"
+                                                  f"Accepted by: {member.mention}", color=discord.Color.green())
+                role = discord.Object(767084137361440819)
+                await ta_user.add_roles(role, reason="Accepted TA role")
+                await res.channel.send(embed=embed)
+                embed = discord.Embed(title=f"TA|{ta_user.id}",
+                                      description=f"{ta_user.mention} requested the TA role\n**ACCEPTED**",
+                                      color=discord.Color.green())
+                await res.respond(type=InteractionType.UpdateMessage, embed=embed, components=[])
+        elif comp_id == "decline_ta_request":
+            ta_user_id = int(res.message.embeds[0].title.split("|")[1])
+            ta_user = res.message.guild.get_member(ta_user_id)
+            if ta_user is None:
+                await res.channel.send("lol, the user left anyway...")
+                await res.respond(type=InteractionType.DeferredUpdateMessage)
+            else:
+                embed = discord.Embed(description=f"Did **not** add TA role to {ta_user.mention}\n"
+                                                  f"Declined by: {member.mention}", color=discord.Color.red())
+                await res.channel.send(embed=embed)
+                embed = discord.Embed(title=f"TA|{ta_user.id}",
+                                      description=f"{ta_user.mention} requested the TA role\n**DECLINED**",
+                                      color=discord.Color.red())
+                await res.respond(type=InteractionType.UpdateMessage, embed=embed, components=[])
+        # ^^^^^^^^^^^^^^^  TA REQUEST FOR NEWCOMERS ^^^^^^^^^^^^^^^
+
+        # vvvvvvvvvvvvvvv  HELP BUTTONS FOR NEWCOMERS vvvvvvvvvvvvvvv
         elif comp_id == "help":
             help_buttons = [[
-                Button(label="Verifying my ETH account"),
-                Button(label="What is Discord?"),
-                Button(label="Why can't I see any channels?"),
-                Button(label="Other")
+                Button(label="Verifying my ETH account", id="help_verify"),
+                Button(label="What is Discord?", style=ButtonStyle.URL, url="https://discord.com/safety/360044149331-What-is-Discord"),
+                Button(label="Other", id=f"help_other,{member.id},{guild.id}")
             ]]
-            embed = discord.Embed(title="Help Page", description="What do you need help with?")
+            embed = discord.Embed(title="Help Page", description="What do you need help with?", color=discord.Color.green())
             await res.respond(components=help_buttons, embed=embed)
+        elif comp_id == "help_verify":
+            content = """**How to verify that you're an ETH student:**
+**1.** Click on the `Verify ETH Student` button underneath this message.
+**2.** Login with your ETH credentials
+**3.** If login was successfull, you are brought to a site with a token in the middle. Now you can do one of the following methods:
+**-3a.** Click on the `CONFIRM ME PLS` button to login with Discord.
+**-3b.** Send `\\confirm INSERT_TOKEN_HERE` in this channel.
+**-3c.** Private message <@306523617188118528> and type `\\confirm INSERT_TOKEN_HERE`
+**4.** If you sent the correct token, you should be verified now. The gif underneath shows how it should look."""
+            embed = discord.Embed(title="Help with verifying", description=content, color=discord.Color.green())
+            embed.set_image(url="https://cdn.discordapp.com/attachments/747768907992924192/856128802610741258/verify.gif")
+            await res.respond(embed=embed,
+                              components=[Button(label="Verify ETH Student", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=yes_emoji)])
+        elif comp_id == "help_other":
+            channel: discord.TextChannel = self.bot.get_channel(747768907992924192)
+            if channel is None:
+                return
+            if member.id in self.requested_help:
+                await res.respond(content="You already requested help. Please wait.")
+                return
+            embed = discord.Embed(
+                title="A newcomer needs help",
+                description="{member.mention} ({str(member)}) requested help in <#815881148307210260>.",
+                color=discord.Color.gold()
+            )
+            await channel.send(f"<@&844572520497020988>", embed=embed)
+            await res.respond(content="The staff team was notified and will help you shortly.")
+            self.requested_help.append(member.id)
+        # ^^^^^^^^^^^^^^^  HELP BUTTONS FOR NEWCOMERS ^^^^^^^^^^^^^^^
 
-    @commands.has_permissions(administrator=True)
-    @commands.command()
-    async def poll(self, ctx):
+    @commands.is_owner()
+    @commands.command(usage="sendWelcome", aliases=["sendwelcome", "send_welcome"])
+    async def sendWelcome(self, ctx):
         embed = discord.Embed(
             title="Welcome to the D-INFK ETH Server!",
-            description=f"**To get the full experience of the server press one of the following reactions:**\n"
+            description=f"**To get the full experience of the server press one of the following buttons:**\n"
                         f"*(If you have any issues, private message one of the admins or moderators and they can help)*\n\n"
-                        f"Click the corresponding button below to get access to the server."
+                        f"Click the corresponding button below to get access to the server.",
+            color=0xadd8e6
         )
+        embed.set_thumbnail(url=ctx.message.guild.icon_url)
         yes_emoji = self.bot.get_emoji(776717335242211329)
         no_emoji = self.bot.get_emoji(776717315139698720)
         components = [
             [
                 Button(label="Verify ETH Student", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=yes_emoji),
-                Button(label="Join server\nwithout verifying", style=ButtonStyle.grey, id="first_external", emoji=no_emoji),
-                Button(label="I'm a teaching assistant", style=ButtonStyle.grey, id="ta_request", emoji="🧑‍🏫"),
+                Button(label="Don't Verify", style=ButtonStyle.red, id="first_external", emoji=no_emoji)
+            ],
+            [
+                Button(label="I'm a teaching assistant", style=ButtonStyle.blue, id="ta_requested", emoji="🧑‍🏫"),
                 Button(label="I need help", style=ButtonStyle.green, id="help", emoji="🙋‍♀️")
             ]
         ]
@@ -320,34 +337,11 @@ class Admin(commands.Cog):
         Permissions: Administrator
         """
         self.secret_channels[ctx.message.channel.id] = [time.time() + seconds, delete]
-        await ctx.send(f"All messages will be deleted after {delete} seconds for the next `{seconds}` seconds.\n"+"<:that:758262252699779073>"*10)
+        await ctx.send(f"All messages will be deleted after {delete} seconds for the next `{seconds}` seconds.\n" + "<:that:758262252699779073>" * 10)
         await asyncio.sleep(seconds)
         if ctx.message.channel.id in self.secret_channels:
             self.secret_channels.pop(ctx.message.channel.id)
-            await ctx.send("<:elthision:787256721508401152>\n"+"<:this:747783377662378004>"*10+"\nMessages are not Elthision anymore.")
-
-    @commands.command(usage="sendWelcome")
-    async def sendWelcome(self, ctx):
-        """
-        Sends the welcome message for the #newcomers channel
-        Permissions: Owner
-        """
-        if await self.bot.is_owner(ctx.author):
-            embed = discord.Embed(
-                title="Welcome!",
-                description=f"**To get the full experience of the server press one of the following reactions:**\n"
-                            f"*(If you have any issues, private message one of the admins or the moderator and they can help)*\n\n"
-                            f"🧑‍🏫   if you're a TA (press the TA reaction before the student)\n"
-                            f"✏   if you're a **D-INFK** student.\n"
-                            f"<:bach:764174568000192552>   if you're external.",
-                color=0xadd8e6
-            )
-            message = await ctx.send(embed=embed)
-            await message.add_reaction("🧑‍🏫")
-            await message.add_reaction("✏")
-            await message.add_reaction("<:bach:764174568000192552>")
-        else:
-            raise discord.ext.commands.errors.NotOwner
+            await ctx.send("<:elthision:787256721508401152>\n" + "<:this:747783377662378004>" * 10 + "\nMessages are not Elthision anymore.")
 
     @commands.command(usage="testWelcome")
     async def testWelcome(self, ctx):

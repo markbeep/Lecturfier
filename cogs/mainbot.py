@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from helper.log import log
 from helper import file_creator
+from discord_components import DiscordComponents
 
 
 class MainBot(commands.Cog):
@@ -39,6 +40,7 @@ class MainBot(commands.Cog):
         count = await self.load_all_extensions(self.startup_extensions)
         log(f"Started up bot with {count}/{len(self.startup_extensions)-2} extensions loaded successfully.")
         print("-------------")
+        DiscordComponents(self.bot)
 
     async def load_all_extensions(self, extensions_to_load) -> int:
         count = 0

@@ -7,7 +7,6 @@ import time
 class Buttons(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        DiscordComponents(self.bot)
 
     @commands.command(aliases=["calc"], usage="calculator")
     async def calculator(self, ctx):

@@ -31,7 +31,6 @@ async def send_quote(channel: discord.channel, quote: SQLFunctions.Quote):
 class Quote(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        DiscordComponents(self.bot)
         self.time = 0
         with open("./data/ignored_users.json") as f:
             self.ignored_users = json.load(f)

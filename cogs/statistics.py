@@ -24,7 +24,6 @@ class Statistics(commands.Cog):
         self.waiting = False
         self.time_counter = 0  # So statistics dont get saved every few seconds, and instead only every 2 mins
         self.bot_changed_to_yesterday = {}
-        self.db_path = "./data/discord.db"
         self.background_git_backup.start()
         self.sent_file = False
         self.current_subject = [-1, 0]
@@ -90,7 +89,18 @@ class Statistics(commands.Cog):
         # only count stats in servers
         if message.guild is None:
             return
-
+        # deletes the message if its in #newcomers
+        if message.channel.id == 815881148307210260 and not message.author.bot:
+            try:
+                await message.delete()
+                deleted_messages = SQLFunctions.get_config("deleted_messages", self.conn)
+                if len(deleted_messages) == 0:
+                    deleted_messages = 0
+                else:
+                    deleted_messages = deleted_messages[0]
+                SQLFunctions.insert_or_update_config("deleted_messages", deleted_messages+1, self.conn)
+            except discord.NotFound:  # message was already deleted
+                pass
         SUBJECT_ID = self.get_current_subject()
         # Makes it better to work with the message
         msg = demojize(message.content)
