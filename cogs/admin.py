@@ -249,7 +249,7 @@ class Admin(commands.Cog):
                 return
             embed = discord.Embed(
                 title="A newcomer needs help",
-                description="{member.mention} ({str(member)}) requested help in <#815881148307210260>.",
+                description=f"{member.mention} ({str(member)}) requested help in <#815881148307210260>.",
                 color=discord.Color.gold()
             )
             await channel.send(f"<@&844572520497020988>", embed=embed)
