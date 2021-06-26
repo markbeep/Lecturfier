@@ -85,122 +85,108 @@ class Owner(commands.Cog):
             cont = cont[0:index] + "\n  ...```"
         await ctx.send(cont)
 
+    @commands.is_owner()
     @commands.command(usage="bully <user>")
     async def bully(self, ctx, user=None):
         """
         Bully a user by pinging that person in random intervals, then instantly deleting that message again.
         Permissions: Owner
         """
-        if await self.bot.is_owner(ctx.author):
-            await ctx.message.delete()
-            if user is None:
-                await ctx.send("No user")
-                raise discord.ext.commands.errors.NotOwner
-            for i in range(10):
-                await asyncio.sleep(random.randint(10, 100))
-                msg = await ctx.send(user)
-                await msg.delete()
-        else:
+        await ctx.message.delete()
+        if user is None:
+            await ctx.send("No user")
             raise discord.ext.commands.errors.NotOwner
+        for i in range(10):
+            await asyncio.sleep(random.randint(10, 100))
+            msg = await ctx.send(user)
+            await msg.delete()
 
+    @commands.is_owner()
     @commands.command(usage="loops")
     async def loops(self, ctx):
         """
         Displays all running background tasks
         Permissions: Owner
         """
-        if await self.bot.is_owner(ctx.author):
-            all_loops = {
-                "Lecture Updates Loop": self.bot.get_cog("Updates").heartbeat(),
-                "Git Backup Loop": self.bot.get_cog("Statistics").heartbeat(),
-                "Voice XP track Loop": self.bot.get_cog("Voice").heartbeat(),
-                "COVID Web Scraper": self.bot.get_cog("Games").heartbeat(),
-                "Events Updates": self.bot.get_cog("Information").heartbeat()
-            }
+        all_loops = {
+            "Lecture Updates Loop": self.bot.get_cog("Updates").heartbeat(),
+            "Git Backup Loop": self.bot.get_cog("Statistics").heartbeat(),
+            "Voice XP track Loop": self.bot.get_cog("Voice").heartbeat(),
+            "COVID Web Scraper": self.bot.get_cog("Games").heartbeat(),
+            "Events Updates": self.bot.get_cog("Information").heartbeat()
+        }
 
-            msg = ""
-            for name in all_loops.keys():
-                if all_loops[name]:
-                    msg += f"\n**{name}:** <:checkmark:776717335242211329>"
-                else:
-                    msg += f"\n**{name}:** <:xmark:776717315139698720>"
-            await ctx.send(msg)
-        else:
-            raise discord.ext.commands.errors.NotOwner
+        msg = ""
+        for name in all_loops.keys():
+            if all_loops[name]:
+                msg += f"\n**{name}:** <:checkmark:776717335242211329>"
+            else:
+                msg += f"\n**{name}:** <:xmark:776717315139698720>"
+        await ctx.send(msg)
 
+    @commands.is_owner()
     @commands.command(usage="loading")
     async def loading(self, ctx):
         """
         Plays a little loading animation in a message.
         Permissions: Owner
         """
-        if await self.bot.is_owner(ctx.author):
-            msg = await ctx.send("Loading:\n0% | " + loading_bar(0))
-            for i in range(1, 10):
-                await msg.edit(
-                    content=("Loading:\n" + f"{random.randint(i * 10, i * 10 + 5)}% | " + loading_bar(i)))
-                await asyncio.sleep(0.75)
-            await msg.edit(content=("Loading: DONE\n" + "100% | " + loading_bar(10, 10, False)))
-        else:
-            raise discord.ext.commands.errors.NotOwner
+        msg = await ctx.send("Loading:\n0% | " + loading_bar(0))
+        for i in range(1, 10):
+            await msg.edit(
+                content=("Loading:\n" + f"{random.randint(i * 10, i * 10 + 5)}% | " + loading_bar(i)))
+            await asyncio.sleep(0.75)
+        await msg.edit(content=("Loading: DONE\n" + "100% | " + loading_bar(10, 10, False)))
 
+    @commands.is_owner()
     @commands.command(usage="reboot")
     async def reboot(self, ctx):
         """
         Uses `reboot now` in the command line. Restarts the current device if it runs on linux.
         Permissions: Owner
         """
-        if await self.bot.is_owner(ctx.author):
-            await ctx.send("Rebooting...")
-            os.system('reboot now')  # Only works on linux (saved me a few times)
-        else:
-            raise discord.ext.commands.errors.NotOwner
+        await ctx.send("Rebooting...")
+        os.system('reboot now')  # Only works on linux (saved me a few times)
 
+    @commands.is_owner()
     @commands.command(usage="react <message_id> <reaction>")
     async def react(self, ctx, message_id, reaction):
         """
         React to a message using the bot.
         Permissions: Owner
         """
-        if await self.bot.is_owner(ctx.author):
-            message = await ctx.fetch_message(int(message_id))
-            await message.add_reaction(reaction)
-        else:
-            raise discord.ext.commands.errors.NotOwner
+        message = await ctx.fetch_message(int(message_id))
+        await message.add_reaction(reaction)
 
+    @commands.is_owner()
     @commands.command(usage="spam")
     async def spam(self, ctx):
         """
         Sends close to the maximum allowed characters on Discord in one single message
         Permissions: Owner
         """
-        if await self.bot.is_owner(ctx.author):
-            spam = "\n" * 1900
-            embed = discord.Embed(title="." + "\n" * 250 + ".", description="." + "\n" * 2000 + ".")
-            embed.add_field(name=".\n.", value="." + "\n" * 1000 + ".")
-            embed.add_field(name=".\n.", value="." + "\n" * 1000 + ".")
-            embed.add_field(name=".\n.", value="." + "\n" * 1000 + ".")
-            embed.add_field(name=".\n.", value="." + "\n" * 700 + ".")
-            await ctx.send(f"\"{spam}\"", embed=embed)
-            await ctx.send(f"{len(spam) + len(embed)} chars")
-        else:
-            raise discord.ext.commands.errors.NotOwner
+        spam = "\n" * 1900
+        embed = discord.Embed(title="." + "\n" * 250 + ".", description="." + "\n" * 2000 + ".")
+        embed.add_field(name=".\n.", value="." + "\n" * 1000 + ".")
+        embed.add_field(name=".\n.", value="." + "\n" * 1000 + ".")
+        embed.add_field(name=".\n.", value="." + "\n" * 1000 + ".")
+        embed.add_field(name=".\n.", value="." + "\n" * 700 + ".")
+        await ctx.send(f"\"{spam}\"", embed=embed)
+        await ctx.send(f"{len(spam) + len(embed)} chars")
 
+    @commands.is_owner()
     @commands.command(aliases=["send", "repeatme", "echo"], usage="say [count] <msg>")
     async def say(self, ctx, count=None, *, cont):
         """
         Repeats a message. If given, repeats a specific amount of times
         Permissions: Owner
         """
-        if await self.bot.is_owner(ctx.author):
-            try:
-                amt = int(count)
-                for i in range(amt):
-                    await ctx.send(cont)
-            except ValueError:
-                await ctx.send(f"{count} {cont}")
-        else:
-            raise discord.ext.commands.errors.NotOwner
+        try:
+            amt = int(count)
+            for i in range(amt):
+                await ctx.send(cont)
+        except ValueError:
+            await ctx.send(f"{count} {cont}")
 
 
 def setup(bot):

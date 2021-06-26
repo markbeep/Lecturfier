@@ -12,8 +12,6 @@ bot = commands.Bot(
     intents=intents.all(),
     owner_id=205704051856244736)
 
-bot.remove_command("help")
-
 # Loads the sub_bot cog, which can then easily be reloaded
 bot.load_extension("cogs.mainbot")
 # Loads the help page, as it has an on_ready event that needs to be called
