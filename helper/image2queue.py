@@ -4,7 +4,6 @@ from imageio import imread, mimsave, imwrite
 import time
 import os
 from PIL import Image
-import cv2
 import io
 
 

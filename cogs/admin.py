@@ -173,7 +173,7 @@ class Admin(commands.Cog):
                     title=f"TA|{member.id}",
                     description=f"{member.mention} requests the TA role",
                     color=discord.Color.gold())
-                role_ping = "<@&844572520497020988>"
+                role_ping = f"||<@&844572520497020988>|| {member.mention}"
                 components = [[
                     Button(label="Accept", id=f"accept_ta_request", style=ButtonStyle.green, emoji=yes_emoji),
                     Button(label="Decline", id=f"decline_ta_request", style=ButtonStyle.red, emoji=no_emoji)
@@ -252,7 +252,7 @@ class Admin(commands.Cog):
                 description=f"{member.mention} ({str(member)}) requested help in <#815881148307210260>.",
                 color=discord.Color.gold()
             )
-            await channel.send(f"<@&844572520497020988>", embed=embed)
+            await channel.send(f"||<@&844572520497020988>|| {member.mention}", embed=embed)
             await res.respond(content="The staff team was notified and will help you shortly.")
             self.requested_help.append(member.id)
         # ^^^^^^^^^^^^^^^  HELP BUTTONS FOR NEWCOMERS ^^^^^^^^^^^^^^^

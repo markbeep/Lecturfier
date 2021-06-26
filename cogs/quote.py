@@ -87,7 +87,7 @@ class Quote(commands.Cog):
             reply_message = await ctx.message.channel.fetch_message(reply.message_id)
             name = str(reply_message.author.id)
             quote = reply_message.content
-            await self.add_quote(user=name, message=reply_message, quote=quote, quoteAdder=ctx.message.author)
+            await self.add_quote(username=name, message=reply_message, quote=quote, quoteAdder=ctx.message.author)
             return
 
         if name is None:  # no user is given, so send a random quote
