@@ -860,6 +860,31 @@ class Information(commands.Cog):
         elif command == "leave":
             await channel.set_permissions(member, overwrite=None, reason="User left event")
 
+    @commands.guild_only()
+    @commands.command(usage="cache <user ID | username>")
+    async def cache(self, ctx, user_id=None):
+        if user_id is None:
+            await ctx.reply("You seem to have forgotten a user ID or username.", delete_after=5)
+            raise discord.ext.commands.errors.BadArgument
+        try:
+            member = ctx.message.guild.get_member(int(user_id))
+            if member is None:
+                member = await ctx.message.guild.fetch_member(int(user_id))
+        except ValueError:
+            member = ctx.message.guild.get_member_named(user_id)
+        if member is None:
+            await ctx.reply("There doesn't seem to be a user with that ID or username on this Discord server. Usernames need to be case sensitive. "
+                            "They can either be the nickname or the username or username + discriminator.", delete_after=15)
+            raise discord.ext.commands.errors.BadArgument
+        msg = await ctx.send("brrrrrrrrrrrrrr")
+        await msg.edit(content=member.mention)
+        await msg.edit(content=f"Successfully loaded {str(member)} into cache.")
+        await msg.delete(delay=10)
+        try:
+            await ctx.message.delete(delay=10)
+        except (discord.NotFound, discord.Forbidden):
+            pass
+
 
 def setup(bot):
     bot.add_cog(Information(bot))
