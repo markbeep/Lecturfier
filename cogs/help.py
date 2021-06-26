@@ -6,176 +6,78 @@ import os
 from discord.ext.commands.cooldowns import BucketType
 
 
-class Help(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.help_message_ids = {}
-        with open("./data/settings.json", "r") as f:
-            self.prefix = json.load(f)["prefix"]
-        self.db_path = "./data/discord.db"
+attributes = {
+    "aliases": ["h", "halp", "hell", "hepl", "helps", "guide", "manual"],
+    "usage": "help [command | group | cog]"
+}
 
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author.bot:
-            return
 
-    @commands.command(usage="doTheThing")
-    async def doTheThing(self, ctx):
-        """
-        Used to transfer all current commands to the slash command-manual \
-        we have set up on the server.
-        Permissions: Owner
-        """
-        if await self.bot.is_owner(ctx.author):
-            for cog in self.bot.cogs:
-                all_commands = self.bot.get_cog(cog).get_commands()
-                for com in all_commands:
-                    await ctx.send(f"\\botman {com} {com.help}")
-            await ctx.send("Done")
-        else:
-            raise discord.ext.commands.errors.NotOwner
-
-    @commands.cooldown(4, 10, BucketType.user)
-    @commands.command(aliases=["halp", "h"], usage="help <command>")
-    async def help(self, ctx, given_command=None, *args):
-        """
-        You madlad just called help on the help command.
-        You can get more detailed information about a command by using $help <command> on any command.
-        """
-
-        specific_command, sorted_commands, sub_commands, command_type = await self.get_specific_com(given_command)
-
-        # if no command is specified, send the help page with all main commands
-        if specific_command is None:
-            file = discord.File("./images/help_page.gif")
-            embed = discord.Embed(color=0xcbd3d7)
-
-            sorted_commands = self.sort_by_dict_size(sorted_commands)
-
-            updated_versions = git_tools.get_versions(os.getcwd())
-            for key in sorted_commands.keys():
-                sorted_commands[key] = self.sort_by_com_name(sorted_commands[key])
-                version = "v00.0.0.0"
-                version_key = str(key).lower() + ".py"
-                if version_key in updated_versions:
-                    version = updated_versions[version_key]["version"]
+class Help(commands.HelpCommand):
+    # help
+    async def send_bot_help(self, mapping):
+        embed = discord.Embed(color=0xcbd3d7)
+        bot_prefix = self.clean_prefix
+        # sorts by the amount of commands in the cog (after filtering)
+        for cog, cmds in sorted(mapping.items(), key=lambda e: len(e[1]), reverse=True):
+            if len(cmds) > 0:
+                cog_name = getattr(cog, "qualified_name", "Other")
                 msg = f"```asciidoc\n"
-                for com in sorted_commands[key]:
+                for com in cmds:
                     if com.help is None:
                         prefix = "-"
                     else:
                         prefix = "*"
                     msg += f"{prefix} {com}\n"
                 msg += "```"
-                embed.add_field(name=f"{key} | *{version}*", value=msg)
-                embed.set_footer(text="Commands with a star (*) have extra info when viewed with $help <command>")
-            await ctx.send(file=file, embed=embed)
-        else:
-            # if a subcommand is called, we have the command object, but it could be wrong if there
-            # are multiple subcommands with the same name. So we don't show it.
-            if command_type == "subcommand":
-                await ctx.send(f"The command `{given_command}` only exists as a subcommand.")
-                return
+                embed.add_field(name=f"{cog_name}", value=msg)
 
-            specific_command, command_chain = await self.get_recursive_command(specific_command, args)
-            if type(specific_command) == str:
-                if specific_command == "":
-                    await ctx.send(f"The command `{given_command}` does not exist.")
-                    return
-                elif specific_command == "n/a":
-                    await ctx.send(f"The command `{given_command}` has no help page.")
-                    return
-                elif specific_command == "no sub":
-                    await ctx.send(f"The command chain `{given_command} {' '.join(args)}` does not exist.")
-                    return
-            embed = await self.command_help(specific_command, command_chain)
-            await ctx.send(embed=embed)
+        embed.set_footer(text=f"Commands with a star (*) have extra info when viewed with {bot_prefix}help <command>")
+        embed.set_author(name=self.context.message.author.name, icon_url=self.context.message.author.avatar_url)
+        file = discord.File("./images/help_page.gif")
+        channel = self.get_destination()
+        await channel.send(embed=embed, file=file)
 
-    async def get_specific_com(self, specific_command):
-        sorted_commands = {}
-        sub_commands = {}
-        command_type = "normal"
-        for cog in self.bot.cogs:
-            sorted_commands[cog] = []
-            all_commands = self.bot.get_cog(cog).get_commands()
-            for com in all_commands:
-                # adds all subcommands to another list
-                try:
-                    sub_commands[com.name] = []
-                    for sub_com in com.commands:
-                        sub_commands[com.name].append(sub_com)
-                        if specific_command == sub_com.name:
-                            # makes the specific command be the group command
-                            specific_command = com
-                            command_type = "subcommand"
-                        for alias in sub_com.aliases:
-                            if specific_command == alias:
-                                # makes the specific command be the group command
-                                specific_command = com
-                                command_type = "subcommand"
-                except AttributeError:
-                    pass
-                if specific_command == com.name:
-                    specific_command = com
-                for alias in com.aliases:
-                    if specific_command == alias:
-                        specific_command = com
-                sorted_commands[cog].append(com)
-            if len(sorted_commands[cog]) == 0:
-                sorted_commands.pop(cog)
-        return [specific_command, sorted_commands, sub_commands, command_type]
+    # help <command>
+    async def send_command_help(self, command):
+        embed = self.create_command_help_embed(command)
+        channel = self.get_destination()
+        await channel.send(embed=embed)
 
-    async def get_recursive_command(self, specific_command, args, command_chain=""):
-        """
-        Goes down a command to see if any of its subcommands was called for
-        """
-        if type(specific_command) == str:
-            return "", command_chain  # if the command doesn't even exist
-        if specific_command.help is None:
-            return "n/a", command_chain  # if there's no help page, but the command exists
-        coms = list(args)
-        print("here", specific_command)
-        if len(coms) > 0:
-            print("more than 0 commands rem", specific_command)
-            try:
-                spec_cm_copy = ""
-                com_chain_copy = "n/a"
-                for com in specific_command.commands:
-                    if com.name == coms[0].lower():
-                        # command_chain is used to display the command chain in the help page
-                        spec_cm_copy, com_chain_copy = await self.get_recursive_command(com, coms[1:], f"{command_chain}{specific_command.name} ")
-                        break
-                    else:
-                        # goes over the aliases of the command
-                        for ali in com.aliases:
-                            if ali == coms[0].lower():
-                                spec_cm_copy, com_chain_copy = await self.get_recursive_command(com, coms[1:], f"{command_chain}{specific_command.name} ")
-                                break
-                        else:
-                            continue
-                        break  # breaks out of both for loops if the command was found
-                specific_command = spec_cm_copy
-                command_chain = com_chain_copy
-            except AttributeError:  # this error is thrown if a .commands is called on a command which doesn't have sub commands
-                return "no sub", command_chain  # if the command doesnt have a subcommand with that name
-        return specific_command, command_chain
+    # help <group>
+    async def send_group_help(self, group):
+        embed = self.create_command_help_embed(group)
+        sub_commands = [c.name for c in group.commands]
+        embed.add_field(name="\u200b", value=f"```asciidoc\n= Subcommands =\n{', '.join(sub_commands)}```")
+        if len(command_chain := group.full_parent_name) > 0:
+            command_chain = group.full_parent_name + " "
+        embed.set_footer(text=f"This command has subcommands. Check their help page with {self.clean_prefix}help {command_chain}{group.name} <subcommand>")
+        await self.context.send(embed=embed)
 
-    async def command_help(self, specific_command, command_chain):
-        help_msg = specific_command.help
-        aliases = specific_command.aliases
-        if specific_command.usage is None:
-            usage = "[n/a]"
-        else:
-            usage = command_chain + specific_command.usage
+    # help <cog>
+    async def send_cog_help(self, cog):
+        cog_name = getattr(cog, "qualified_name", "Other")
+        embed = discord.Embed(title=cog_name, color=0xcbd3d7)
+        embed.description = cog.description
+        if len(cog.description) == 0:
+            embed.description = "*[no info]*"
+        cmds = [c.name for c in cog.get_commands()]
+        embed.add_field(name="\u200b", value=f"```asciidoc\n= Commands =\n{', '.join(cmds)}```")
+        channel = self.get_destination()
+        await channel.send(embed=embed)
 
-        # if the command has subcommands
-        sub_commands = []
-        try:
-            for com in specific_command.commands:
-                sub_commands.append(com.name)
-        except AttributeError:
-            pass
+    def create_command_help_embed(self, command):
+        command_name = command.name
+        # command path
+        if len(command.full_parent_name) > 0:
+            command_name = command.full_parent_name.replace(" ", " > ") + " > " + command_name
+        embed = discord.Embed(title=command_name, color=0xcbd3d7)
 
+        help_msg = command.help
+        if help_msg is None:
+            help_msg = "No command information"
+        aliases_msg = command.aliases
+
+        # permissions
         if "Permissions" in help_msg:
             listified = help_msg.split("Permissions: ")
             help_msg = listified[0]
@@ -183,43 +85,24 @@ class Help(commands.Cog):
         else:
             permissions = "@everyone"
 
-        nl = "\n"
-        aliases_msg = f"- {f'{nl}- '.join(aliases)}"
-        if aliases_msg == "- ":
-            aliases_msg = "none"
-        command_name = f"{command_chain}{specific_command.name}".replace(" ", " > ")
-        embed = discord.Embed(title=command_name, color=0xcbd3d7)
-        embed.add_field(name="Info", value=help_msg.replace("Permissions:", "\n**Permissions:**").replace("{prefix}", self.prefix), inline=False)
+        if aliases_msg is None:
+            aliases_msg = "[n/a]"
+        else:
+            aliases_msg = ", ".join(aliases_msg)
+
+        usage = command.usage
+        if usage is None:
+            usage = "[n/a]"
+        embed.add_field(name="Info", value=help_msg.replace("{prefix}", self.clean_prefix), inline=False)
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Aliases =\n{aliases_msg}```")
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Permissions =\n{permissions}```")
-        embed.add_field(name="\u200b", value=f"```asciidoc\n= Usage =\n{self.prefix}{usage}```", inline=False)
-
-        # only adds sub_commands field if there exist any
-        if len(sub_commands) > 0:
-            embed.add_field(name="\u200b", value=f"```asciidoc\n= Subcommands =\n{', '.join(sub_commands)}```")
-            embed.set_footer(text=f"This command has subcommands. Check their help page with {self.prefix}help {command_chain} {specific_command.name} <subcommand>")
+        """checks = [c.__name__ for c in command.checks]
+        if len(checks) > 0:
+            embed.add_field(name="\u200b", value=f"```asciidoc\n= Checks =\n{', '.join(checks)}```")"""
+        embed.add_field(name="\u200b", value=f"```asciidoc\n= Usage =\n{self.clean_prefix}{usage}```", inline=False)
+        embed.set_author(name=self.context.message.author.name, icon_url=self.context.message.author.avatar_url)
         return embed
-
-    def sort_by_com_name(self, inp):
-        with_keys = {}
-        for command in inp:
-            with_keys[command.name] = command
-        sorted_keys = sorted(list(with_keys.keys()))
-        com_sorted = []
-        for key in sorted_keys:
-            com_sorted.append(with_keys[key])
-        return com_sorted
-
-    def sort_by_dict_size(self, inp):
-        d = {}
-        for key in inp:
-            d[key] = len(inp[key])
-        d = {k: d[k] for k in sorted(d, key=d.get, reverse=True)}
-        sort = {}
-        for key in d:
-            sort[key] = inp[key]
-        return sort
 
 
 def setup(bot):
-    bot.add_cog(Help(bot))
+    bot.help_command = Help(command_attrs=attributes)
