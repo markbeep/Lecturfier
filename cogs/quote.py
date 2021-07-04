@@ -32,8 +32,6 @@ class Quote(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.time = 0
-        with open("./data/ignored_users.json") as f:
-            self.ignored_users = json.load(f)
         self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
 

@@ -1,7 +1,6 @@
 import os
 import json
 from helper.log import log
-from helper import handySQL
 from helper.sql.SQLTables import *
 
 
@@ -56,12 +55,6 @@ def createFiles():
             stop = True
             with open(f"./websites/{link}.html", "w") as f:
                 pass
-
-    if not os.path.exists(f"./data/covid19.txt"):
-        log(f"Creating covid19.txt", keyword)
-        stop = True
-        with open(f"./data/covid19.txt", "w") as f:
-            f.write("0")
 
     if stop:
         log("All files created. Restart the bot.", keyword)
