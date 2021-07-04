@@ -1,7 +1,9 @@
 import discord
 from discord.ext import commands
-from discord_components import DiscordComponents, Button, ButtonStyle, InteractionType
+from discord_components import *
 import time
+import asyncio
+import tabulate
 
 
 class Buttons(commands.Cog):
@@ -12,6 +14,69 @@ class Buttons(commands.Cog):
     async def calculator(self, ctx):
         c = Calculator(self.bot, ctx, 180)
         await c.handle_calculator()
+
+    @commands.command()
+    async def select(self, ctx, *options):
+        components = []
+        selects = []
+        count = {}
+        total = 0
+        if len(options) > 100:
+            await ctx.reply("Max of 100 options allowed")
+            raise discord.ext.commands.BadArgument
+        elif len(options) == 0:
+            await ctx.reply("Not enough options given.")
+            raise discord.ext.commands.BadArgument
+
+        amount_added = 0
+        for opt in options:
+            if opt in count.keys():
+                continue
+            opt = opt.replace("@", "").replace("&", "")
+            if len(opt) == 0:
+                continue
+            selects.append(SelectOption(label=opt, value=opt))
+            count[opt] = 0
+            amount_added += 1
+            if amount_added == 25:
+                components.append(Select(placeholder="Select an option", options=selects))
+                selects = []
+                amount_added = 0
+        if amount_added > 0:
+            components.append(Select(placeholder="Select an option", options=selects))
+
+        components.append(Button(label=f"Voted: {total}", style=ButtonStyle.random_color(), disabled=True))
+
+        def create_vote(c: dict):
+            return f"```\n{tabulate.tabulate(c.items(), tablefmt='psql')}```"
+
+        msg = await ctx.reply(
+            f"**Select one of the options below**\n{create_vote(count)}",
+            components=components
+        )
+
+        while True:
+            try:
+                res: Interaction = await self.bot.wait_for("select_option", check=None, timeout=5)
+                if res is None or res.component is None:
+                    continue
+                name = res.component[0].label
+                count[name] += 1
+                total += 1
+                await res.respond(type=4, content=f"You selected {name}")
+                components[len(components)-1] = Button(label=f"Voted: {total}", style=ButtonStyle.random_color(), disabled=True)
+                await msg.edit(
+                    f"**Select one of the options below**\n{create_vote(count)}",
+                    components=components
+                )
+            except asyncio.TimeoutError:
+                for i in range(len(components)-1):
+                    components[i] = Select(placeholder="Select an option", options=[SelectOption(label="no", value="no")], disabled=True)
+                await msg.edit(
+                    f"**Selection menu closed**\n{create_vote(count)}",
+                    components=components
+                )
+                break
 
 
 def setup(bot):
