@@ -1,8 +1,12 @@
+import time
+import random
 import discord
 from discord.ext import commands
 from helper import hangman
 import string
+import asyncio
 from discord.ext.commands.cooldowns import BucketType
+from discord_components import *
 
 
 def joinTuple(string_tuples) -> str:
@@ -23,9 +27,113 @@ class Hangman(commands.Cog):
                 corrected += s
         return corrected
 
+    @commands.group(aliases=["hm"], invoke_without_command=True, usage="hm")
+    async def hangman(self, ctx):
+        """
+        Using this command as a standalone initializes a hangman guessing game. \
+        You can guess letters by using the dropdown menu.
+        The game ends after **100** seconds.
+        """
+        if ctx.invoked_subcommand is None:
+            start = time.time()
+            word_length = random.randint(3, 15)
+            previous = []
+            ignored = []
+            current_word = ["_"] * word_length
+            guesses = 0
+
+            def generate_select() -> list[Select]:
+                emoji_letters = ["🇦", "🇧", "🇨", "🇩", "🇪", "🇫", "🇬", "🇭", "🇮", "🇯", "🇰", "🇱", "🇲", "🇳", "🇴", "🇵", "🇶", "🇷", "🇸",
+                                 "🇹", "🇺", "🇻", "🇼", "🇽", "🇾", "🇿"]
+                select_options = []
+                count = 0
+                for letter in string.ascii_lowercase:
+                    if letter in ignored or letter in current_word:
+                        continue
+                    if count == 25:  # we only put the first 25 letters into the dropdown
+                        break
+                    if 0 <= ord(letter)-97 < len(emoji_letters):
+                        select_options.append(SelectOption(label=letter, value=letter, emoji=emoji_letters[ord(letter)-97]))
+                    else:
+                        select_options.append(SelectOption(label=letter, value=letter))
+                    count += 1
+                return [Select(options=select_options, placeholder="Guess a letter...")]
+
+            msg = await ctx.reply(content="Make an initial guess for a letter", components=generate_select())
+
+            while start + 100 > time.time():
+                try:
+                    res: Interaction = await self.bot.wait_for("select_option", timeout=5)
+                except asyncio.TimeoutError:
+                    continue
+                if res.user.id != ctx.message.author.id:
+                    await res.respond(type=InteractionType.ChannelMessageWithSource, content="This isn't your hangman game.")
+                    continue
+                if res is None or res.component is None:
+                    continue
+                guess = res.component[0].label
+                await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"You guessed {guess}.")
+                ignored.append(guess)
+                guesses += 1
+
+                letter_count, fitting = hangman.solve("".join(current_word), ignore=ignored)
+
+                if len(fitting) == 0:
+                    if len(previous) == 0:
+                        word_length -= 1
+                        if word_length < 0:
+                            break
+                        else:
+                            current_word = ["_"] * word_length
+                            continue
+                    else:
+                        ignored.pop(ignored.index(guess))  # additionally remove the letter from the ignored chars
+
+                        rand_word = random.choice(previous)
+                        for i in range(len(rand_word)):
+                            if rand_word[i] == guess:
+                                current_word[i] = guess
+                else:
+                    previous = fitting.copy()
+                if current_word.count("_") == 0:
+                    await ctx.send(f"{ctx.message.author.mention}! You guessed the word!\n`{''.join(current_word)}`")
+                    break
+
+                embed = discord.Embed(
+                    title="Hangman Game",
+                    description=f"Current Word: `{''.join(current_word)}`\n"
+                                f"Wrong Letters: {', '.join(ignored)}\n"
+                                f"Amount of guesses: {guesses}\n"
+                                f"**Guess a letter:**"
+                )
+                if msg is not None:
+                    await msg.delete()
+                embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+                msg = await ctx.send(embed=embed, components=generate_select())
+
+            # if no initial character was given
+            if len(previous) == 0:
+                await msg.delete()
+                return
+
+            if "_" in current_word:
+                final_word = random.choice(previous)
+            else:
+                final_word = "".join(current_word)
+            embed = discord.Embed(
+                title="Hangman Game",
+                description=f"Correct Word: `{final_word}`\n"
+                            f"Wrong Letters: {', '.join(ignored)}\n"
+                            f"Amount of guesses: {guesses}"
+            )
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            if msg is not None:
+                await msg.delete()
+            await ctx.send(embed=embed, components=[])
+
     @commands.cooldown(1, 5, BucketType.user)
-    @commands.command(aliases=["hm"], usage="hangman <word up till now> <wrong letters or 0> <language>")
-    async def hangman(self, ctx, inputted_word=None, unused_letters="", language="e"):
+    @hangman.command(name="solve", usage="solve <word up till now> <wrong letters or 0> <language>")
+    async def solve_hangman(self, ctx, inputted_word=None, unused_letters="", language="e"):
         """
         This is used to solve hangman the best way possible. It is not optimized, so take it easy with the usage.
         To use this command properly, you want to insert an underscore (\\_) for every unknown character and the known letters \
@@ -64,7 +172,7 @@ class Hangman(commands.Cog):
                     if alphabet[key] == 0:
                         continue
                     else:
-                        text += f'{key} : {round(alphabet[key]/total * 100, 2)}% | '
+                        text += f'{key} : {round(alphabet[key] / total * 100, 2)}% | '
 
                 # Only print all the words if there're less than 20 words
                 message = ""
