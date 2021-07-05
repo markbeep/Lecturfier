@@ -770,12 +770,13 @@ class Information(commands.Cog):
             await ctx.send(f"Successfully cleared the linked channel for event {event_id}.")
             return
 
-        if not channel_id.isnnumeric():
+        if not channel_id.isnumeric():
             await ctx.send("ERROR! Channel ID is not a valid integer.", delete_after=10)
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
 
         # Gets the channel and makes sure the ID is valid
+        channel_id = int(channel_id)
         channel = self.bot.get_channel(channel_id)
         if channel is None:
             await ctx.send(f"ERROR! {ctx.message.author.mention}, the channel ID you specified is invalid or I don't have access to the channel.",
@@ -853,7 +854,7 @@ class Information(commands.Cog):
         """
         if channel_id is None:
             return
-        channel = self.bot.get_channel(channel_id)
+        channel = self.bot.get_channel(int(channel_id))
         # add user to channel perms
         if command == "join":
             await channel.set_permissions(member, read_messages=True, reason="User joined event")

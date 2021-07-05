@@ -399,7 +399,7 @@ def add_event_updated_message(message_id, channel_id, event_id, conn=connect()):
 
 def set_specific_event_channel(event_id: int, specific_channel=None, conn=connect()):
     try:
-        conn.execute("UPDATE Events SET SpecificChannelID=? WHERE EventID=?", (event_id, specific_channel))
+        conn.execute("UPDATE Events SET SpecificChannelID=? WHERE EventID=?", (specific_channel, event_id))
     finally:
         conn.commit()
 
