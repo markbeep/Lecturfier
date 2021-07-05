@@ -203,7 +203,7 @@ class Information(commands.Cog):
     async def join_leave_event(self, member, guild_id, command, message_id=None, event_id=None) -> SQLFunctions.Event:
         event_results = SQLFunctions.get_events(self.conn, is_done=False, guild_id=guild_id)
         for e in event_results:
-            if e.UpdatedChannelID == message_id or e.EventID == event_id:
+            if e.UpdatedMessageID == message_id or e.EventID == event_id:
                 event = e
                 break
         else:  # no matching event was found otherwise
@@ -219,8 +219,8 @@ class Information(commands.Cog):
             joined = False
         if command == "join" and not joined:
             # Adds the user to the event
-            member = SQLFunctions.get_or_create_discord_member(member)
-            SQLFunctions.add_member_to_event(event, member, self.conn)
+            sql_member = SQLFunctions.get_or_create_discord_member(member)
+            SQLFunctions.add_member_to_event(event, sql_member, self.conn)
         elif command == "leave" and joined:
             # Removes the user from the event
             SQLFunctions.remove_member_from_event(event, discord_member, self.conn)
@@ -263,7 +263,7 @@ class Information(commands.Cog):
             member = guild.get_member(payload.user_id)
             if member is None:
                 return
-            event = await self.join_leave_event(member, payload.guild_id, "join", message_id=payload.message_id)
+            event = await self.join_leave_event(member, payload.guild_id, "leave", message_id=payload.message_id)
             SQLFunctions.logger.debug(f"Member {str(member)} leaving Event: {event}")
             if not event:
                 return
@@ -661,7 +661,7 @@ class Information(commands.Cog):
 
             if event.SpecificChannelID is not None:
                 try:
-                    await self.set_event_channel_perms(ctx.message.author, event.SpecificChannelID, "join")
+                    await self.set_event_channel_perms(ctx.message.author, event.SpecificChannelID, "leave")
                 except discord.Forbidden:
                     await ctx.send("Couldn't remove you from the channel. Best to tag Mark.")
                 except AttributeError:
