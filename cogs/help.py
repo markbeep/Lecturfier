@@ -71,7 +71,6 @@ class Help(commands.HelpCommand):
         help_msg = command.help
         if help_msg is None:
             help_msg = "No command information"
-        aliases_msg = command.aliases
 
         # permissions
         if "Permissions" in help_msg:
@@ -81,21 +80,25 @@ class Help(commands.HelpCommand):
         else:
             permissions = "@everyone"
 
-        if aliases_msg is None:
+        if command.aliases is None or len(command.aliases) == 0:
             aliases_msg = "[n/a]"
         else:
-            aliases_msg = ", ".join(aliases_msg)
+            aliases_msg = ", ".join(command.aliases)
 
-        usage = command.usage
-        if usage is None:
+        if command.usage is None:
             usage = "[n/a]"
+        else:
+            usage = command.usage
+            if len(command.full_parent_name) > 0:
+                usage = command.full_parent_name + " " + usage
+            usage = self.clean_prefix + usage
         embed.add_field(name="Info", value=help_msg.replace("{prefix}", self.clean_prefix), inline=False)
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Aliases =\n{aliases_msg}```")
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Permissions =\n{permissions}```")
         """checks = [c.__name__ for c in command.checks]
         if len(checks) > 0:
             embed.add_field(name="\u200b", value=f"```asciidoc\n= Checks =\n{', '.join(checks)}```")"""
-        embed.add_field(name="\u200b", value=f"```asciidoc\n= Usage =\n{self.clean_prefix}{usage}```", inline=False)
+        embed.add_field(name="\u200b", value=f"```asciidoc\n= Usage =\n{usage}```", inline=False)
         embed.set_author(name=self.context.message.author.name, icon_url=self.context.message.author.avatar_url)
         return embed
 
