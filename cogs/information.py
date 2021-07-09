@@ -389,7 +389,9 @@ class Information(commands.Cog):
                 index = index - (len(printable))
             encoded_msg += printable[index]
 
-        await ctx.send(f"```{encoded_msg}```")
+        encoded_msg = encoded_msg.replace('`', '').replace('\\', '')
+        embed = discord.Embed(title="Cipher", description=f"```\n{encoded_msg}```")
+        await ctx.send(embed=embed)
 
     @commands.cooldown(4, 10, BucketType.user)
     @commands.command(usage="hash <OpenSSL algo> <msg>")
