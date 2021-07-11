@@ -192,7 +192,7 @@ class PixPlace:
         self.queue = self.pixel_array.tolist()
         return self.queue
 
-    def read_setpixel_string(self, inp:str):
+    def read_setpixel_string(self, inp: str):
         inp = inp.replace("\r", "")
         setpixels = inp.split("\n")
         self.pixel_array = np.empty((len(setpixels), 6), dtype="int16")
