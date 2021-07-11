@@ -126,20 +126,11 @@ class Admin(commands.Cog):
 
     @commands.Cog.listener()
     async def on_button_click(self, res: discord_components.Interaction):
-        if res.message is None:
-            comp_id: str = res.component["custom_id"]
-            results = comp_id.split(",")
-            comp_id = results[0]
-            if len(results) > 1:
-                guild: discord.Guild = self.bot.get_guild(int(results[2]))
-                member: discord.Member = guild.get_member(int(results[1]))
-            else:
-                member = None
-                guild = None
-        else:
-            comp_id: str = res.component.id
-            member = res.user
-            guild = res.guild
+        comp_id: str = res.component.id
+        guild = res.guild
+        member = guild.get_member(res.user.id)
+        if member is None:
+            member = await guild.fetch_member(res.user.id)
 
         staff_channel = self.bot.get_channel(747768907992924192)
         admin_log_channel = self.bot.get_channel(774322031688679454)
@@ -147,11 +138,11 @@ class Admin(commands.Cog):
         no_emoji = self.bot.get_emoji(776717315139698720)
 
         # vvvvvvvvvvvvvvv  EXTERNAL ROLE FOR NEWCOMERS vvvvvvvvvvvvvvv
-        if comp_id.startswith("first_external"):
+        if comp_id == "first_external":
             msg = "Are you sure you want to skip verifying? **You won't have access to a lot of study channels.**"
             buttons = [[
                 Button(label="No, I'll verify", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=yes_emoji),
-                Button(label="Yes, skip verification", id=f"give_external,{res.user.id},{res.guild.id}", style=ButtonStyle.red, emoji=no_emoji)
+                Button(label="Yes, skip verification", id="give_external", style=ButtonStyle.red, emoji=no_emoji)
             ]]
             await res.respond(ephemeral=True, content=msg, components=buttons)
         elif comp_id == "give_external":
@@ -169,14 +160,17 @@ class Admin(commands.Cog):
             if member.id in self.requested_ta:
                 await res.respond(content="You already requested TA. Hold on")
             else:
+                if staff_channel is None:
+                    print("TA role was accepted. Don't have access to staff channels.")
+                    staff_channel = self.bot.get_channel(237673537429700609)
                 ta_embed = discord.Embed(
                     title=f"TA|{member.id}",
                     description=f"{member.mention} requests the TA role",
                     color=discord.Color.gold())
                 role_ping = f"||<@&844572520497020988>|| {member.mention}"
                 components = [[
-                    Button(label="Accept", id=f"accept_ta_request", style=ButtonStyle.green, emoji=yes_emoji),
-                    Button(label="Decline", id=f"decline_ta_request", style=ButtonStyle.red, emoji=no_emoji)
+                    Button(label="Accept", id="accept_ta_request", style=ButtonStyle.green, emoji=yes_emoji),
+                    Button(label="Decline", id="decline_ta_request", style=ButtonStyle.red, emoji=no_emoji)
                 ]]
                 await staff_channel.send(role_ping, embed=ta_embed, components=components)
                 embed = discord.Embed(
@@ -223,7 +217,7 @@ class Admin(commands.Cog):
             help_buttons = [[
                 Button(label="Verifying my ETH account", id="help_verify"),
                 Button(label="What is Discord?", style=ButtonStyle.URL, url="https://discord.com/safety/360044149331-What-is-Discord"),
-                Button(label="Other", id=f"help_other,{member.id},{guild.id}")
+                Button(label="Other", id="help_other")
             ]]
             embed = discord.Embed(title="Help Page", description="What do you need help with?", color=discord.Color.green())
             await res.respond(components=help_buttons, embed=embed)
@@ -241,9 +235,9 @@ class Admin(commands.Cog):
             await res.respond(embed=embed,
                               components=[Button(label="Verify ETH Student", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=yes_emoji)])
         elif comp_id == "help_other":
-            channel: discord.TextChannel = self.bot.get_channel(747768907992924192)
-            if channel is None:
-                return
+            if staff_channel is None:
+                print("Help was requested. Don't have access to staff channels.")
+                staff_channel = self.bot.get_channel(237673537429700609)
             if member.id in self.requested_help:
                 await res.respond(content="You already requested help. Please wait.")
                 return
@@ -252,7 +246,7 @@ class Admin(commands.Cog):
                 description=f"{member.mention} ({str(member)}) requested help in <#815881148307210260>.",
                 color=discord.Color.gold()
             )
-            await channel.send(f"||<@&844572520497020988>|| {member.mention}", embed=embed)
+            await staff_channel.send(f"||<@&844572520497020988>|| {member.mention}", embed=embed)
             await res.respond(content="The staff team was notified and will help you shortly.")
             self.requested_help.append(member.id)
         # ^^^^^^^^^^^^^^^  HELP BUTTONS FOR NEWCOMERS ^^^^^^^^^^^^^^^
