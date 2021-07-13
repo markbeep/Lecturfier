@@ -68,6 +68,10 @@ class Games(commands.Cog):
                 async with cs.get("https://www.covid19.admin.ch/en/overview") as r:
                     response = await r.read()
             soup = bs(response.decode('utf-8'), "html.parser")
+            # gets the last updated day from the website
+            last_updated = soup.find_all("p", class="card__subtitle")[0].get_text()
+            #day = int(last_updated[last_updated.index("Status:")+8: last_updated.index(".")])
+
             new_cases = int(soup.find_all("span", class_="bag-key-value-list__entry-value")[0].get_text().replace(" ", ""))
             if self.cases_today != new_cases:
                 self.cases_today = new_cases
