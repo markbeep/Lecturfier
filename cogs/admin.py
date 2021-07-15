@@ -368,11 +368,9 @@ class Admin(commands.Cog):
 
     @commands.cooldown(1, 5, BucketType.user)
     @commands.command(usage="ban <user>")
-    @commands.has_permissions(administrator=True)
     async def ban(self, ctx, person):
         """
         Plays a little joke and "bans" the given user
-        Permissions: Administrator
         """
         await ctx.send(f"Banning {person}...")
         await asyncio.sleep(10)
