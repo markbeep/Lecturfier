@@ -348,20 +348,16 @@ class Information(commands.Cog):
             title = "Ding?"
         if "ding" in ctx.message.content.lower():
             title = "*slap!*"
-
-        embed = discord.Embed(
-            title=f"{title} 🏓",
-            description=f"🌐 Ping: \n"
-                        f"❤ HEARTBEAT:")
-
         start = time.perf_counter()
-        ping = await ctx.send(embed=embed)
+        await ctx.trigger_typing()
         end = time.perf_counter()
         embed = discord.Embed(
             title=f"{title} 🏓",
             description=f"🌐 Ping: `{round((end - start) * 1000)}` ms\n"
-                        f"❤ HEARTBEAT: `{round(self.bot.latency * 1000)}` ms")
-        await ping.edit(embed=embed)
+                        f"❤ HEARTBEAT: `{round(self.bot.latency * 1000)}` ms",
+            color=0xD7D7D7
+            )
+        await ctx.send(embed=embed)
 
     @commands.cooldown(4, 10, BucketType.user)
     @commands.command(aliases=["cypher"], usage="cipher <amount to displace> <msg>")
