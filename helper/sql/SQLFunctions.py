@@ -41,7 +41,7 @@ def get_or_create_discord_user(user: discord.User, conn=connect()) -> DiscordUse
             conn.execute(
                 """INSERT INTO DiscordUsers(DiscordUserID, DisplayName, Discriminator, IsBot, AvatarURL, CreatedAt)
                     VALUES (?,?,?,?,?,?)""",
-                (user.id, user.display_name, user.discriminator, int(user.bot), user.avatar_url, user.created_at)
+                (user.id, user.display_name, str(user.discriminator), int(user.bot), str(user.avatar_url), str(user.created_at))
             )
         finally:
             conn.commit()
@@ -78,7 +78,8 @@ def get_or_create_discord_guild(guild: discord.Guild, conn=connect()) -> Discord
         finally:
             conn.commit()
         return get_or_create_discord_guild(guild, conn)
-    return DiscordGuild(result)
+    else:
+        return DiscordGuild(*result)
 
 
 class DiscordMember:
@@ -92,7 +93,7 @@ class DiscordMember:
         self.User = User
 
 
-def get_or_create_discord_member(member: discord.Member, semester=0, conn=connect()) -> DiscordMember:
+def get_or_create_discord_member(member: discord.Member, semester=0, conn=connect(), recursion_count=0) -> DiscordMember:
     sql = """   SELECT  DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester,
                         DU.DiscordUserID, DU.DisplayName, DU.Discriminator, DU.IsBot, DU.AvatarURL, DU.CreatedAt
                 FROM DiscordMembers DM
@@ -100,6 +101,8 @@ def get_or_create_discord_member(member: discord.Member, semester=0, conn=connec
                 WHERE DM.DiscordUserID = ? AND DM.DiscordGuildID = ?"""
     result = conn.execute(sql, (member.id, member.guild.id)).fetchone()
     if result is None:
+        if recursion_count > 3:
+            raise AttributeError
         try:
             try:
                 conn.execute(
@@ -111,9 +114,10 @@ def get_or_create_discord_member(member: discord.Member, semester=0, conn=connec
         except sqlite3.IntegrityError:
             get_or_create_discord_user(member, conn=conn)
             get_or_create_discord_guild(member.guild, conn=conn)
-            return get_or_create_discord_member(member, semester, conn)
-    user = DiscordUser(*result[6:])
-    return DiscordMember(*result[:6], User=user)
+        return get_or_create_discord_member(member, semester, conn, recursion_count+1)
+    else:
+        user = DiscordUser(*result[6:])
+        return DiscordMember(*result[:6], User=user)
 
 
 class UserStatistics:
