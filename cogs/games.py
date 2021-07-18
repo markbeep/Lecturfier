@@ -34,11 +34,16 @@ class Games(commands.Cog):
         self.time_since_task_start = time.time()
         self.background_check_cases.start()
         self.sent_covid = False
-        result = SQLFunctions.get_config("COVID_Cases", self.conn)
-        if len(result) > 0:
-            self.cases_today = result[0]
+        recent_covid_cases = SQLFunctions.get_config("COVID_Cases", self.conn)
+        recent_covid_day = SQLFunctions.get_config("COVID_Day", self.conn)
+        if len(recent_covid_cases) > 0:
+            self.cases_today = recent_covid_cases[0]
         else:
             self.cases_today = 0
+        if len(recent_covid_day) > 0:
+            self.last_cases_day = recent_covid_day[0]
+        else:
+            self.last_cases_day = 0
 
     def heartbeat(self):
         return self.background_check_cases.is_running()
@@ -69,12 +74,19 @@ class Games(commands.Cog):
                     response = await r.read()
             soup = bs(response.decode('utf-8'), "html.parser")
             # gets the last updated day from the website
-            last_updated = soup.find_all("p", class="card__subtitle")[0].get_text()
-            #day = int(last_updated[last_updated.index("Status:")+8: last_updated.index(".")])
+            last_updated = soup.find_all("p", class_="card__subtitle")
+            if len(last_updated) > 0:
+                last_updated = last_updated[0].get_text()
+                day = int(last_updated[last_updated.index("Status:")+8: last_updated.index(".")])
+            else:
+                owner = self.bot.get_user(205704051856244736)
+                await owner.send(content=f"Covid cases failed updating. Last updated is empty:\n```{last_updated}```")
+                raise ValueError
 
             new_cases = int(soup.find_all("span", class_="bag-key-value-list__entry-value")[0].get_text().replace(" ", ""))
-            if self.cases_today != new_cases:
+            if self.last_cases_day != day:
                 self.cases_today = new_cases
+                self.last_cases_day = day
                 guild = self.bot.get_guild(747752542741725244)
                 if guild is None:
                     guild = self.bot.get_guild(237607896626495498)
@@ -84,6 +96,7 @@ class Games(commands.Cog):
                 await self.send_message(channel, new_cases)
                 log("Daily cases have been updated", print_it=True)
                 SQLFunctions.insert_or_update_config("COVID_Cases", new_cases, self.conn)
+                SQLFunctions.insert_or_update_config("COVID_Day", day, self.conn)
         except Exception as e:
             print(f"COVID loop messed up:\n{e}")
             await asyncio.sleep(20)
