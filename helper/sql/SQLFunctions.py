@@ -686,14 +686,15 @@ def get_quoted_names(guild: discord.Guild, conn=connect()) -> list[Name]:
 
 
 class QuoteToRemove:
-    def __init__(self, quote: Quote, member: DiscordMember = None):
+    def __init__(self, quote: Quote, reason: str, member: DiscordMember = None):
         self.Quote = quote
         self.Reporter = member
+        self.Reason = reason
 
 
 def get_quotes_to_remove(conn=connect()) -> list[QuoteToRemove]:
     sql = """   SELECT  QTR.QuoteID, DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester,
-                        Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID
+                        Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID, QTR.Reason
                 FROM QuotesToRemove QTR
                 INNER JOIN DiscordMembers DM on QTR.UniqueMemberID = DM.UniqueMemberID
                 INNER JOIN Quotes Q on QTR.QuoteID = Q.QuoteID"""
@@ -701,14 +702,14 @@ def get_quotes_to_remove(conn=connect()) -> list[QuoteToRemove]:
     quotes_to_remove = []
     for row in result:
         member = DiscordMember(*row[1:7])
-        quote = Quote(*row[7:], Member=member)
-        quotes_to_remove.append(QuoteToRemove(quote, member))
+        quote = Quote(*row[7:-1], Member=member)
+        quotes_to_remove.append(QuoteToRemove(quote, row[-1], member))
     return quotes_to_remove
 
 
-def insert_quote_to_remove(quote_id, member: DiscordMember, conn=connect()):
+def insert_quote_to_remove(quote_id, reason:str, member: DiscordMember, conn=connect()):
     try:
-        conn.execute("INSERT INTO QuotesToRemove(QuoteID, UniqueMemberID) VALUES(?,?)", (quote_id, member.UniqueMemberID))
+        conn.execute("INSERT INTO QuotesToRemove(QuoteID, UniqueMemberID, Reason) VALUES(?,?,?)", (quote_id, member.UniqueMemberID, reason))
     finally:
         conn.commit()
 

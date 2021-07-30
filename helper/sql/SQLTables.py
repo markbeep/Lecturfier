@@ -145,6 +145,7 @@ Config = """   CREATE TABLE IF NOT EXISTS "Config" (
 QuotesToRemove = """   CREATE TABLE IF NOT EXISTS "QuotesToRemove" (
                                     "QuoteID" INTEGER PRIMARY KEY,
                                     "UniqueMemberID" INTEGER,
+                                    "Reason" TEXT,
                                     FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID") ON DELETE CASCADE,
                                     FOREIGN KEY("QuoteID") REFERENCES "Quotes"("QuoteID") ON DELETE CASCADE
                                     );"""

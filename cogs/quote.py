@@ -337,14 +337,14 @@ class Quote(commands.Cog):
         await self.get_all_quotes(ctx, user)
 
     @quote.group(aliases=["rep"], usage="report <quote ID>", invoke_without_command=True)
-    async def report(self, ctx, quoteID=None):
+    async def report(self, ctx, quoteID=None, *, reason=""):
         """
         Report quotes which should be deleted. This makes deleting quotes a lot easier \
         and more organized. Additionally ping @mark so he knows a quote was reported.
         """
         if ctx.invoked_subcommand is not None:
             return
-        
+        print(f"{reason=}")
         # input parsing
         if quoteID is None:
             embed = discord.Embed(title="Quotes Error", description=f"No quote ID given.", color=0xFF0000)
@@ -379,7 +379,7 @@ class Quote(commands.Cog):
         
         # At this point we have a valid Quote ID, so add it to the database
         member = SQLFunctions.get_or_create_discord_member(ctx.message.author, conn=self.conn)
-        SQLFunctions.insert_quote_to_remove(quoteID, member, self.conn)
+        SQLFunctions.insert_quote_to_remove(quoteID, reason, member, self.conn)
         embed = discord.Embed(
             title="Added Quote Report",
             description=f"Succesfully requested quote {quoteID} to be deleted.",
@@ -402,13 +402,14 @@ class Quote(commands.Cog):
         pages = []
         while len(quotes_to_remove) > 0:
             quote = quotes_to_remove.pop()
-            # userID, quoteID, quote, reporterID, name
+            # userID, quoteID, quote, reporterID, name, reason
             pages.append([
                 quote.Quote.Member.DiscordUserID,
                 quote.Quote.QuoteID,
                 quote.Quote.QuoteText,
                 quote.Reporter.DiscordUserID,
-                quote.Quote.Name
+                quote.Quote.Name,
+                quote.Reason
             ])
 
         # should have a list of page lists, each with a max of 10 elements
@@ -618,11 +619,15 @@ class QuotesToRemove(menus.Menu):
 
     def create_embed(self, page_number):
         embed = discord.Embed(title="Quotes to Remove", description=f"Page {page_number+1}/{len(self.pages)}", color=0x00003f)
-        userID, quoteID, quote, reporterID, name = self.pages[page_number]
+        userID, quoteID, quote, reporterID, name, reason = self.pages[page_number]
+        if len(reason) > 700:
+            reason = reason[:700] + "..."
+        elif reason == "":
+            reason = "*No reason was given.*"
         if userID is not None:
-            embed.add_field(name=f"ID: {quoteID} | {name}", value=f"Discord User: <@{userID}>\nReported by: <@{reporterID}>\n**Quote:**\n{quote}")
+            embed.add_field(name=f"ID: {quoteID} | {name}", value=f"Discord User: <@{userID}>\nReported by: <@{reporterID}>\n**Quote:**\n{quote}\n**Reason:**\n{reason}")
         else:
-            embed.add_field(name=f"ID: {quoteID} | {name}", value="Reported by: <@{reporterID}>\n**Quote:**\n{quote}")
+            embed.add_field(name=f"ID: {quoteID} | {name}", value="Reported by: <@{reporterID}>\n**Quote:**\n{quote}\n**Reason:**\n{reason}")
         return embed
 
     @menus.button("⬅️")
@@ -651,7 +656,7 @@ class QuotesToRemove(menus.Menu):
 
     @menus.button("<:DeletThis:843908352999686234>")
     async def deleteQuote(self, payload):
-        userID, quoteID, quote, reporterID, name = self.pages[self.page_count]
+        userID, quoteID, quote, reporterID, name, reason = self.pages[self.page_count]
         SQLFunctions.delete_quote(quoteID, self.conn)
         self.pages.pop(self.page_count)
         embed = discord.Embed(title="Deleted Quote", description=f"Quote with ID {quoteID} was YEEEEEETED.", color=0xffff00)
@@ -669,7 +674,7 @@ class QuotesToRemove(menus.Menu):
 
     @menus.button("<a:IgnoreReport:844678929751212083>")
     async def ignoreQuote(self, payload):
-        userID, quoteID, quote, reporterID, name = self.pages[self.page_count]
+        userID, quoteID, quote, reporterID, name, reason = self.pages[self.page_count]
         SQLFunctions.delete_quote_to_remove(quoteID, self.conn)
         self.pages.pop(self.page_count)
         embed = discord.Embed(title="Ignored Quote", description=f"Quote with ID {quoteID} was ignored.", color=0xffff00)
