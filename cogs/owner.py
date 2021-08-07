@@ -1,11 +1,9 @@
-from datetime import datetime
 import discord
 from discord.ext import commands
 import random
 import asyncio
 import os
 import time
-import json
 from helper.sql import SQLFunctions
 from sqlite3 import Error
 import sqlite3
@@ -39,10 +37,64 @@ class Owner(commands.Cog):
         self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
 
+        # gets the button value to watch
+        self.watch_button_value = SQLFunctions.get_config("ButtonValue", self.conn)
+        if len(self.watch_button_value) == 0:
+            self.watch_button_value = 1e6
+        else:
+            self.watch_button_value = self.watch_button_value[0]
+        self.sent_message = False
+        self.old_value = -1  # to ignore fake buttons we store the last value
+
     @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author.id == self.bot.user.id:  # ignores itself
-            return
+    async def on_message_edit(self, before, message):
+        if message.author.id == 778731540359675904:
+            if len(message.components) > 0:
+                message = await message.channel.fetch_message(message.id)
+                action_row = message.components[0]
+                if len(action_row.components) == 0:
+                    return
+                button = action_row.components[0]
+                button_value = button.label
+                if button_value.isnumeric():
+                    button_value = int(button_value)
+                    # we check to make sure its not a fake button with a lot higher score
+                    if self.old_value != -1 and self.old_value + 5 < button_value:
+                        return
+                    self.old_value = button_value
+                    if not self.sent_message and button_value >= self.watch_button_value:
+                        user = self.bot.get_user(205704051856244736)
+                        embed = discord.Embed(
+                            title="BUTTON ABOVE SCORE",
+                            description=f"Watching Score: `{self.watch_button_value}`\n"
+                                        f"Button Value: `{button_value}`\n"
+                                        f"Channel: <#{message.channel.id}>\n"
+                                        f"Message Link: [Click Here](https://discord.com/channels/{message.guild.id}/{message.channel.id}/{message.id})",
+                            color=discord.Color.gold()
+                        )
+                        for i in range(3):
+                            await user.send(embed=embed)
+                        self.sent_message = True
+
+    @commands.is_owner()
+    @commands.command()
+    async def watch(self, ctx, val=None):
+        await ctx.message.delete()
+        if val is None:
+            # yes if we're tracking, no if we're at default value
+            if self.watch_button_value < 1e6:
+                await ctx.send(self.watch_button_value, delete_after=5)
+            else:
+                await ctx.send("no", delete_after=5)
+        else:
+            if not val.isnumeric():
+                await ctx.send("not int", delete_after=5)
+                raise discord.ext.commands.errors.BadArgument
+            # saves the value to watch into config
+            SQLFunctions.insert_or_update_config("ButtonValue", int(val), self.conn)
+            self.watch_button_value = int(val)
+            self.sent_message = False
+            await ctx.send("ok", delete_after=5)
 
     @commands.is_owner()
     @commands.command(usage="sql <command>")
