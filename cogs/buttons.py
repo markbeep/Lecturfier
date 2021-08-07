@@ -57,7 +57,7 @@ class Buttons(commands.Cog):
 
         while True:
             try:
-                res: Interaction = await self.bot.wait_for("select_option", check=None, timeout=5)
+                res: Interaction = await self.bot.wait_for("select_option", check=None, timeout=30)
                 if res is None or res.component is None:
                     continue
                 name = res.component[0].label

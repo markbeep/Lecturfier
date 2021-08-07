@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import json
+from discord_components import DiscordComponents
 
 with open("./data/settings.json", "r") as f:
     prefix = json.load(f)
@@ -16,6 +17,8 @@ bot = commands.Bot(
 bot.load_extension("cogs.mainbot")
 # Loads the help page, as it has an on_ready event that needs to be called
 bot.load_extension("cogs.help")
+# enables discord components
+DiscordComponents(bot)
 
 
 @bot.event

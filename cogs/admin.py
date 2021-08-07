@@ -185,7 +185,8 @@ class Admin(commands.Cog):
             ta_user = res.message.guild.get_member(ta_user_id)
             if ta_user is None:
                 await res.channel.send("lol, the user left before receiving the TA role")
-                await res.respond(type=InteractionType.DeferredUpdateMessage)
+                embed = discord.Embed(description=f"User left before receiving TA role", color=discord.Color.red())
+                await res.respond(type=InteractionType.UpdateMessage, embed=embed, components=[])
             else:
                 embed = discord.Embed(description=f"Added **TA** role to {ta_user.mention}\n"
                                                   f"Accepted by: {member.mention}", color=discord.Color.green())
@@ -201,7 +202,8 @@ class Admin(commands.Cog):
             ta_user = res.message.guild.get_member(ta_user_id)
             if ta_user is None:
                 await res.channel.send("lol, the user left anyway...")
-                await res.respond(type=InteractionType.DeferredUpdateMessage)
+                embed = discord.Embed(description=f"User left already and didn't get TA role anyway", color=discord.Color.red())
+                await res.respond(type=InteractionType.UpdateMessage, embed=embed, components=[])
             else:
                 embed = discord.Embed(description=f"Did **not** add TA role to {ta_user.mention}\n"
                                                   f"Declined by: {member.mention}", color=discord.Color.red())
