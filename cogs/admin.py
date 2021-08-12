@@ -118,12 +118,6 @@ class Admin(commands.Cog):
                     desc = args[3:]
                 await self.send_prefix(message, command, prefix, desc)
 
-    @commands.is_owner()
-    @commands.command()
-    async def deleted_messages(self, ctx):
-        async for entry in ctx.guild.audit_logs(action=discord.AuditLogAction.message_delete, limit=10):
-            print('{0.user} did {0.action} to {0.target}'.format(entry))
-
     @commands.Cog.listener()
     async def on_button_click(self, res: discord_components.Interaction):
         comp_id: str = res.component.id
@@ -256,6 +250,10 @@ class Admin(commands.Cog):
     @commands.is_owner()
     @commands.command(usage="sendWelcome", aliases=["sendwelcome", "send_welcome"])
     async def sendWelcome(self, ctx):
+        """
+        Sends the welcome message for the D-INFK ETH server with the required buttons
+        to get set up.
+        """
         embed = discord.Embed(
             title="Welcome to the D-INFK ETH Server!",
             description=f"**To get the full experience of the server press one of the following buttons:**\n"

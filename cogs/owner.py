@@ -8,6 +8,7 @@ from helper.sql import SQLFunctions
 from sqlite3 import Error
 import sqlite3
 from tabulate import tabulate
+from datetime import datetime
 
 
 def isascii(s):
@@ -44,7 +45,7 @@ class Owner(commands.Cog):
         else:
             self.watch_button_value = self.watch_button_value[0]
         self.sent_message = False
-        self.old_value = -1  # to ignore fake buttons we store the last value
+        self.old_value = 1e6  # to ignore fake buttons we store the last value
 
     @commands.Cog.listener()
     async def on_message_edit(self, before, message):
@@ -59,9 +60,9 @@ class Owner(commands.Cog):
                 if button_value.isnumeric():
                     button_value = int(button_value)
                     # we check to make sure its not a fake button with a lot higher score
-                    if self.old_value != -1 and self.old_value + 5 < button_value:
+                    if self.old_value + 5 < button_value:
+                        print("Fake button detected")
                         return
-                    self.old_value = button_value
                     if not self.sent_message and button_value >= self.watch_button_value:
                         user = self.bot.get_user(205704051856244736)
                         embed = discord.Embed(
@@ -75,6 +76,22 @@ class Owner(commands.Cog):
                         for i in range(3):
                             await user.send(embed=embed)
                         self.sent_message = True
+                    elif button_value < self.old_value:
+                        # the button was clicked and the score went down
+                        dt = datetime.fromtimestamp(time.time() + 60 * (self.watch_button_value - button_value))
+                        user = self.bot.get_user(205704051856244736)
+                        embed = discord.Embed(
+                            title="Button was clicked.",
+                            description=f"Watching Score: `{self.watch_button_value}`\n"
+                                        f"Button Value: `{button_value}`\n"
+                                        f"Channel: <#{message.channel.id}>\n"
+                                        f"Message Link: [Click Here](https://discord.com/channels/{message.guild.id}/{message.channel.id}/{message.id})\n"
+                                        f"Button is at desired value at `{dt.strftime('%H:%M on %a. %d.%m.%Y')}`",
+                            color=discord.Color.red()
+                        )
+                        await user.send(embed=embed)
+
+                    self.old_value = button_value
 
     @commands.is_owner()
     @commands.command()
@@ -83,7 +100,7 @@ class Owner(commands.Cog):
         if val is None:
             # yes if we're tracking, no if we're at default value
             if self.watch_button_value < 1e6:
-                await ctx.send(self.watch_button_value, delete_after=5)
+                await ctx.send(f"{self.watch_button_value} | {self.sent_message}", delete_after=5)
             else:
                 await ctx.send("no", delete_after=5)
         else:
