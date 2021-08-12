@@ -18,7 +18,7 @@ class Help(commands.HelpCommand):
             if len(cmds) > 0:
                 cog_name = getattr(cog, "qualified_name", "Other")
                 msg = f"```asciidoc\n"
-                for com in cmds:
+                for com in sorted(cmds, key=lambda e: e.name):
                     if com.help is None:
                         prefix = "-"
                     else:
