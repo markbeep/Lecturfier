@@ -440,7 +440,7 @@ class Quote(commands.Cog):
 
         i = 0
         for quote in all_quotes:
-            quote_to_add = quote.QuoteText.replace("*", "").replace("~", "").replace("\\", "").replace("`", "")
+            quote_to_add = quote.QuoteText.replace("*", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "")
             if quote_to_add.count("\n") > 2:
                 # makes multiline quotes not fill too many lines
                 split_lines = quote_to_add.split("\n")
