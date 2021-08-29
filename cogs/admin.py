@@ -140,6 +140,7 @@ class Admin(commands.Cog):
             # for testing purposes
             embed = discord.Embed(description=f"Added **External** role to {member.mention}\n"
                                               f"ID: `{member.id}`", color=0xa52222)
+            embed.set_author(name=str(member), icon_url=member.avatar_url)
             await admin_log_channel.send(embed=embed)
             await res.respond(type=InteractionType.DeferredUpdateMessage)
         # ^^^^^^^^^^^^^^^  EXTERNAL ROLE FOR NEWCOMERS ^^^^^^^^^^^^^^^
@@ -234,12 +235,18 @@ class Admin(commands.Cog):
                 return
             embed = discord.Embed(
                 title="A newcomer needs help",
-                description=f"{member.mention} ({str(member)}) requested help in <#815881148307210260>.",
+                description=f"{member.mention} ({str(member)}) requested help in <#881611441105416263>.",
                 color=discord.Color.gold()
             )
             await staff_channel.send(f"||<@&844572520497020988>|| {member.mention}", embed=embed)
-            await res.respond(content="The staff team was notified and will help you shortly.")
+            await res.respond(content="The staff team was notified and will help you shortly. You additionally should now have access to the <#881611441105416263> channel.")
             self.requested_help.append(member.id)
+            # gives the user permissions to see the support channel
+            support_channel = self.bot.get_channel(881611441105416263)
+            if support_channel is None:
+                support_channel = self.bot.get_channel(402551175272202252)
+            await support_channel.set_permissions(member, read_messages=True, reason="User requested help")
+            await support_channel.send(f"{member.mention}, what do you need help with?")
         # ^^^^^^^^^^^^^^^  HELP BUTTONS FOR NEWCOMERS ^^^^^^^^^^^^^^^
 
     @commands.is_owner()
@@ -356,13 +363,13 @@ class Admin(commands.Cog):
             color=discord.Color.red()
         )
         embed.set_thumbnail(url="https://c.tenor.com/n9bi4Y3smL0AAAAC/ban-hammer.gif")
-        await ctx.send(embed=embed)
+        msg = await ctx.send(embed=embed)
         await asyncio.sleep(10)
         embed = discord.Embed(
             description=f"Was just a prank brudi {person}",
             color=discord.Color.green()
         )
-        await ctx.send(embed=embed)
+        await msg.reply(embed=embed)
 
 
 def setup(bot):
