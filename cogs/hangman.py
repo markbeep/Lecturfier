@@ -27,6 +27,7 @@ class Hangman(commands.Cog):
                 corrected += s
         return corrected
 
+    @commands.cooldown(1, 20, BucketType.channel)
     @commands.group(aliases=["hm"], invoke_without_command=True, usage="hm")
     async def hangman(self, ctx):
         """
@@ -61,11 +62,11 @@ class Hangman(commands.Cog):
 
             msg = await ctx.reply(content="Make an initial guess for a letter", components=generate_select())
 
-            while start + 100 > time.time():
+            while True:
                 try:
-                    res: Interaction = await self.bot.wait_for("select_option", timeout=5)
+                    res: Interaction = await self.bot.wait_for("select_option", timeout=60)
                 except asyncio.TimeoutError:
-                    continue
+                    break
                 if res.user.id != ctx.message.author.id:
                     await res.respond(type=InteractionType.ChannelMessageWithSource, content="This isn't your hangman game.")
                     continue
@@ -131,7 +132,7 @@ class Hangman(commands.Cog):
                 await msg.delete()
             await ctx.send(embed=embed, components=[])
 
-    @commands.cooldown(1, 5, BucketType.user)
+    @commands.cooldown(1, 20, BucketType.user)
     @hangman.command(name="solve", usage="solve <word up till now> <wrong letters or 0> <language>")
     async def solve_hangman(self, ctx, inputted_word=None, unused_letters="", language="e"):
         """

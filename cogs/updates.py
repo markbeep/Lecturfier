@@ -156,37 +156,36 @@ class Updates(commands.Cog):
             log(f"Error in background loop self.bot.py: {traceback.format_exc()}", "BACKGROUND")
 
     @commands.command(usage="testLecture <subject_id> <channel_id> <role_id>")
+    @commands.is_owner()
     async def testLecture(self, ctx, subject_id=None, channel_id=None, role_id=0, stream_url=None):
         """
         Test the embed message for starting lectures
+        Permissions: Owner
         """
-        if await self.bot.is_owner(ctx.author):
-            # Input/Error catching
-            if channel_id is None:
-                await ctx.send("ERROR! Not enough parameters: `$testLecture <subjectID> <channelID> [streamURL] [roleID to ping]`")
-                raise discord.ext.commands.CommandError
-            try:
-                channel = self.bot.get_channel(int(channel_id))
-                channel_id = int(channel_id)
-            except ValueError:
-                await ctx.send("ERROR! `channel_id` needs to be an integer")
-                raise discord.ext.commands.CommandError
-            if channel is None:
-                await ctx.send("ERROR! Can't retreive channel with that channel ID")
-                raise discord.ext.commands.CommandError
+        # Input/Error catching
+        if channel_id is None:
+            await ctx.send("ERROR! Not enough parameters: `$testLecture <subjectID> <channelID> [streamURL] [roleID to ping]`")
+            raise discord.ext.commands.CommandError
+        try:
+            channel = self.bot.get_channel(int(channel_id))
+            channel_id = int(channel_id)
+        except ValueError:
+            await ctx.send("ERROR! `channel_id` needs to be an integer")
+            raise discord.ext.commands.CommandError
+        if channel is None:
+            await ctx.send("ERROR! Can't retreive channel with that channel ID")
+            raise discord.ext.commands.CommandError
 
-            c = self.conn.cursor()
-            c.execute("SELECT SubjectID, SubjectName, SubjectLink FROM Subjects WHERE SubjectID=? LIMIT 1", (subject_id,))
-            subject = c.fetchone()
-            if subject is None:
-                await ctx.send("ERROR! That SubjectID does not exist in the DB")
-                raise discord.ext.commands.CommandError
-            try:
-                await self.send_lecture_start(subject[1], subject[2], stream_url, channel_id=channel_id, role_id=role_id)
-            except Exception as e:
-                await ctx.send(f"ERROR! Can't send embed message:\n`{e}`")
-        else:
-            raise discord.ext.commands.errors.NotOwner
+        c = self.conn.cursor()
+        c.execute("SELECT SubjectID, SubjectName, SubjectLink FROM Subjects WHERE SubjectID=? LIMIT 1", (subject_id,))
+        subject = c.fetchone()
+        if subject is None:
+            await ctx.send("ERROR! That SubjectID does not exist in the DB")
+            raise discord.ext.commands.CommandError
+        try:
+            await self.send_lecture_start(subject[1], subject[2], stream_url, channel_id=channel_id, role_id=role_id)
+        except Exception as e:
+            await ctx.send(f"ERROR! Can't send embed message:\n`{e}`")
 
     def get_starting_subject(self, semester=2):
         c = self.conn.cursor()

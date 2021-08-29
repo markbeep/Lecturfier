@@ -22,7 +22,6 @@ class MainBot(commands.Cog):
             "updates",
             "information",
             "draw",
-            "buttons",
             "mainbot"
         ]
 

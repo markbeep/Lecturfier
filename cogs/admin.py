@@ -19,7 +19,6 @@ class Admin(commands.Cog):
         self.bot_prefix_path = "./data/bot_prefix.json"
         with open(self.bot_prefix_path, "r") as f:
             self.all_prefix = json.load(f)
-        self.secret_channels = {}
         self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
         self.welcome_message_id = SQLFunctions.get_config("WelcomeMessage", self.conn)
@@ -99,10 +98,6 @@ class Admin(commands.Cog):
     async def on_message(self, message):
         if message.author.id == 755781649643470868 or message.author.id == 776713845238136843:
             return
-        if message.channel.id in self.secret_channels:
-            if time.time() < self.secret_channels[message.channel.id][0]:
-                await asyncio.sleep(self.secret_channels[message.channel.id][1])
-                await message.delete()
         if message.channel.id in [747776646551175217, 768600365602963496]:  # bot channels
             if message.content.lower().startswith("prefix") or message.content.lower().startswith("prefixes"):
                 args = message.content.split(" ")
@@ -317,37 +312,20 @@ class Admin(commands.Cog):
         In <#747776646551175217> and <#768600365602963496> you can simply type `prefix` to get \
         a list of prefixes.
         """
+        if ctx.message.channel != 747752542741725244:
+            await ctx.reply("This command is not supported on this server.")
+            return
         await self.send_prefix(ctx.message, command, prefix, args)
 
-    @commands.cooldown(1, 5, BucketType.user)
-    @commands.command(aliases=["secret"], usage="elthision [<time in seconds> [<delete after in seconds>]]")
-    @commands.has_permissions(administrator=True)
-    async def elthision(self, ctx, seconds=10, delete=2.0):
-        """
-        Deletes messages after the given seconds for the next given amount of seconds.
-        Default is for 10 seconds and deletes messages after 2.0 seconds.
-
-        `elthision 20 1.5` will delete all messages after 1.5 seconds for the next 20 seconds.
-        Permissions: Administrator
-        """
-        self.secret_channels[ctx.message.channel.id] = [time.time() + seconds, delete]
-        await ctx.send(f"All messages will be deleted after {delete} seconds for the next `{seconds}` seconds.\n" + "<:that:758262252699779073>" * 10)
-        await asyncio.sleep(seconds)
-        if ctx.message.channel.id in self.secret_channels:
-            self.secret_channels.pop(ctx.message.channel.id)
-            await ctx.send("<:elthision:787256721508401152>\n" + "<:this:747783377662378004>" * 10 + "\nMessages are not Elthision anymore.")
-
     @commands.command(usage="testWelcome")
+    @commands.is_owner()
     async def testWelcome(self, ctx):
         """
         Is used to test the welcome message when a new member joins or leaves the server.
         Permissions: Owner
         """
-        if await self.bot.is_owner(ctx.author):
-            await self.send_welcome_message(ctx, ctx.author, ctx.message.guild)
-            await self.send_leave_message(ctx, ctx.author, ctx.message.guild)
-        else:
-            raise discord.ext.commands.errors.NotOwner
+        await self.send_welcome_message(ctx, ctx.author, ctx.message.guild)
+        await self.send_leave_message(ctx, ctx.author, ctx.message.guild)
 
     async def send_welcome_message(self, channel, user, guild):
         embed = discord.Embed(description=f"{user.mention} joined the server. **Welcome!**", color=0xadd8e6)
@@ -368,13 +346,23 @@ class Admin(commands.Cog):
 
     @commands.cooldown(1, 5, BucketType.user)
     @commands.command(usage="ban <user>")
-    async def ban(self, ctx, person):
+    async def ban(self, ctx, person, *, reason=None):
         """
         Plays a little joke and "bans" the given user
         """
-        await ctx.send(f"Banning {person}...")
+        embed = discord.Embed(
+            title="Banning...",
+            description=f"`Who:` {person}\n`Executed by:` {ctx.message.author.mention}\n`Reason:` {str(reason)}",
+            color=discord.Color.red()
+        )
+        embed.set_thumbnail(url="https://c.tenor.com/n9bi4Y3smL0AAAAC/ban-hammer.gif")
+        await ctx.send(embed=embed)
         await asyncio.sleep(10)
-        await ctx.send("Was justa prank brudi")
+        embed = discord.Embed(
+            description=f"Was just a prank brudi {person}",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
 
 
 def setup(bot):

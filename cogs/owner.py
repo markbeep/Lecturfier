@@ -9,6 +9,7 @@ from sqlite3 import Error
 import sqlite3
 from tabulate import tabulate
 from datetime import datetime
+from pytz import timezone
 
 
 def isascii(s):
@@ -59,10 +60,6 @@ class Owner(commands.Cog):
                 button_value = button.label
                 if button_value.isnumeric():
                     button_value = int(button_value)
-                    # we check to make sure its not a fake button with a lot higher score
-                    if self.old_value + 5 < button_value:
-                        print("Fake button detected")
-                        return
                     if not self.sent_message and button_value >= self.watch_button_value:
                         user = self.bot.get_user(205704051856244736)
                         embed = discord.Embed(
@@ -78,7 +75,8 @@ class Owner(commands.Cog):
                         self.sent_message = True
                     elif button_value < self.old_value:
                         # the button was clicked and the score went down
-                        dt = datetime.fromtimestamp(time.time() + 60 * (self.watch_button_value - button_value))
+                        dt = datetime.fromtimestamp(time.time() + 60 * (self.watch_button_value - button_value), tz=timezone("Europe/Zurich"))
+                        self.sent_message = False
                         user = self.bot.get_user(205704051856244736)
                         embed = discord.Embed(
                             title="Button was clicked.",
@@ -110,6 +108,7 @@ class Owner(commands.Cog):
             # saves the value to watch into config
             SQLFunctions.insert_or_update_config("ButtonValue", int(val), self.conn)
             self.watch_button_value = int(val)
+            self.old_value = 1e6
             self.sent_message = False
             await ctx.send("ok", delete_after=5)
 

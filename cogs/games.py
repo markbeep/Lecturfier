@@ -117,22 +117,6 @@ class Games(commands.Cog):
                 self.clap_counter = 0
                 await message.channel.send("👏\n👏\n👏")
 
-    @commands.Cog.listener()
-    async def on_reaction_add(self, reaction, member):
-        if member.bot:
-            return
-        if member.guild_permissions.kick_members:
-            if len(reaction.message.embeds) > 0 and reaction.message.embeds[0].title is not discord.Embed.Empty and "Covid Guesser Profile" in reaction.message.embeds[0].title:
-                if str(reaction) == "<:checkmark:776717335242211329>":
-                    await self.confirm_msg.delete()
-                    self.confirm_msg = None
-                    await self.send_message(reaction.message.channel, self.confirmed_cases)
-                elif str(reaction) == "<:xmark:776717315139698720>":
-                    await self.confirm_msg.delete()
-                    self.confirm_msg = None
-                    self.confirmed_cases = 0
-                    await reaction.message.channel.send("Confirmed cases amount was stated as being wrong and was therefore deleted.")
-
     async def send_message(self, channel, confirmed_cases):
         points_list = await self.point_distribute(confirmed_cases)
         embed = discord.Embed(title="Covid Guesses",
@@ -226,7 +210,7 @@ class Games(commands.Cog):
                 embed = discord.Embed(title=f"Error", description="There are no covid guessing points yet", color=0xFF0000)
         await ctx.send(embed=embed)
 
-    @commands.cooldown(4, 10, BucketType.user)
+    @commands.cooldown(1, 10, BucketType.user)
     @commands.guild_only()
     @commands.command(aliases=["g"], usage="guess [guess amount | lb | avg]")
     async def guess(self, ctx, number=None, confirmed_number=None):
@@ -242,10 +226,6 @@ class Games(commands.Cog):
         leaderboard_aliases = ["leaderboard", "lb", "top", "best", "ranking"]
         average_aliases = ["avg", "average"]
 
-        # Get the current hour and minute
-        hour = int(datetime.now(timezone("Europe/Zurich")).strftime("%H"))
-        minute = int(datetime.now(timezone("Europe/Zurich")).strftime("%M"))
-
         await ctx.message.delete()
 
         if number is None:
@@ -256,7 +236,7 @@ class Games(commands.Cog):
                 return
             async with ctx.typing():
                 guesser = guesser[0]
-                image_url = f"https://robohash.org/{guesser.member.UniqueMemberID}.png"
+                image_url = str(ctx.message.author.avatar_url_as(format="png"))
                 try:
                     async with aiohttp.ClientSession() as cs:
                         async with cs.get(image_url) as r:

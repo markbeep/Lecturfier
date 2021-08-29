@@ -349,7 +349,7 @@ class Draw(commands.Cog):
         embed = discord.Embed(title="Started Drawing", description=self.draw_desc(ID))
         await ctx.send(embed=embed)
 
-    @commands.guild_only()
+    @commands.is_owner()
     @commands.cooldown(1, 30, BucketType.guild)
     @draw.command(aliases=["m"], usage="multi <x1> <x2> <y1> <y2> {mods}")
     async def multi(self, ctx, x1=None, x2=None, y1=None, y2=None, *mods):

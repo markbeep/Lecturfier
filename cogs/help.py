@@ -17,17 +17,21 @@ class Help(commands.HelpCommand):
         for cog, cmds in sorted(mapping.items(), key=lambda e: len(e[1]), reverse=True):
             if len(cmds) > 0:
                 cog_name = getattr(cog, "qualified_name", "Other")
-                msg = f"```asciidoc\n"
+                msg = f"```md\n"
                 for com in sorted(cmds, key=lambda e: e.name):
-                    if com.help is None:
-                        prefix = "-"
-                    else:
+                    try:
+                        run = await com.can_run(self.context)
+                    except:
+                        run = False
+                    if run:
                         prefix = "*"
+                    else:
+                        prefix = ">"
                     msg += f"{prefix} {com}\n"
                 msg += "```"
                 embed.add_field(name=f"{cog_name}", value=msg)
 
-        embed.set_footer(text=f"Commands with a star (*) have extra info when viewed with {bot_prefix}help <command>")
+        embed.set_footer(text=f"Use {bot_prefix}help <command / category> to get more information.")
         embed.set_author(name=self.context.message.author.name, icon_url=self.context.message.author.avatar_url)
         file = discord.File("./images/help_page.gif")
         channel = self.get_destination()

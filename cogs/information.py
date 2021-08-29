@@ -359,62 +359,6 @@ class Information(commands.Cog):
             )
         await ctx.send(embed=embed)
 
-    @commands.cooldown(4, 10, BucketType.user)
-    @commands.command(aliases=["cypher"], usage="cipher <amount to displace> <msg>")
-    async def cipher(self, ctx, amount=None, *msg):
-        """
-        This is Caesar's cipher, but instead of only using the alphabet, it uses all printable characters.
-        Negative values are allowed and can be used to decipher messages.
-        """
-        printable = list(string.printable)
-        printable = printable[0:-5]
-        if len(msg) == 0:
-            await ctx.send("No message specified.")
-            raise discord.ext.commands.errors.BadArgument
-        try:
-            amount = int(amount)
-        except ValueError:
-            await ctx.send("Amount is not an int.")
-            raise discord.ext.commands.errors.BadArgument
-        msg = " ".join(msg)
-        encoded_msg = ""
-        amount = amount % len(printable)
-        for letter in msg:
-            index = printable.index(letter) + amount
-            if index >= len(printable) - 1:
-                index = index - (len(printable))
-            encoded_msg += printable[index]
-
-        encoded_msg = encoded_msg.replace('`', '').replace('\\', '')
-        embed = discord.Embed(title="Cipher", description=f"```\n{encoded_msg}```")
-        await ctx.send(embed=embed)
-
-    @commands.cooldown(4, 10, BucketType.user)
-    @commands.command(usage="hash <OpenSSL algo> <msg>")
-    async def hash(self, ctx, algo=None, *msg):
-        """
-        Hash a message using an OpenSSL algorithm (sha256 for example).
-        """
-        if algo is None:
-            await ctx.send("No Algorithm given. `$hash <OPENSSL algo> <msg>`")
-            raise discord.ext.commands.errors.BadArgument
-        try:
-            joined_msg = " ".join(msg)
-            msg = joined_msg.encode('UTF-8')
-            h = hashlib.new(algo)
-            h.update(msg)
-            output = h.hexdigest()
-            embed = discord.Embed(
-                title=f"**Hashed message using {algo.lower()}**",
-                colour=0x000000
-            )
-            embed.add_field(name="Input:", value=f"{joined_msg}", inline=False)
-            embed.add_field(name="Output:", value=f"`{output}`", inline=False)
-            await ctx.send(embed=embed)
-        except ValueError:
-            await ctx.send("Invalid hash type. Most OpenSSL algorithms are supported. Usage: `$hash <hash algo> <msg>`")
-            raise discord.ext.commands.errors.BadArgument
-
     @commands.guild_only()
     @commands.group(aliases=["events"], usage="event [add/view/edit/delete/join/leave] [event name/event ID] [date] [time] [description]", invoke_without_command=True)
     async def event(self, ctx, command=None):
@@ -858,31 +802,6 @@ class Information(commands.Cog):
             await channel.set_permissions(member, read_messages=True, reason="User joined event")
         elif command == "leave":
             await channel.set_permissions(member, overwrite=None, reason="User left event")
-
-    @commands.guild_only()
-    @commands.command(usage="cache <user ID | username>")
-    async def cache(self, ctx, user_id=None):
-        if user_id is None:
-            await ctx.reply("You seem to have forgotten a user ID or username.", delete_after=5)
-            raise discord.ext.commands.errors.BadArgument
-        try:
-            member = ctx.message.guild.get_member(int(user_id))
-            if member is None:
-                member = await ctx.message.guild.fetch_member(int(user_id))
-        except ValueError:
-            member = ctx.message.guild.get_member_named(user_id)
-        if member is None:
-            await ctx.reply("There doesn't seem to be a user with that ID or username on this Discord server. Usernames need to be case sensitive. "
-                            "They can either be the nickname or the username or username + discriminator.", delete_after=15)
-            raise discord.ext.commands.errors.BadArgument
-        msg = await ctx.send("brrrrrrrrrrrrrr")
-        await msg.edit(content=member.mention)
-        await msg.edit(content=f"Successfully loaded {str(member)} into cache.")
-        await msg.delete(delay=10)
-        try:
-            await ctx.message.delete(delay=10)
-        except (discord.NotFound, discord.Forbidden):
-            pass
 
 
 def setup(bot):
