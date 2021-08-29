@@ -27,7 +27,7 @@ class Hangman(commands.Cog):
                 corrected += s
         return corrected
 
-    @commands.cooldown(1, 20, BucketType.channel)
+    @commands.cooldown(1, 5, BucketType.channel)
     @commands.group(aliases=["hm"], invoke_without_command=True, usage="hm")
     async def hangman(self, ctx):
         """
@@ -132,7 +132,7 @@ class Hangman(commands.Cog):
                 await msg.delete()
             await ctx.send(embed=embed, components=[])
 
-    @commands.cooldown(1, 20, BucketType.user)
+    @commands.cooldown(1, 5, BucketType.user)
     @hangman.command(name="solve", usage="solve <word up till now> <wrong letters or 0> <language>")
     async def solve_hangman(self, ctx, inputted_word=None, unused_letters="", language="e"):
         """
@@ -158,6 +158,7 @@ class Hangman(commands.Cog):
                 unused_letters = self.clean_string(unused_letters)
                 inputted_word = self.clean_string(inputted_word)
                 if len(inputted_word) == 0:
+                    self.sending = False
                     await ctx.send("Invalid input word")
                     return
 
