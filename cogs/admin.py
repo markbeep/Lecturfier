@@ -319,7 +319,7 @@ class Admin(commands.Cog):
         In <#747776646551175217> and <#768600365602963496> you can simply type `prefix` to get \
         a list of prefixes.
         """
-        if ctx.message.channel != 747752542741725244:
+        if ctx.message.guild.id != 747752542741725244:
             await ctx.reply("This command is not supported on this server.")
             return
         await self.send_prefix(ctx.message, command, prefix, args)
