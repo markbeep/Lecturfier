@@ -1,3 +1,5 @@
+import math
+
 import discord
 from discord.ext import commands, tasks
 from datetime import datetime
@@ -789,6 +791,65 @@ class Information(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
 
         await ctx.send(f"Mass event ping by {ctx.message.author.mention} for the event **{event_name}**\n||{ping_msg}||")
+
+    @event.command(usage="list <event ID>")
+    async def list(self, ctx, event_id=None):
+        """
+        Lists all joined people of an event.
+        """
+        if event_id is None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to ping users on.",
+                           delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+        if not event_id.isnumeric():
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, the given event ID is not an integer.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        event = SQLFunctions.get_event_by_id(event_id, self.conn)
+        if event is None:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        joined_members: list[SQLFunctions.DiscordMember] = SQLFunctions.get_event_joined_users(event, self.conn)
+        if len(joined_members) == 0:
+            await ctx.send(f"ERROR! {ctx.message.author.mention}, the event has no joined users.", delete_after=10)
+            await ctx.message.delete(delay=10)
+            raise discord.ext.commands.errors.BadArgument
+
+        all_columns = []
+        event_name = event.EventName
+        COLUMNS = 2
+        per_column = math.ceil(len(joined_members) / COLUMNS)
+        single_column = []
+        for member in joined_members:
+            if len(single_column) == per_column:
+                all_columns.append(single_column)
+                single_column = []
+            user = ctx.message.guild.get_member(member.DiscordUserID)
+            if user is None:
+                user = await ctx.message.guild.fetch_member(member.DiscordUserID)
+            if user is None:
+                username = member.User.DisplayName
+            else:
+                username = user.display_name
+            single_column.append(f"* {username}".replace("`", "").replace("\\", ""))
+        if len(single_column) > 0:
+            all_columns.append(single_column)
+        embed = discord.Embed(
+            title=f"List of Members in Event {event_id}",
+            description=f"All members in {event_name}:",
+            color=0xFCF4A3
+        )
+        for field in all_columns:
+            joined_msg = '\n'.join(field)
+            embed.add_field(name="\u200B", value=f"```md\n{joined_msg}```")
+
+        embed.set_footer(text=f"Event ID: {event_id}")
+
+        await ctx.send(embed=embed)
 
     async def set_event_channel_perms(self, member, channel_id, command):
         """
