@@ -127,7 +127,9 @@ class Reputation(commands.Cog):
 
         display_name = member.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
         msg = f"```diff\nReputations: {display_name}\n__________________________\n{reputation_msg}```"
-        await message.channel.send(msg)
+        embed = discord.Embed(description=msg)
+        embed.set_footer(icon_url=member.avatar_url, text=str(member))
+        await message.channel.send(embed=embed)
 
     def check_valid_time(self, member: SQLFunctions.DiscordMember):
         result = SQLFunctions.get_most_recent_time(member, self.conn)
