@@ -766,7 +766,7 @@ def insert_or_update_voice_level(member: discord.Member, experience_amount=0, co
     discord_member = get_or_create_discord_member(member, conn=conn)
     sql = """   UPDATE OR IGNORE VoiceLevels
                 SET ExperienceAmount = ExperienceAmount + ?
-                WHERE UniqueMemberID =?"""
+                WHERE UniqueMemberID = ?"""
     try:
         rows_changed = conn.execute(sql, (experience_amount, discord_member.UniqueMemberID)).rowcount
     finally:
@@ -774,5 +774,86 @@ def insert_or_update_voice_level(member: discord.Member, experience_amount=0, co
     if rows_changed == 0:
         try:
             conn.execute("INSERT INTO VoiceLevels(UniqueMemberID, ExperienceAmount) VALUES (?,?)", (discord_member.UniqueMemberID, experience_amount))
+        finally:
+            conn.commit()
+
+
+def get_command_level(command_name: str, user_id: int, role_ids: list[int], channel_id: int, guild_id: int, conn=connect()) -> int:
+    command_name = command_name.lower()
+    role_or_msg = " OR ID = ?" * len(role_ids)
+    result = conn.execute(f"SELECT PermissionLevel, Tag FROM CommandPermissions WHERE CommandName=? AND (ID = ? OR ID = ? OR ID = ? {role_or_msg})",
+                          (command_name, user_id, channel_id, guild_id, *role_ids)).fetchall()
+    user_level = 0
+    role_level = 0
+    channel_level = 0
+    guild_level = 0
+    for res in result:
+        if res[1] == 0:
+            continue
+        if res[1] == "USER":
+            user_level = res[0]
+        if res[1] == "ROLE":  # if there's a single role which allows it, allow the command
+            if role_level == 1:
+                continue
+            role_level = res[0]
+        elif res[1] == "CHANNEL":
+            channel_level = res[0]
+        elif res[1] == "GUILD":
+            guild_level = res[0]
+    if user_level != 0:
+        return user_level
+    if role_level != 0:
+        return role_level
+    if channel_level != 0:
+        return channel_level
+    return guild_level
+
+
+class CommandLevel:
+    def __init__(self, command_name, args):
+        self.name = command_name
+        self.guild_levels = {}
+        self.channel_levels = {}
+        self.role_levels = {}
+        self.user_levels = {}
+        for res in args:
+            ID = res[0]
+            perm_level = res[1]
+            tag = res[2]
+            if tag == "GUILD":
+                self.guild_levels[ID] = perm_level
+            elif tag == "CHANNEL":
+                self.channel_levels[ID] = perm_level
+            elif tag == "ROLE":
+                self.role_levels[ID] = perm_level
+            elif tag == "USER":
+                self.user_levels[ID] = perm_level
+
+
+def get_all_command_levels(command_name: str, conn=connect()) -> CommandLevel:
+    command_name = command_name.lower()
+    result = conn.execute("SELECT ID, PermissionLevel, Tag FROM CommandPermissions WHERE CommandName=?", (command_name,)).fetchall()
+    return CommandLevel(command_name, result)
+
+
+def insert_or_update_command_level(command_name: str, ID: int, permission_level: int, object_being_added: str, conn=connect()):
+    command_name = command_name.lower()
+    if permission_level == 0:
+        # delete entry if perm level is 0
+        try:
+            conn.execute("DELETE FROM CommandPermissions WHERE CommandName=? AND ID=?", (command_name, ID))
+        finally:
+            conn.commit()
+        return
+    sql = """   UPDATE OR IGNORE CommandPermissions
+                SET PermissionLevel = ?
+                WHERE CommandName = ? AND ID = ?"""
+    try:
+        rows_changed = conn.execute(sql, (permission_level, command_name, ID)).rowcount
+    finally:
+        conn.commit()
+    if rows_changed == 0:
+        try:
+            conn.execute("INSERT INTO CommandPermissions(CommandName, ID, PermissionLevel, Tag) VALUES (?, ?, ?, ?)", (command_name, ID, permission_level, object_being_added))
         finally:
             conn.commit()

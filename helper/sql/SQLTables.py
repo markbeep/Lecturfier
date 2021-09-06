@@ -137,11 +137,6 @@ QuoteAliases = """  CREATE TABLE IF NOT EXISTS "QuoteAliases" (
                                     "NameFrom" TEXT NOT NULL,
                                     "NameTo" TEXT NOT NULL
                                     );"""
-Config = """   CREATE TABLE IF NOT EXISTS "Config" (
-                                    "ConfigID" INTEGER PRIMARY KEY,
-                                    "ConfigKey" TEXT NOT NULL,
-                                    "ConfigValue" INTEGER NOT NULL
-                                    );"""
 QuotesToRemove = """   CREATE TABLE IF NOT EXISTS "QuotesToRemove" (
                                     "QuoteID" INTEGER PRIMARY KEY,
                                     "UniqueMemberID" INTEGER,
@@ -149,10 +144,22 @@ QuotesToRemove = """   CREATE TABLE IF NOT EXISTS "QuotesToRemove" (
                                     FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID") ON DELETE CASCADE,
                                     FOREIGN KEY("QuoteID") REFERENCES "Quotes"("QuoteID") ON DELETE CASCADE
                                     );"""
+Config = """   CREATE TABLE IF NOT EXISTS "Config" (
+                                    "ConfigID" INTEGER PRIMARY KEY,
+                                    "ConfigKey" TEXT NOT NULL,
+                                    "ConfigValue" INTEGER NOT NULL
+                                    );"""
+CommandPermissions = """    CREATE TABLE IF NOT EXISTS "CommandPermissions" (
+                                "PermissionID" INTEGER PRIMARY KEY,
+                                "CommandName" TEXT,
+                                "ID" INTEGER NOT NULL,
+                                "PermissionLevel" INTEGER DEFAULT 0,
+                                "Tag" TEXT -- tag is for finding out what object ID was added
+                                );"""
 
 all_tables = [DiscordUsers, DiscordGuilds, DiscordChannels, DiscordMembers, Subjects, WeekDayTimes,
               UserStatistics, VoiceLevels, CovidGuessing, Reputations, Events, EventJoinedUsers,
-              Quotes, QuoteAliases, QuotesToRemove, Config]
+              Quotes, QuoteAliases, QuotesToRemove, Config, CommandPermissions]
 
 
 def create_tables():

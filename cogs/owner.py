@@ -10,6 +10,7 @@ import sqlite3
 from tabulate import tabulate
 from datetime import datetime
 from pytz import timezone
+from enum import Enum
 
 
 def isascii(s):
@@ -31,6 +32,13 @@ def loading_bar(bars, max_length=None, failed=None):
         return "<:red_box:764901465872662528>"*bars  # Red square
     else:
         return "<:green_box:764901465948684289>"*bars  # Green square
+
+
+class IDType(Enum):
+    USER = 1
+    ROLE = 2
+    CHANNEL = 3
+    GUILD = 4
 
 
 class Owner(commands.Cog):
@@ -111,6 +119,109 @@ class Owner(commands.Cog):
             self.old_value = 1e6
             self.sent_message = False
             await ctx.send("ok", delete_after=5)
+
+    @commands.is_owner()
+    @commands.group(usage="perm <command>", invoke_without_command=True)
+    async def perm(self, ctx, command=None):
+        """
+        Can be used to edit or view permissions for a command.
+        For more information view the `add` subcommand.
+        Permissions: Owner
+        """
+        if ctx.invoked_subcommand is None:
+            if command is None:
+                await ctx.reply("ERROR! No command to view given.")
+                raise discord.ext.commands.BadArgument
+            if command.lower() not in [com.name.lower() for com in self.bot.commands]:
+                await ctx.reply("ERROR! Command not found. Did you maybe mistype a subcommand?")
+                raise discord.ext.commands.BadArgument
+            command_level = SQLFunctions.get_all_command_levels(command.lower(), self.conn)
+            embed = discord.Embed(
+                description=f"Dynamic permissions for `{command.lower()}`:",
+                color=discord.Color.blue()
+            )
+            user_msg = "\n".join(f"* {k}: {v}" for k, v in command_level.user_levels.items())
+            role_msg = "\n".join(f"* {k}: {v}" for k, v in command_level.role_levels.items())
+            channel_msg = "\n".join(f"* {k}: {v}" for k, v in command_level.channel_levels.items())
+            guild_msg = "\n".join(f"* {k}: {v}" for k, v in command_level.guild_levels.items())
+            embed.add_field(name="User", value=f"```md\n{user_msg} ```")
+            embed.add_field(name="Role", value=f"```md\n{role_msg} ```")
+            embed.add_field(name="\u200b", value="\u200b", inline=False)
+            embed.add_field(name="Channel", value=f"```md\n{channel_msg} ```")
+            embed.add_field(name="Guild", value=f"```md\n{guild_msg} ```")
+            await ctx.reply(embed=embed)
+
+    @commands.is_owner()
+    @perm.command(usage="add <command name> <object ID> <permission Level [-1|0|1]>", name="add", aliases=["addPerm", "change"])
+    async def addPerm(self, ctx, command_name=None, object_id=None, permission_level=None):
+        """
+        Sets the permission for a command name and the given ID.
+        0: default value
+        -1: command is disabled for that ID
+        1: command is enabled for that ID
+        Hierarchy is as follows: USER > ROLE > CHANNEL > GUILD
+        For roles, if any of the roles allow the command, the user can use the command. \
+        Additionally when adding roles, one can do simply do `&23123...` without the `<@>` stuff, not to ping \
+        by accident. User, channels and guilds can be added by simply putting in the ID.
+        Permissions: Owner
+        """
+        if command_name is None:
+            await ctx.reply("ERROR! No command name given.")
+            raise discord.ext.commands.BadArgument
+        if object_id is None:
+            await ctx.reply("ERROR! No ID given.")
+            raise discord.ext.commands.BadArgument
+
+        # to handle what type of object ID we are given
+        try:
+            if "&" in object_id:
+                object_id = int(object_id.replace("<@", "").replace("&", "").replace(">", "").replace("!", ""))
+                object_type = IDType.ROLE
+            elif "@" in object_id:
+                object_id = int(object_id.replace("<@", "").replace("!", "").replace(">", ""))
+                object_type = IDType.USER
+            elif "#" in object_id:
+                object_id = int(object_id.replace("<#", "").replace(">", ""))
+                object_type = IDType.CHANNEL
+            else:
+                object_id = int(object_id)
+                discord_object = self.bot.get_guild(object_id)
+                if discord_object is None:
+                    discord_object = self.bot.get_channel(object_id)
+                    if discord_object is None:
+                        discord_object = self.bot.get_user(object_id)
+                        if discord_object is None:
+                            await ctx.reply("ERROR! No object was found with the given ID.")
+                            raise discord.ext.commands.BadArgument
+                        else:
+                            object_type = IDType.USER
+                    else:
+                        object_type = IDType.CHANNEL
+                else:
+                    object_type = IDType.GUILD
+
+        except ValueError:
+            await ctx.reply("ERROR! Incorrect ID given. Either mention or simply write the ID.")
+            raise discord.ext.commands.BadArgument
+        if permission_level is None:
+            await ctx.reply("ERROR! No permission level given.")
+            raise discord.ext.commands.BadArgument
+        try:
+            permission_level = int(permission_level)
+        except ValueError:
+            await ctx.reply("ERROR! The given permission level is not an int.")
+            raise discord.ext.commands.BadArgument
+        if command_name.lower() not in [com.name.lower() for com in self.bot.commands]:
+            await ctx.reply("ERROR! No command with that name found.")
+            raise discord.ext.commands.BadArgument
+
+        SQLFunctions.insert_or_update_command_level(command_name.lower(), object_id, permission_level, object_type.name, self.conn)
+
+        embed = discord.Embed(description=f"Successfully changed permissions for `{command_name.lower()}` with level `{permission_level}` for "
+                                          f"`{object_type.name}` with ID `{object_id}`",
+                              color=discord.Color.green())
+        await ctx.reply(embed=embed)
+
 
     @commands.is_owner()
     @commands.command(usage="sql <command>")

@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands, tasks
-from discord.ext.commands import CommandOnCooldown
+from discord.ext.commands import CommandOnCooldown, CheckFailure
 from datetime import datetime
 import time
 from emoji import demojize
@@ -63,7 +63,10 @@ class Statistics(commands.Cog):
         else:
             if isinstance(error, CommandOnCooldown):
                 embed = discord.Embed(description=str(error), color=0x8F0000)
-                await ctx.send(embed=embed, delete_after=3)
+                await ctx.reply(embed=embed, delete_after=3)
+            if isinstance(error, CheckFailure):
+                embed = discord.Embed(description="This command is disabled for you, your role, this channel or this guild.", color=0x8F0000)
+                await ctx.reply(embed=embed, delete_after=5)
             try:
                 await ctx.message.add_reaction("<:ERROR:792154973559455774>")
             except discord.errors.NotFound:

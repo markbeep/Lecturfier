@@ -52,30 +52,28 @@ class MainBot(commands.Cog):
                 log("Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)), print_it=True, warning=True)
         return count
 
+    @commands.is_owner()
     @commands.command()
     async def reload(self, ctx, cog=None):
         """
         Used to reload a cog. Does not load a cog if the cog is unloaded.
         Permissions: Owner
         """
-        if await self.bot.is_owner(ctx.author):
-            if cog is None:
-                cog_list = '\n'.join(self.startup_extensions)
-                await ctx.send(f"Following cogs exist:\n"
-                               f"{cog_list}")
-            elif cog in self.startup_extensions:
+        if cog is None:
+            cog_list = '\n'.join(self.startup_extensions)
+            await ctx.send(f"Following cogs exist:\n"
+                           f"{cog_list}")
+        elif cog in self.startup_extensions:
+            await ctx.send(await self.reload_cog(cog))
+            await ctx.send(f"DONE - Reloaded `{cog}`")
+        elif cog == "all":
+            await ctx.send("Reloading all cogs")
+            log("Reloading all cogs", "COGS")
+            for cog in self.startup_extensions:
                 await ctx.send(await self.reload_cog(cog))
-                await ctx.send(f"DONE - Reloaded `{cog}`")
-            elif cog == "all":
-                await ctx.send("Reloading all cogs")
-                log("Reloading all cogs", "COGS")
-                for cog in self.startup_extensions:
-                    await ctx.send(await self.reload_cog(cog))
-                await ctx.send("DONE - Reloaded all cogs")
-            else:
-                await ctx.send(f"Cog does not exist.")
+            await ctx.send("DONE - Reloaded all cogs")
         else:
-            raise discord.ext.commands.errors.NotOwner
+            await ctx.send(f"Cog does not exist.")
 
     async def reload_cog(self, cog):
         if await self.stop_bg_task(cog):
