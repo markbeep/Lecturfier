@@ -203,7 +203,7 @@ class Information(commands.Cog):
         self.script_start = time.time()
 
     async def join_leave_event(self, member, guild_id, command, message_id=None, event_id=None) -> SQLFunctions.Event:
-        event_results = SQLFunctions.get_events(self.conn, is_done=False, guild_id=guild_id)
+        event_results = SQLFunctions.get_events(self.conn, guild_id=guild_id)
         for e in event_results:
             if e.UpdatedMessageID == message_id or e.EventID == event_id:
                 event = e
