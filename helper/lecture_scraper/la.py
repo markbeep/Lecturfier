@@ -2,6 +2,7 @@ from helper.lecture_scraper.helpers import other_event, check_wrapper
 from bs4 import BeautifulSoup as bs
 from urllib.parse import urljoin
 
+
 def la_check(url: str, online_soup: bs, local_soup: bs):
     """
     compares online_soup to local_soup
@@ -12,7 +13,12 @@ def la_check(url: str, online_soup: bs, local_soup: bs):
     sel_path_lec = "table:nth-of-type(1) > tr:not(:first-child)"
 
     def decode_lec(tr):
+        """
+        Returns a dict with the changes or None if theres's no matching lecture updates.
+        """
         tds = tr.select("td")
+        if len(tds) < 3:
+            return
         a = tds[2].select_one("a")
         return {
             "date": tds[0].text.strip(),

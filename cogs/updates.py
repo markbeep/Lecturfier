@@ -46,20 +46,24 @@ def get_month_day(dt, weekday):
 class Updates(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        with open("./data/schedule.json", "r") as f:
-            self.schedule = json.load(f)
-        with open("./data/settings.json", "r") as f:
-            self.settings = json.load(f)
-        self.channel_to_post = self.settings[self.settings["channel_to_post"]]
-        self.test_livestream_message = self.settings["test_livestream_message"]
-        self.send_message_to_finn = self.settings["send_message_to_finn"]
-        self.lecture_updater_version = "v2.4"
+        self.send_message_to_finn = False
+        self.lecture_updater_version = "v1.0"
         self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
-        # WE CURRENTLY DON'T RUN THE BACKGROUND LOOP FOR LECTURE UPDATES
-        # self.background_loop.start()
+        self.channel_to_post = SQLFunctions.get_config("channel_to_post_updates", self.conn)
+        self.background_loop.start()
         self.current_activity = ""
-        self.sent_updates = False
+        self.sent_updates = {1: False, 2: False, 3: False, 4: False, 5: False, 6: False}
+        self.semester_numbers = {
+            "hs": [1, 3, 5],
+            "fs": [2, 4, 6]
+        }
+        self.lecture_updates_role_ids = {
+            "first": 885810281358446623,
+            "second": 885810349121622056,
+            "third": 885810401969831978
+        }
+        self.sent_website_updates = False
 
     def heartbeat(self):
         return self.background_loop.is_running()
@@ -106,46 +110,58 @@ class Updates(commands.Cog):
     async def background_loop(self):
         await self.bot.wait_until_ready()
         try:
+            # Find out what semesters are currently going on
+            # Only works for the 3 bachelor years as of now
+            month = datetime.now().month
+            if 9 <= month <= 12:
+                semesters = self.semester_numbers["hs"]
+            elif 2 <= month <= 6:
+                semesters = self.semester_numbers["fs"]
+            else:
+                print("No subjects going on right now. So skipping the loop completely.")
+                return
+
             # Check what lectures are starting
             minute = datetime.now().minute
-            if not self.sent_updates and minute <= 5:
-                self.sent_updates = True
-                subject = self.get_starting_subject()
-                if subject is not None:
-                    await self.send_lecture_start(
-                        subject["SubjectName"],
-                        subject["SubjectLink"],
-                        subject["StreamLink"],
-                        self.channel_to_post,
-                        759615935496847412,  # Role to ping
-                        subject["ZoomLink"],
-                        subject["OnSiteLocation"])
-                    # Send in #lecture-distractions without ping
-                    await self.send_lecture_start(
-                        subject["SubjectName"],
-                        subject["SubjectLink"],
-                        subject["StreamLink"],
-                        755339832917491722,
-                        0,  # Role to ping
-                        subject["ZoomLink"],
-                        subject["OnSiteLocation"])
-                    # send in #lecture-questions without ping
-                    await self.send_lecture_start(
-                        subject["SubjectName"],
-                        subject["SubjectLink"],
-                        subject["StreamLink"],
-                        813397356837863454,
-                        0,  # Role to ping
-                        subject["ZoomLink"],
-                        subject["OnSiteLocation"])
+            for sem in semesters:
+                if not self.sent_updates[sem] and minute <= 5:
+                    role_id = 0
+                    if sem in [1, 2]:
+                        role_id = self.lecture_updates_role_ids["first"]
+                    elif sem in [3, 4]:
+                        role_id = self.lecture_updates_role_ids["second"]
+                    elif sem in [5, 6]:
+                        role_id = self.lecture_updates_role_ids["third"]
+                    subject = SQLFunctions.get_starting_subject(sem, self.conn)
+                    if subject is not None:
+                        await self.send_lecture_start(
+                            subject_name=subject.name,
+                            website_url=subject.website_link,
+                            stream_url=subject.stream_link,
+                            channel_id=756391202546384927,  # lecture updates channel,
+                            role_id=role_id,
+                            zoom_url=subject.zoom_link,
+                            subject_room=subject.on_site_location
+                        )
+                        self.sent_updates[sem] = True
             if minute > 5:
-                self.sent_updates = False
+                self.sent_updates = {1: False, 2: False, 3: False, 4: False, 5: False, 6: False}
 
             # Update activity status:
             # Disabled because semester 2 is over -------------------
             """time_till_next = self.get_time_till_next_lesson()
             if time_till_next != self.current_activity:
                 await self.bot.change_presence(activity=discord.Activity(name=time_till_next, type=discord.ActivityType.watching))"""
+
+            if not self.sent_website_updates and minute % 10 == 0 and self.bot.user.id == 776713845238136843 or self.bot.command_prefix == "$":
+                exercise_update_channel = self.bot.get_channel(756391202546384927)  # lecture updates channel
+                if exercise_update_channel is None:
+                    exercise_update_channel = self.bot.get_channel(402563165247766528)  # channel on bot testing server
+                if exercise_update_channel is not None:
+                    await self.check_updates(exercise_update_channel, self.lecture_updater_version)
+                self.sent_website_updates = True
+            elif minute % 10 != 0:
+                self.sent_website_updates = False
 
         except AttributeError as e:
             print(f"ERROR in Lecture Updates Loop! Probably wrong channel ID | {e}")
@@ -155,135 +171,284 @@ class Updates(commands.Cog):
             await user.send(f"Error in background loop: {traceback.format_exc()}")
             log(f"Error in background loop self.bot.py: {traceback.format_exc()}", "BACKGROUND")
 
-    @commands.command(usage="testLecture <subject_id> <channel_id> <role_id>")
     @commands.is_owner()
-    async def testLecture(self, ctx, subject_id=None, channel_id=None, role_id=0, stream_url=None):
+    @commands.command(usage="testLecture <semester> <day> <hour> [role ID to ping]")
+    async def testLecture(self, ctx, semester=None, day=None, hour=None, role_id=0):
         """
         Test the embed message for starting lectures
         Permissions: Owner
         """
         # Input/Error catching
-        if channel_id is None:
-            await ctx.send("ERROR! Not enough parameters: `$testLecture <subjectID> <channelID> [streamURL] [roleID to ping]`")
+        if day is None or hour is None:
+            await ctx.reply("ERROR! Not enough parameters. You need `<semester> <day> <hour> [role ID to ping]`.")
             raise discord.ext.commands.CommandError
         try:
-            channel = self.bot.get_channel(int(channel_id))
-            channel_id = int(channel_id)
+            semester = int(semester)
+            day = int(day)
+            hour = int(hour)
         except ValueError:
-            await ctx.send("ERROR! `channel_id` needs to be an integer")
-            raise discord.ext.commands.CommandError
-        if channel is None:
-            await ctx.send("ERROR! Can't retreive channel with that channel ID")
-            raise discord.ext.commands.CommandError
+            await ctx.reply("ERROR! Semester, day and hour need to be integers.")
+            raise discord.ext.commands.BadArgument
 
-        c = self.conn.cursor()
-        c.execute("SELECT SubjectID, SubjectName, SubjectLink FROM Subjects WHERE SubjectID=? LIMIT 1", (subject_id,))
-        subject = c.fetchone()
+        subject: SQLFunctions.Subject = SQLFunctions.get_starting_subject(semester, self.conn, day, hour)
         if subject is None:
-            await ctx.send("ERROR! That SubjectID does not exist in the DB")
-            raise discord.ext.commands.CommandError
+            await ctx.reply("No subject starting at that time.")
+            return
         try:
-            await self.send_lecture_start(subject[1], subject[2], stream_url, channel_id=channel_id, role_id=role_id)
+            await self.send_lecture_start(
+                subject_name=subject.name,
+                website_url=subject.website_link,
+                stream_url=subject.stream_link,
+                channel_id=756391202546384927,  # lecture updates channel,
+                role_id=role_id,
+                zoom_url=subject.zoom_link,
+                subject_room=subject.on_site_location
+            )
         except Exception as e:
-            await ctx.send(f"ERROR! Can't send embed message:\n`{e}`")
+            await ctx.reply(f"ERROR! Can't send embed message:\n`{e}`")
 
-    def get_starting_subject(self, semester=2):
-        c = self.conn.cursor()
-        sql = """   SELECT WD.SubjectID, S.SubjectName, S.SubjectLink, WD.StreamLink, WD.ZoomLink, WD.OnSiteLocation
-                    FROM WeekDayTimes WD
-                    INNER JOIN Subjects S on WD.SubjectID=S.SubjectID
-                    WHERE WD.DayID=? AND WD.TimeFROM=? AND S.SubjectSemester=?"""
-        day = datetime.now().weekday()
-        hour = datetime.now().hour
-        c.execute(sql, (day, hour, semester))
-        row = c.fetchone()
-        if row is None:
-            return None
-        return {"SubjectID": row[0], "SubjectName": row[1], "SubjectLink": row[2], "StreamLink": row[3], "ZoomLink": row[4], "OnSiteLocation": row[5]}
+    @commands.is_owner()
+    @commands.command(usage="addLecture", aliases=["addlecture"])
+    async def addLecture(self, ctx):
+        """
+        Allows the addition of new lecture times to the databse with a guided system.
+        Permissions: Owner
+        """
+        await ctx.reply("What is the subject full name? Type `stop` anytime to cancel the adding of the lecture.")
+
+        def check(m):
+            return m.author == ctx.message.author and m.channel == ctx.channel
+
+        try:
+            msg: discord.Message = await self.bot.wait_for("message", check=check, timeout=30)
+            if msg.content.lower() == "stop":
+                await ctx.reply("Adding subject canceled.")
+                return
+            subject_name = msg.content
+
+            await msg.reply("What is the subject abbreviation?")
+            msg: discord.Message = await self.bot.wait_for("message", check=check, timeout=30)
+            if msg.content.lower() == "stop":
+                await ctx.reply("Adding subject canceled.")
+                return
+            subject_abbreviation = msg.content
+
+            for i in range(5):
+                await msg.reply("What semester is the subject in?")
+                msg: discord.Message = await self.bot.wait_for("message", check=check, timeout=30)
+                if msg.content.lower() == "stop":
+                    await ctx.reply("Adding subject canceled.")
+                    return
+                try:
+                    subject_semester = int(msg.content)
+                    break
+                except ValueError:
+                    await msg.reply(f"The given value is not an integer. {5-i-1} retries remaining:")
+            else:
+                await ctx.reply("Adding subject canceled.")
+                return
+
+            await msg.reply("What is the subject website link? `-` or `0` to skip.")
+            msg: discord.Message = await self.bot.wait_for("message", check=check, timeout=30)
+            if msg.content.lower() == "stop":
+                await ctx.reply("Adding subject canceled.")
+                return
+            subject_website = msg.content
+            if msg.content in ["-", "0"]:
+                subject_website = None
+
+            for i in range(5):
+                await msg.reply("What days is the lecture on? Separated by **space** and using integers. Any numbers under 0 or above 6 are ignored."
+                                "\n```\nMonday: 0\nTuesday: 1\nWednesday: 2\nThursday: 3\nFriday: 4```")
+                msg: discord.Message = await self.bot.wait_for("message", check=check, timeout=30)
+                if msg.content.lower() == "stop":
+                    await ctx.reply("Adding subject canceled.")
+                    return
+                try:
+                    subject_days = [int(x) for x in msg.content.split(" ") if x != "" and 0 <= int(x) <= 6]
+                    break
+                except ValueError:
+                    await msg.reply(f"The given values are not all integers. {5 - i - 1} retries remaining:")
+            else:
+                await ctx.reply("Adding subject canceled.")
+                return
+
+            weekday_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+            subject_times = []
+            for day in subject_days:
+                for i in range(5):
+                    try:
+                        # Starting time of lecture
+                        await msg.reply(f"At what hour does the lecture start on {weekday_names[day]}?")
+                        msg: discord.Message = await self.bot.wait_for("message", check=check, timeout=30)
+                        if msg.content.lower() == "stop":
+                            await ctx.reply("Adding subject canceled.")
+                            return
+                        hour_start = int(msg.content)
+
+                        # Ending time of lecture
+                        await msg.reply(f"At what hour does the lecture end on {weekday_names[day]}?")
+                        msg: discord.Message = await self.bot.wait_for("message", check=check, timeout=30)
+                        if msg.content.lower() == "stop":
+                            await ctx.reply("Adding subject canceled.")
+                            return
+                        hour_end = int(msg.content)
+                    except ValueError:
+                        await msg.reply(f"The given value is not an integer. Restarting questions for this day. {5 - i - 1} retries remaining:")
+                        continue
+
+                    # Zoom link
+                    await msg.reply("What is the subject zoom link? `-` or `0` to skip.")
+                    msg: discord.Message = await self.bot.wait_for("message", check=check, timeout=30)
+                    if msg.content.lower() == "stop":
+                        await ctx.reply("Adding subject canceled.")
+                        return
+                    zoom_link = msg.content
+                    if msg.content.lower() in ["-", "0"]:
+                        zoom_link = None
+
+                    # Stream Link
+                    await msg.reply("What is the subject stream link? `-` or `0` to skip.")
+                    msg: discord.Message = await self.bot.wait_for("message", check=check, timeout=30)
+                    if msg.content.lower() == "stop":
+                        await ctx.reply("Adding subject canceled.")
+                        return
+                    stream_link = msg.content
+                    if msg.content.lower() in ["-", "0"]:
+                        stream_link = None
+
+                    # On Site location
+                    await msg.reply("What is the on site location of the subject? `-` or `0` to skip.")
+                    msg: discord.Message = await self.bot.wait_for("message", check=check, timeout=30)
+                    if msg.content.lower() == "stop":
+                        await ctx.reply("Adding subject canceled.")
+                        return
+                    on_site_location = msg.content
+                    if msg.content.lower() in ["-", "0"]:
+                        on_site_location = None
+
+                    subject_times.append([day, hour_start, hour_end, zoom_link, stream_link, on_site_location])
+                    break
+                else:
+                    await ctx.reply("Adding subject canceled.")
+                    return
+
+            for lecture in subject_times:
+                dayID = lecture[0]
+                start_hour = lecture[1]
+                end_hour = lecture[2]
+                zoom_link = lecture[3]
+                stream_link = lecture[4]
+                on_site_location = lecture[5]
+                SQLFunctions.update_or_insert_weekdaytime(
+                    name=subject_name,
+                    abbreviation=subject_abbreviation,
+                    link=subject_website,
+                    zoom_link=zoom_link,
+                    stream_link=stream_link,
+                    on_site_location=on_site_location,
+                    semester=subject_semester,
+                    starting_hour=start_hour,
+                    ending_hour=end_hour,
+                    day=dayID,
+                    conn=self.conn
+                )
+            await ctx.reply("Succesfully added the subject times!")
+
+        except asyncio.TimeoutError:
+            await ctx.reply("You took too long to respond. You have 30 seconds to respond.")
+            raise discord.ext.commands.BadArgument
 
     async def send_lecture_start(self, subject_name, website_url, stream_url, channel_id, role_id, zoom_url=None, subject_room=None):
         channel = self.bot.get_channel(channel_id)
         if channel is None:
-            raise discord.ext.commands.CommandError("Invalid ChannelID")
+            channel = self.bot.get_channel(402563165247766528)  # bot testing channel
         embed = await create_lecture_embed(subject_name, stream_url, zoom_url, website_url, subject_room)
         ping_msg = f"<@&{role_id}>"
         if role_id == 0:
             ping_msg = ""
         await channel.send(ping_msg, embed=embed)
 
-    async def check_updates(self, channel, cur_time, version):
+    async def check_updates(self, channel: discord.TextChannel, version):
         start = time.time()
         scraped_info = scraper()
         changes = scraped_info[0]
         lecture_urls = scraped_info[1]
         send_ping = True
+        ping_msg = f"<@&{self.lecture_updates_role_ids['first']}>"
         for lesson in changes.keys():
             try:
-                if len(changes[lesson]) > 0:
-                    for i in range(len(changes[lesson])):
+                for i in range(len(changes[lesson])):
+                    # EMBED COLOR
+                    color = discord.Color.lighter_grey()
+                    if lesson == "Introduction to Programming":
+                        color = discord.Color.blue()
+                    elif lesson == "Discrete Mathematics":
+                        color = discord.Color.purple()
+                    elif lesson == "Linear Algebra":
+                        color = discord.Color.gold()
+                    elif lesson == "Algorithms and Data Structures":
+                        color = discord.Color.magenta()
 
-                        # EMBED COLOR
-                        color = discord.Color.lighter_grey()
-                        if lesson == "Introduction to Programming":
-                            color = discord.Color.blue()
-                        elif lesson == "Discrete Mathematics":
-                            color = discord.Color.purple()
-                        elif lesson == "Linear Algebra":
-                            color = discord.Color.gold()
-                        elif lesson == "Algorithms and Data Structures":
-                            color = discord.Color.magenta()
+                    try:
+                        correct_changes = changes[lesson][i]
+                    except KeyError:
+                        correct_changes = changes[lesson]
+                        user = self.bot.get_user(self.bot.owner_id)
+                        await user.send(f"Lesson: {lesson}\nError: KeyError\nChanges: `{changes}`")
+                    if correct_changes["event"] == "other":
+                        embed = discord.Embed(title=f"{lesson} has been changed!",
+                                              description=f"[Click here to get to {lesson}'s website]({lecture_urls[lesson]}).",
+                                              timestamp=datetime.utcfromtimestamp(time.time()), color=color)
+                        if self.send_message_to_finn:
+                            users = [self.bot.owner_id, 304014259975880704]  # 304014259975880704
+                        else:
+                            users = [self.bot.owner_id]
+                        for u_id in users:
+                            user = self.bot.get_user(u_id)
+                            await user.send(embed=embed)
 
-                        try:
-                            correct_changes = changes[lesson][i]
-                        except KeyError as e:
-                            correct_changes = changes[lesson]
-                            user = self.bot.get_user(self.bot.owner_id)
-                            await user.send(f"Lesson: {lesson}\nError: KeyError\nChanges: `{changes}`")
-                        if correct_changes["event"] == "other":
-                            embed = discord.Embed(title=f"{lesson} has been changed!",
-                                                  description=f"[Click here to get to {lesson}'s website]({lecture_urls[lesson]}).",
-                                                  timestamp=datetime.utcfromtimestamp(time.time()), color=color)
-                            if self.send_message_to_finn:
-                                users = [self.bot.owner_id, 304014259975880704]  # 304014259975880704
-                            else:
-                                users = [self.bot.owner_id]
-                            for u_id in users:
-                                user = self.bot.get_user(u_id)
-                                await user.send(embed=embed)
-
-                        elif correct_changes["event"] == "edit":
-                            log(f"{lesson} was changed", "LESSON")
-                            title = f"There has been an edit on __{lesson}__"
-                            description = f"""**OLD**:
+                    elif correct_changes["event"] == "edit":  # EDITS
+                        log(f"{lesson} was changed", "LESSON")
+                        title = f"There has been an edit on __{lesson}__"
+                        description = f"""**OLD**:
 {self.format_exercise(correct_changes["content"]["old"])}
 
 **NEW**:
 {self.format_exercise((correct_changes["content"]["new"]), correct_changes["content"]["keys"])}"""
-                            embed = discord.Embed(title=title, description=description,
-                                                  timestamp=datetime.utcfromtimestamp(time.time()), color=color)
-                            embed.set_footer(
-                                text=f"{version} | This message took {round(time.time() - start, 2)} seconds to send")
-                            if send_ping:
-                                msg = await channel.send("<@&759615935496847412>", embed=embed)
-                            else:
-                                msg = await channel.send(embed=embed)
-                            await msg.publish()
-                            send_ping = False
+                        embed = discord.Embed(title=title, description=description,
+                                              timestamp=datetime.utcfromtimestamp(time.time()), color=color)
+                        embed.set_footer(
+                            text=f"{version} | This message took {round(time.time() - start, 2)} seconds to send")
 
-                        elif correct_changes["event"] == "new":
-                            log(f"{lesson} got an new update", "LESSON")
-                            title = f"Something new was added on __{lesson}__"
-                            description = f"""**NEW**:\n{self.format_exercise(correct_changes["content"])}"""
-                            embed = discord.Embed(title=title, description=description,
-                                                  timestamp=datetime.utcfromtimestamp(time.time()), color=color)
-                            embed.set_footer(
-                                text=f"{version} | This message took {round(time.time() - start, 2)} seconds to send")
-                            if send_ping:
-                                msg = await channel.send("<@&759615935496847412>", embed=embed)
-                            else:
-                                msg = await channel.send(embed=embed)
+                        msg = await channel.send(embed=embed)
+                        await msg.edit(content=ping_msg)
+                        try:
                             await msg.publish()
-                            send_ping = False
+                        except discord.Forbidden:
+                            pass
+                        send_ping = False
+
+                    elif correct_changes["event"] == "new":
+                        log(f"{lesson} got a new update", "LESSON")
+                        title = f"Something new was added on __{lesson}__"
+                        description = f"""**NEW**:\n{self.format_exercise(correct_changes["content"])}"""
+                        embed = discord.Embed(title=title, description=description,
+                                              timestamp=datetime.utcfromtimestamp(time.time()), color=color)
+                        embed.set_footer(
+                            text=f"{version} | This message took {round(time.time() - start, 2)} seconds to send")
+                        if send_ping:
+                            msg = await channel.send(ping_msg, embed=embed)
+                        else:
+                            msg = await channel.send(embed=embed)
+                            await msg.edit(content=ping_msg)
+                        try:
+                            await msg.publish()
+                        except discord.Forbidden:
+                            pass
+                        send_ping = False
+
+                        start = time.time()
             except Exception:
                 user = self.bot.get_user(self.bot.owner_id)
                 await user.send(f"Lesson{lesson}\nError: {traceback.format_exc()}")
@@ -306,13 +471,6 @@ class Updates(commands.Cog):
             return text
         else:
             return data
-
-    def all_times(self, schedule):
-        times = []
-        for subject in self.schedule:
-            for time_text in self.schedule[subject]:
-                times.append(time_text)
-        return times
 
 
 def setup(bot):

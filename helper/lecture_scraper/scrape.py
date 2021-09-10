@@ -4,6 +4,7 @@ from helper.lecture_scraper.dm import dm_check
 from helper.lecture_scraper.ep import ep_check
 from helper.lecture_scraper.ad import ad_check
 from helper.lecture_scraper.la import la_check
+from helper.sql import SQLFunctions
 
 class Lecture:
     """Lecture Scraper
@@ -16,7 +17,7 @@ class Lecture:
     def __init__(self, full_name: str, short: str, url: str, check):
         self.name = full_name
         self.url = url
-        self.html_path = f'websites/{short}.html'
+        self.html_path = f'{short}.html'
         open(self.html_path, 'a').close()  # creates file if not existing
         self.check_fn = check
 
@@ -60,33 +61,18 @@ class Lecture:
             return []
 
 
-if __name__ == "__main__":
+def scraper(dic="websites"):
     dm_url = "https://crypto.ethz.ch/teaching/DM20/"
     ad_url = "https://www.cadmo.ethz.ch/education/lectures/HS20/DA/index.html"
     ep_url = "https://www.lst.inf.ethz.ch/education/einfuehrung-in-die-programmierung-i--252-0027-.html"
-    la_url = "https://igl.ethz.ch/teaching/linear-algebra/la2020/"
-    lectures = {
-        "DM": Lecture("Discrete Mathematics", "dm", dm_url, dm_check),
-        "AD": Lecture("Algorithms and Data Structures", "ad", ad_url, ad_check),
-        "EP": Lecture("Introduction to Programming", "ep", ep_url, ep_check),
-        "LA": Lecture("Linear Algebra", "la", la_url, la_check),
-    }
-    for key in lectures:
-        print(lectures[key].scrape_for_events())
-
-
-def scraper():
-    dm_url = "https://crypto.ethz.ch/teaching/DM20/"
-    ad_url = "https://www.cadmo.ethz.ch/education/lectures/HS20/DA/index.html"
-    ep_url = "https://www.lst.inf.ethz.ch/education/einfuehrung-in-die-programmierung-i--252-0027-.html"
-    la_url = "https://igl.ethz.ch/teaching/linear-algebra/la2020/"
+    la_url = "https://igl.ethz.ch/teaching/linear-algebra/la2021/"
     changes = {}
     lesson_links = {}
     lectures = {
-        "DM": Lecture("Discrete Mathematics", "dm", dm_url, dm_check),
-        "AD": Lecture("Algorithms and Data Structures", "ad", ad_url, ad_check),
-        "EP": Lecture("Introduction to Programming", "ep", ep_url, ep_check),
-        "LA": Lecture("Linear Algebra", "la", la_url, la_check),
+        "DM": Lecture("Discrete Mathematics", f"{dic}/dm", dm_url, dm_check),
+        "AD": Lecture("Algorithms and Data Structures", f"{dic}/ad", ad_url, ad_check),
+        "EP": Lecture("Introduction to Programming", f"{dic}/ep", ep_url, ep_check),
+        "LA": Lecture("Linear Algebra", f"{dic}/la", la_url, la_check),
     }
     for key in lectures:
         changes[lectures[key].name] = lectures[key].scrape_for_events()
@@ -95,4 +81,4 @@ def scraper():
 
 
 if __name__ == '__main__':
-    print(scraper())
+    print(scraper("../../websites"))

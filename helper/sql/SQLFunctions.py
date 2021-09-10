@@ -2,6 +2,7 @@ import logging
 import discord
 import sqlite3
 from datetime import datetime
+from typing import Union
 
 logger = logging.getLogger()
 logger.addHandler(logging.StreamHandler())
@@ -83,7 +84,7 @@ def get_or_create_discord_guild(guild: discord.Guild, conn=connect()) -> Discord
 
 
 class DiscordMember:
-    def __init__(self, UniqueMemberID, DiscordUserID, DiscordGuildID, JoinedAt, Nickname, Semester, User: DiscordUser=None):
+    def __init__(self, UniqueMemberID, DiscordUserID, DiscordGuildID, JoinedAt, Nickname, Semester, User: DiscordUser = None):
         self.UniqueMemberID = UniqueMemberID
         self.DiscordUserID = DiscordUserID
         self.DiscordGuildID = DiscordGuildID
@@ -114,7 +115,7 @@ def get_or_create_discord_member(member: discord.Member, semester=0, conn=connec
         except sqlite3.IntegrityError:
             get_or_create_discord_user(member, conn=conn)
             get_or_create_discord_guild(member.guild, conn=conn)
-        return get_or_create_discord_member(member, semester, conn, recursion_count+1)
+        return get_or_create_discord_member(member, semester, conn, recursion_count + 1)
     else:
         user = DiscordUser(*result[6:])
         return DiscordMember(*result[:6], User=user)
@@ -334,7 +335,7 @@ def get_event_by_id(event_id, conn=connect()) -> Event:
 def create_event(event_name, event_starting_at, event_description, member: DiscordMember, conn=connect()) -> Event:
     try:
         row_id = conn.execute("INSERT INTO Events(EventName, EventStartingAt, EventDescription, UniqueMemberID) VALUES (?,?,?,?)",
-                          (event_name, str(event_starting_at), event_description, member.UniqueMemberID)).lastrowid
+                              (event_name, str(event_starting_at), event_description, member.UniqueMemberID)).lastrowid
     finally:
         conn.commit()
     events = get_events(conn, row_id=row_id)
@@ -381,7 +382,8 @@ def mark_events_done(current_time=datetime.now(), conn=connect()) -> int:
 def add_member_to_event(event: Event, member_to_add: DiscordMember, conn=connect(), host=False):
     logger.debug(f"Adding {member_to_add.DiscordUserID} to {event.EventID}")
     try:
-        conn.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID, IsHost) VALUES (?,?,?)", (event.EventID, member_to_add.UniqueMemberID, int(host)))
+        conn.execute("INSERT INTO EventJoinedUsers(EventID, UniqueMemberID, IsHost) VALUES (?,?,?)",
+                     (event.EventID, member_to_add.UniqueMemberID, int(host)))
     finally:
         conn.commit()
 
@@ -494,7 +496,7 @@ def clear_covid_guesses(users: list[CovidGuesser], increment=True, conn=connect(
                     WHERE
                         UniqueMemberID=?"""
         try:
-            conn.execute(sql, (guesser.TotalPointsAmount+points_gotten, int(increment), guesser.member.UniqueMemberID))
+            conn.execute(sql, (guesser.TotalPointsAmount + points_gotten, int(increment), guesser.member.UniqueMemberID))
         finally:
             conn.commit()
 
@@ -540,7 +542,8 @@ def get_quote(quote_ID, guild_id, conn=connect(), row_id=None, random=False) -> 
     )
 
 
-def get_quotes_by_user(discord_user_id=None, unique_member_id=None, name=None, quote=None, guild_id=None, conn=connect(), random=False) -> list[Quote]:
+def get_quotes_by_user(discord_user_id=None, unique_member_id=None, name=None, quote=None, guild_id=None, conn=connect(), random=False) -> list[
+    Quote]:
     sql = """   SELECT  Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID,
                         DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester
                 FROM Quotes Q
@@ -622,7 +625,8 @@ def add_quote(quote, name, member: DiscordMember, added_by: DiscordMember, guild
         unique_member_id = member.UniqueMemberID
     values = [quote, name, unique_member_id, added_by.UniqueMemberID, guild_id]
     try:
-        row_id = conn.execute("INSERT INTO Quotes(Quote, Name, UniqueMemberID, AddedByUniqueMemberID, DiscordGuildID) VALUES (?,?,?,?,?)", values).lastrowid
+        row_id = conn.execute("INSERT INTO Quotes(Quote, Name, UniqueMemberID, AddedByUniqueMemberID, DiscordGuildID) VALUES (?,?,?,?,?)",
+                              values).lastrowid
     finally:
         conn.commit()
     return get_quote(-1, guild_id=guild_id, row_id=row_id, conn=conn)
@@ -707,7 +711,7 @@ def get_quotes_to_remove(conn=connect()) -> list[QuoteToRemove]:
     return quotes_to_remove
 
 
-def insert_quote_to_remove(quote_id, reason:str, member: DiscordMember, conn=connect()):
+def insert_quote_to_remove(quote_id, reason: str, member: DiscordMember, conn=connect()):
     try:
         conn.execute("INSERT INTO QuotesToRemove(QuoteID, UniqueMemberID, Reason) VALUES(?,?,?)", (quote_id, member.UniqueMemberID, reason))
     finally:
@@ -728,7 +732,8 @@ def get_reputations(member: discord.Member, conn=connect()) -> list[(bool, str)]
 
 
 def get_most_recent_time(member: DiscordMember, conn=connect()):
-    result = conn.execute("SELECT CreatedAt from Reputations WHERE AddedByUniqueMemberID=? ORDER BY CreatedAt DESC", (member.UniqueMemberID,)).fetchone()
+    result = conn.execute("SELECT CreatedAt from Reputations WHERE AddedByUniqueMemberID=? ORDER BY CreatedAt DESC",
+                          (member.UniqueMemberID,)).fetchone()
     if result is None:
         return None
     # doesnt return the milliseconds of the datetime
@@ -854,6 +859,54 @@ def insert_or_update_command_level(command_name: str, ID: int, permission_level:
         conn.commit()
     if rows_changed == 0:
         try:
-            conn.execute("INSERT INTO CommandPermissions(CommandName, ID, PermissionLevel, Tag) VALUES (?, ?, ?, ?)", (command_name, ID, permission_level, object_being_added))
+            conn.execute("INSERT INTO CommandPermissions(CommandName, ID, PermissionLevel, Tag) VALUES (?, ?, ?, ?)",
+                         (command_name, ID, permission_level, object_being_added))
         finally:
             conn.commit()
+
+
+class Subject:
+    def __init__(self, subjectID, subjectName, subjectLink, streamLink, zoomLink, onSiteLocation, subjectSemester):
+        self.id = subjectID
+        self.name = subjectName
+        self.website_link = subjectLink
+        self.stream_link = streamLink
+        self.zoom_link = zoomLink
+        self.on_site_location = onSiteLocation
+        self.semester = subjectSemester
+
+
+def get_starting_subject(semester: int, conn=connect(), day=datetime.now().weekday(), hour=datetime.now().hour) -> Union[None, Subject]:
+    sql = """   SELECT WD.SubjectID, S.SubjectName, S.SubjectLink, WD.StreamLink, WD.ZoomLink, WD.OnSiteLocation, S.SubjectSemester
+                FROM WeekDayTimes WD
+                INNER JOIN Subjects S on WD.SubjectID=S.SubjectID
+                WHERE WD.DayID=? AND WD.TimeFROM=? AND S.SubjectSemester=?"""
+    row = conn.execute(sql, (day, hour, semester)).fetchone()
+    if row is None:
+        return None
+    return Subject(*row)
+
+
+def find_matching_subject_id(subject_name, conn=connect()) -> Union[None, int]:
+    res = conn.execute("SELECT SubjectID FROM Subjects WHERE SubjectName LIKE ?", (subject_name,)).fetchone()
+    if res is None:
+        return None
+    return res[0]
+
+
+def update_or_insert_weekdaytime(name, abbreviation, link, zoom_link, stream_link, on_site_location, semester, starting_hour, ending_hour, day,
+                                 conn=connect()):
+    subject_id = find_matching_subject_id(name, conn)
+    if subject_id is None:  # then we have a new subject
+        try:
+            conn.execute("INSERT INTO Subjects(SubjectName, SubjectAbbreviation, SubjectLink, SubjectSemester) VALUES (?,?,?,?)", (name, abbreviation, link, semester))
+        finally:
+            conn.commit()
+        subject_id = find_matching_subject_id(name, conn)
+
+    # Insert weekdaytime
+    try:
+        conn.execute("INSERT INTO WeekDayTimes(SubjectID, DayID, TimeFrom, TimeTo, StreamLink, ZoomLink, OnSiteLocation) VALUES (?,?,?,?,?,?,?)",
+                     (subject_id, day, starting_hour, ending_hour, stream_link, zoom_link, on_site_location))
+    finally:
+        conn.commit()

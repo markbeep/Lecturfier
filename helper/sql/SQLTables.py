@@ -35,8 +35,8 @@ DiscordMembers = """ CREATE TABLE IF NOT EXISTS DiscordMembers (
                         FOREIGN KEY (DiscordGuildID) REFERENCES DiscordGuilds(DiscordGuildID)
                         );"""
 Subjects = """ CREATE TABLE IF NOT EXISTS Subjects (
-                        SubjectID integer NOT NULL PRIMARY KEY,
-                        SubjectName text NOT NULL,
+                        SubjectID integer PRIMARY KEY,
+                        SubjectName text,
                         SubjectAbbreviation text,
                         SubjectSemester integer default 0,
                         SubjectLink text
@@ -50,7 +50,7 @@ WeekDayTimes = """ CREATE TABLE IF NOT EXISTS WeekDayTimes (
                         StreamLink text,
                         ZoomLink text,
                         OnSiteLocation text,
-                        FOREIGN KEY (SubjectID) REFERENCES Subject(SubjectID)
+                        FOREIGN KEY (SubjectID) REFERENCES Subjects(SubjectID)
                         );"""
 UserStatistics = """ CREATE TABLE IF NOT EXISTS UserStatistics (
                         UserStatisticID integer PRIMARY KEY,

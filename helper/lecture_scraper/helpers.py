@@ -16,7 +16,9 @@ def check_wrapper(online_soup, local_soup, sel_path, decode_html_fn, type_name):
     html_old = local_soup.select(sel_path)
     # decode them into dicts
     dicts_now = [decode_html_fn(x) for x in html_now]
+    dicts_now = [x for x in dicts_now if x is not None]
     dicts_old = [decode_html_fn(x) for x in html_old]
+    dicts_old = [x for x in dicts_old if x is not None]
 
     edits = find_edit_events(dicts_now, dicts_old, type_name)
     news = [new_event(lec, type_name) for lec in dicts_now[len(dicts_old):]]
