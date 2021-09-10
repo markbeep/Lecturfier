@@ -222,7 +222,6 @@ class Owner(commands.Cog):
                               color=discord.Color.green())
         await ctx.reply(embed=embed)
 
-
     @commands.is_owner()
     @commands.command(usage="sql <command>")
     async def sql(self, ctx, *, sql):
@@ -234,12 +233,16 @@ class Owner(commands.Cog):
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         start_time = time.perf_counter()
-        sql = sql.replace("INSERT", "INSERT OR IGNORE").replace("insert", "insert or ignore")
+        sql = sql.lower().replace("insert", "insert or ignore")
+        error = False
         try:
             c.execute(sql)
-            conn.commit()
         except Error as e:
-            await ctx.send(e)
+            await ctx.send(str(e))
+            error = True
+        finally:
+            conn.commit()
+        if error:
             return
         rows = c.fetchall()
         if rows is None:
