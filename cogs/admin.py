@@ -7,7 +7,6 @@ from helper.sql import SQLFunctions
 from datetime import datetime
 from pytz import timezone
 import json
-import time
 from discord.ext.commands.cooldowns import BucketType
 
 

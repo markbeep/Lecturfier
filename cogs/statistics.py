@@ -71,7 +71,7 @@ class Statistics(commands.Cog):
                 await ctx.message.add_reaction("<:ERROR:792154973559455774>")
             except discord.errors.NotFound:
                 pass
-            print(f"ERROR: {str(error)}")
+        raise error
 
     @commands.Cog.listener()
     async def on_command_completion(self, ctx):
