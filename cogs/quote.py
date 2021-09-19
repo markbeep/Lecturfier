@@ -2,13 +2,12 @@ import asyncio
 import math
 import discord
 from discord.ext import commands, menus
-import datetime
-import json
 from pytz import timezone
 from discord.ext.commands.cooldowns import BucketType
 from helper.sql import SQLFunctions
 from discord_components import DiscordComponents, Button, ButtonStyle, InteractionType
 import time
+
 
 def isascii(s):
     """Checks how many bytes of non-ascii characters there is in the quote"""
@@ -103,15 +102,19 @@ class Quote(commands.Cog):
 
                 q = None
                 try:
-                    quote_id = int(name.replace("<@", "").replace(">", "").replace("!", ""))
+                    quote_id = int(name)
                     # tries to first query if its a quote ID
                     q = SQLFunctions.get_quote(quote_id, guild_id=ctx.message.guild.id, conn=self.conn)
                 except ValueError:
                     pass
                 if q is None:  # its not a valid quote ID in this case
                     # if its a user ID, gets a random quote from the user with that ID
-                    member, multUniqueIDs = await self.get_quote_members(ctx, name)
-                    if member is not None:
+                    name = name.replace("<@", "").replace(">", "").replace("!", "")
+                    discord_member = None
+                    if name.isnumeric():
+                        discord_member = ctx.message.guild.get_member(int(name))
+                    if discord_member is not None:
+                        member = SQLFunctions.get_or_create_discord_member(discord_member, 0, self.conn)
                         quotes = SQLFunctions.get_quotes_by_user(unique_member_id=member.UniqueMemberID, guild_id=ctx.message.guild.id, conn=self.conn, random=True)
                     else:
                         quotes = SQLFunctions.get_quotes_by_user(name=name, guild_id=ctx.message.guild.id, conn=self.conn, random=True)
@@ -173,7 +176,7 @@ class Quote(commands.Cog):
             if member is not None:
                 all_discord_members = SQLFunctions.get_members_by_name("none", channel.guild.id, discord_user_id=member.id, conn=self.conn)
                 if len(all_discord_members) == 0:
-                    return None, []
+                    return []
                 discord_member = all_discord_members[0]
                 uniqueIDs.append(discord_member.UniqueMemberID)
                 return discord_member, uniqueIDs
@@ -182,17 +185,18 @@ class Quote(commands.Cog):
         # We make a list of all uniqueIDs with the matching name)
         all_discord_members = SQLFunctions.get_members_by_name(username, channel.guild.id, conn=self.conn)
         uniqueIDs = [m.UniqueMemberID for m in all_discord_members]
-        discord_member = None
 
-        return discord_member, uniqueIDs
+        return None, uniqueIDs
 
-    async def add_quote(self, username, message: discord.Message, quote, quoteAdder: discord.Member = None, reactionQuote=False):
+    async def add_quote(self, username, message: discord.Message, quote, quoteAdder: discord.Member = None, reactionQuote=False, discord_member: discord.Member = None):
         username = username.replace("<@", "").replace(">", "").replace("!", "")
         channel = message.channel
+        member = None
         if quoteAdder is None:
             quoteAdder = message.author
 
-        member, multipleUniqueIDs = await self.get_quote_members(channel, username)
+        if username.isnumeric() and discord_member is None:
+            discord_member = message.guild.get_member(int(username))
 
         # Some error messages ------------------------------
         # If the quote is too long
@@ -245,20 +249,17 @@ class Quote(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
 
         uniqueID = None
-        if member is None:  # that username is not a discord username or has no uniqueID
-            quoted_name = username
-            # is it a DiscordUserID though?
-            if username.isnumeric():
-                quoted_member = channel.guild.get_member(int(username))
-                member = SQLFunctions.get_or_create_discord_member(quoted_member, conn=self.conn)
-                quoted_name = quoted_member.name
+        if discord_member is not None:  # that username is a discord user ID
+            member = SQLFunctions.get_or_create_discord_member(discord_member, conn=self.conn)
+            quoted_name = discord_member.name
+            uniqueID = member.UniqueMemberID
         else:
-            quoted_name = member.User.DisplayName
-            uniqueID = multipleUniqueIDs[0]
+            quoted_name = username
+
         addedBy = SQLFunctions.get_or_create_discord_member(quoteAdder, conn=self.conn)
 
         # checks if its a self quote
-        if addedBy.UniqueMemberID in multipleUniqueIDs:
+        if addedBy.UniqueMemberID == uniqueID:
             embed = discord.Embed(
                 title="Quote Error",
                 description="You can't quote yourself. That's pretty lame.",
@@ -273,9 +274,15 @@ class Quote(commands.Cog):
                 await channel.send(content=quoteAdder.mention, embed=embed, delete_after=5)
             raise discord.ext.commands.errors.BadArgument
 
+        aliases = SQLFunctions.get_quote_aliases(self.conn)
+        for a in aliases.keys():
+            if a.lower() == quoted_name.lower():
+                quoted_name = a
+                break
+
         # checks if the quote exists already
         if uniqueID is None:
-            res = SQLFunctions.get_quotes_by_user(quote=quote, guild_id=channel.guild.id, name=username)
+            res = SQLFunctions.get_quotes_by_user(quote=quote, guild_id=channel.guild.id, name=quoted_name)
         else:
             res = SQLFunctions.get_quotes_by_user(quote=quote, guild_id=channel.guild.id, unique_member_id=uniqueID)
         if len(res) > 0:
@@ -286,12 +293,6 @@ class Quote(commands.Cog):
             if not reactionQuote:
                 await channel.send(content=quoteAdder.mention, embed=embed, delete_after=5)
             raise discord.ext.commands.errors.BadArgument
-
-        aliases = SQLFunctions.get_quote_aliases(self.conn)
-        for a in aliases.keys():
-            if a.lower() == quoted_name.lower():
-                quoted_name = a
-                break
 
         quote_object: SQLFunctions.Quote = SQLFunctions.add_quote(quote, quoted_name, member, addedBy, channel.guild.id)
         quoteID = "n/a"
@@ -421,8 +422,56 @@ class Quote(commands.Cog):
         m = QuotesToRemove(pages, self.conn)
         await m.start(ctx=ctx, channel=ctx.channel)
 
+    @commands.guild_only()
+    @quote.command(usage="search <part of quote>")
+    async def search(self, ctx, *, args):
+        quotes = SQLFunctions.get_quotes_by_user(guild_id=ctx.message.guild.id, quote=args, conn=self.conn)
+        quotes_list = ""
+        i = 1
+        for q in quotes:
+            idx = q.QuoteText.lower().find(args.lower())
+            formatted_quote = q.QuoteText[:idx] + f"**{q.QuoteText[idx: idx+len(args)]}**" + q.QuoteText[idx+len(args):]
+            quotes_list += f"\n**{i}**: {formatted_quote} `[{q.QuoteID}]`"
+            i += 1
+            # creates the pages
+        pages = []
+        while len(quotes_list) > 0:
+            # split quotes into multiple fields of max 1000 chars
+            if len(quotes_list) >= 1000:
+                rind2 = quotes_list.rindex("\n", 0, 1000)
+                if rind2 == 0:
+                    # one quote is more than 1000 chars
+                    rind2 = quotes_list.rindex(" ", 0, 1000)
+                    if rind2 == 0:
+                        # the quote is longer than 1000 chars and has no spaces
+                        rind2 = 1000
+            else:
+                rind2 = len(quotes_list)
+            pages.append(quotes_list[0:rind2])
+            quotes_list = quotes_list[rind2:]
+        if len(args) > 200:
+            args = args[:200] + "[...]"
+        if len(pages) == 0:
+            embed = discord.Embed(title="No Matching Quotes Found",
+                                  description=f"Tag:\n```{args.replace('```','')}```",
+                                  color=discord.Color.red())
+            await ctx.reply(embed=embed)
+            raise discord.ext.commands.BadArgument
+        qm = Pages(
+            self.bot,
+            ctx,
+            pages,
+            ctx.message.author.id,
+            f"Quotes containing string: {args}")
+        await qm.handle_pages()
+
     async def get_all_quotes(self, ctx, user):
-        member, multUniqueIDs = await self.get_quote_members(ctx.message.channel, user)
+
+        member = None
+        user = user.replace("<@", "").replace(">", "").replace("!", "")
+        if user.isnumeric():
+            discord_member = ctx.message.guild.get_member(int(user))
+            member = SQLFunctions.get_or_create_discord_member(discord_member, 0, self.conn)
 
         quote_list = ""
 
@@ -452,7 +501,6 @@ class Quote(commands.Cog):
 
         # splits the messages into different pages by character length
         pages = []
-
         # creates the pages
         while len(quote_list) > 0:
             # split quotes into multiple fields of max 1000 chars
@@ -557,51 +605,6 @@ class Quote(commands.Cog):
 
 def setup(bot):
     bot.add_cog(Quote(bot))
-
-
-class QuoteMenu(menus.Menu):
-    def __init__(self, pages, quoted_name):
-        super().__init__(clear_reactions_after=True, delete_message_after=True)
-        self.quoted_name = quoted_name
-        self.pages = pages
-        self.page_count = 0
-        self.ctx = None
-
-    def get_page(self, page_number):
-        embed = discord.Embed(title=f"All quotes from {self.quoted_name}", color=0x404648)
-        embed.add_field(name=f"Page {page_number + 1} / {len(self.pages)}", value=self.pages[page_number])
-        if len(self.pages) > 1:
-            embed.set_footer(text="⬅️ prev page | ➡️ next page | ❌ delete message")
-        return embed
-
-    async def send_initial_message(self, ctx, channel):
-        embed = self.get_page(self.page_count)
-        self.ctx = ctx
-        return await ctx.send(embed=embed)
-
-    @menus.button("⬅️")
-    async def page_down(self, payload):
-        self.page_count = (self.page_count - 1) % len(self.pages)
-        embed = self.get_page(self.page_count)
-        await self.message.edit(embed=embed)
-
-    @menus.button("➡️")
-    async def page_up(self, payload):
-        self.page_count = (self.page_count + 1) % len(self.pages)
-        embed = self.get_page(self.page_count)
-        await self.message.edit(embed=embed)
-
-    @menus.button("❌")
-    async def delete(self, payload):
-        if self.ctx is not None:
-            # if the message was already deleted
-            # this seems to throw an error
-            # and then the quote msg can't be deleted
-            try:
-                await self.ctx.message.delete()
-            except:
-                pass
-        self.stop()
 
 
 class QuotesToRemove(menus.Menu):
@@ -710,14 +713,14 @@ class Pages:
         of self.seconds passes.
         """
         self.message = await self.send_initial_message()
-        while time.time() < self.start_time + self.seconds:
+        while True:
             # waits for a button click event
             try:
                 # We add a timeout so that the message still gets deleted
                 # even if nobody presses any button
-                res = await self.bot.wait_for("button_click", timeout=10)
+                res = await self.bot.wait_for("button_click", timeout=self.seconds)
             except asyncio.TimeoutError:
-                continue
+                break
             if res.message is not None and res.message.id == self.message.id:
                 try:
                     if res.user.id == self.user_id:

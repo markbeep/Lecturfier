@@ -560,6 +560,7 @@ def get_quotes_by_user(discord_user_id=None, unique_member_id=None, name=None, q
         sql += " AND Q.Name LIKE ?"
         values.append(name)
     if quote is not None:
+        quote = "%" + quote + "%"
         sql += " AND Q.Quote LIKE ?"
         values.append(quote)
     if guild_id is not None:
@@ -899,7 +900,8 @@ def update_or_insert_weekdaytime(name, abbreviation, link, zoom_link, stream_lin
     subject_id = find_matching_subject_id(name, conn)
     if subject_id is None:  # then we have a new subject
         try:
-            conn.execute("INSERT INTO Subjects(SubjectName, SubjectAbbreviation, SubjectLink, SubjectSemester) VALUES (?,?,?,?)", (name, abbreviation, link, semester))
+            conn.execute("INSERT INTO Subjects(SubjectName, SubjectAbbreviation, SubjectLink, SubjectSemester) VALUES (?,?,?,?)",
+                         (name, abbreviation, link, semester))
         finally:
             conn.commit()
         subject_id = find_matching_subject_id(name, conn)
