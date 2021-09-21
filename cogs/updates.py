@@ -54,10 +54,6 @@ class Updates(commands.Cog):
         self.background_loop.start()
         self.current_activity = ""
         self.sent_updates = {1: False, 2: False, 3: False, 4: False, 5: False, 6: False}
-        self.semester_numbers = {
-            "hs": [1, 3, 5],
-            "fs": [2, 4, 6]
-        }
         self.lecture_updates_role_ids = {
             "first": 885810281358446623,
             "second": 885810349121622056,
@@ -114,15 +110,16 @@ class Updates(commands.Cog):
             # Only works for the 3 bachelor years as of now
             month = datetime.now().month
             if 9 <= month <= 12:
-                semesters = self.semester_numbers["hs"]
+                semesters = [1, 3, 5]
             elif 2 <= month <= 6:
-                semesters = self.semester_numbers["fs"]
+                semesters = [2, 4, 6]
             else:
                 print("No subjects going on right now. So skipping the loop completely.")
                 return
 
             # Check what lectures are starting
-            minute = datetime.now().minute
+            dt = datetime.now(timezone("Europe/Zurich"))
+            minute = dt.minute
             for sem in semesters:
                 if not self.sent_updates[sem] and minute <= 5:
                     role_id = 0
@@ -132,7 +129,7 @@ class Updates(commands.Cog):
                         role_id = self.lecture_updates_role_ids["second"]
                     elif sem in [5, 6]:
                         role_id = self.lecture_updates_role_ids["third"]
-                    subject = SQLFunctions.get_starting_subject(sem, self.conn)
+                    subject = SQLFunctions.get_starting_subject(sem, self.conn, dt.weekday(), dt.hour)
                     if subject is not None:
                         await self.send_lecture_start(
                             subject_name=subject.name,
