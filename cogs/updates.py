@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from pytz import timezone
 import time
 from helper.lecture_scraper.scrape import scraper
-import json
 import traceback
 from helper.log import log
 from helper.sql import SQLFunctions
@@ -144,13 +143,7 @@ class Updates(commands.Cog):
             if minute > 5:
                 self.sent_updates = {1: False, 2: False, 3: False, 4: False, 5: False, 6: False}
 
-            # Update activity status:
-            # Disabled because semester 2 is over -------------------
-            """time_till_next = self.get_time_till_next_lesson()
-            if time_till_next != self.current_activity:
-                await self.bot.change_presence(activity=discord.Activity(name=time_till_next, type=discord.ActivityType.watching))"""
-
-            if not self.sent_website_updates and minute % 10 == 0 and self.bot.user.id == 776713845238136843 or self.bot.command_prefix == "$":
+            if not self.sent_website_updates and minute % 10 == 0:
                 exercise_update_channel = self.bot.get_channel(756391202546384927)  # lecture updates channel
                 if exercise_update_channel is None:
                     exercise_update_channel = self.bot.get_channel(402563165247766528)  # channel on bot testing server
