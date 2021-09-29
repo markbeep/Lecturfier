@@ -4,7 +4,7 @@ from helper.lecture_scraper.dm import dm_check
 from helper.lecture_scraper.ep import ep_check
 from helper.lecture_scraper.ad import ad_check
 from helper.lecture_scraper.la import la_check
-from helper.sql import SQLFunctions
+
 
 class Lecture:
     """Lecture Scraper
@@ -14,6 +14,7 @@ class Lecture:
     :url: url of lecture website
     :check_fn: scraping function specific to url
     """
+
     def __init__(self, full_name: str, short: str, url: str, check):
         self.name = full_name
         self.url = url
@@ -62,8 +63,8 @@ class Lecture:
 
 
 def scraper(dic="websites"):
-    dm_url = "https://crypto.ethz.ch/teaching/DM20/"
-    ad_url = "https://www.cadmo.ethz.ch/education/lectures/HS20/DA/index.html"
+    dm_url = "https://crypto.ethz.ch/teaching/DM21/"
+    ad_url = "https://www.cadmo.ethz.ch/education/lectures/HS21/DA/index.html"
     ep_url = "https://www.lst.inf.ethz.ch/education/einfuehrung-in-die-programmierung-i--252-0027-.html"
     la_url = "https://igl.ethz.ch/teaching/linear-algebra/la2021/"
     changes = {}
