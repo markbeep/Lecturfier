@@ -551,7 +551,7 @@ def get_quotes_by_user(discord_user_id=None, unique_member_id=None, name=None, q
                 WHERE true"""
     values = []
     if discord_user_id is not None:
-        sql += " AND DU.DiscordUserID=?"
+        sql += " AND DM.DiscordUserID=?"
         values.append(discord_user_id)
     if unique_member_id is not None:
         sql += " AND Q.UniqueMemberID=?"
