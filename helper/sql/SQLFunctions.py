@@ -725,7 +725,8 @@ class QuoteToRemove:
 
 def get_quotes_to_remove(conn=connect()) -> list[QuoteToRemove]:
     sql = """   SELECT  QTR.QuoteID, DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester,
-                        Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID, QTR.Reason
+                        Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID, Q.AmountBattled,
+                        Q.AmountWon, Q.Elo, QTR.Reason
                 FROM QuotesToRemove QTR
                 INNER JOIN DiscordMembers DM on QTR.UniqueMemberID = DM.UniqueMemberID
                 INNER JOIN Quotes Q on QTR.QuoteID = Q.QuoteID"""

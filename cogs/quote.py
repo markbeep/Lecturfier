@@ -66,8 +66,6 @@ class Quote(commands.Cog):
         self.time = 0
         self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
-        self.user_vote_count = {}  # amount of quote battles a user has voted on today
-        self.last_day = datetime.day  # the day the user_vote_count accounts to know when to reset
         self.TIME_FOR_BATTLE = 30  # how long a battle lasts
 
     @commands.Cog.listener()
@@ -98,7 +96,7 @@ class Quote(commands.Cog):
     @commands.Cog.listener()
     async def on_button_click(self, res: Interaction):
         await asyncio.sleep(1)
-        if not res.responded:
+        if not res.responded and res.component.id in ["1", "2"]:
             await res.respond(type=InteractionType.ChannelMessageWithSource, content="Something went wrong. Click again.")
 
     @commands.cooldown(4, 10, BucketType.user)
@@ -693,8 +691,6 @@ class Quote(commands.Cog):
         voted_users = []
         wins1 = 0
         wins2 = 0
-        if datetime.day != self.last_day:  # resets the dictionary if its a new day
-            self.user_vote_count = {}
 
         while start_time + self.TIME_FOR_BATTLE > time.time():
             embed.description = f"Choose the better quote using the buttons. Battle ends after {int(start_time + self.TIME_FOR_BATTLE - time.time())} seconds.\nVotes: {len(voted_users)}"
@@ -706,16 +702,8 @@ class Quote(commands.Cog):
             if res.user.id in voted_users:
                 await res.respond(type=InteractionType.ChannelMessageWithSource, content="You already voted on this battle. You can't vote twice.")
                 continue
-            if res.user.id in self.user_vote_count and self.user_vote_count[res.user.id] == 10:
-                await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"You reached the max amount of battles you can vote on for today: `{self.user_vote_count[res.user.id]}`")
-                continue
 
             voted_users.append(res.user.id)
-            # adds the user to the daily vote dictionary. Each user has a max amount of battles they can vote on
-            if res.user.id in self.user_vote_count:
-                self.user_vote_count[res.user.id] += 1
-            else:
-                self.user_vote_count[res.user.id] = 1
 
             if res.component.id == "1":
                 wins1 += 1
