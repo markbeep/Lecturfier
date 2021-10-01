@@ -72,7 +72,7 @@ UserStatistics = """ CREATE TABLE IF NOT EXISTS UserStatistics (
                         ReactionsReceived integer DEFAULT 0,
                         ReactionsTakenAway integer DEFAULT 0,
                         FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID),
-                        FOREIGN KEY (SubjectID) REFERENCES Subject(SubjectID)
+                        FOREIGN KEY (SubjectID) REFERENCES Subjects(SubjectID)
                                     );"""
 VoiceLevels = """ CREATE TABLE IF NOT EXISTS VoiceLevels (
                     UniqueMemberID integer NOT NULL PRIMARY KEY,
@@ -129,6 +129,9 @@ Quotes = """   CREATE TABLE IF NOT EXISTS "Quotes" (
                                     "CreatedAt"	TEXT DEFAULT CURRENT_TIMESTAMP,
                                     "AddedByUniqueMemberID" INTEGER,
                                     "DiscordGuildID" INTEGER NOT NULL,
+                                    "AmountBattled" INTEGER DEFAULT 0,
+                                    "AmountWon" INTEGER DEFAULT 0,
+                                    "Elo" INTEGER DEFAULT 1000,
                                     FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID"),
                                     FOREIGN KEY("DiscordGuildID") REFERENCES "DiscordGuilds"("DiscordGuildID")
                                     );"""

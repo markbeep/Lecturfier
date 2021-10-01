@@ -511,7 +511,8 @@ def insert_or_update_covid_guess(member: DiscordMember, guess: int, conn=connect
 
 
 class Quote:
-    def __init__(self, QuoteID, QuoteText, Name, UniqueMemberID, CreatedAt, AddedByUniqueMemberID, DiscordGuildID, Member: DiscordMember = None):
+    def __init__(self, QuoteID, QuoteText, Name, UniqueMemberID, CreatedAt, AddedByUniqueMemberID, DiscordGuildID,
+                 AmountBattled, AmountWon, Elo, Member: DiscordMember = None):
         self.QuoteID = QuoteID
         self.QuoteText = QuoteText
         self.Name = Name
@@ -520,15 +521,22 @@ class Quote:
         self.CreatedAt = get_datetime(CreatedAt)
         self.AddedByUniqueMemberID = AddedByUniqueMemberID
         self.DiscordGuildID = DiscordGuildID
+        self.AmountBattled = AmountBattled
+        self.AmountWon = AmountWon
+        self.Elo = Elo
+
+    def __repr__(self):
+        return str(self.QuoteID)
 
 
 def get_quote(quote_ID, guild_id, conn=connect(), row_id=None, random=False) -> Quote:
+    values = "QuoteID, Quote, Name, UniqueMemberID, CreatedAt, AddedByUniqueMemberID, DiscordGuildID, AmountBattled, AmountWon, Elo"
     if random:
-        row = conn.execute("SELECT * FROM Quotes WHERE DiscordGuildID=? ORDER BY RANDOM() LIMIT 1", (guild_id,)).fetchone()
+        row = conn.execute(f"SELECT {values} WHERE DiscordGuildID=? ORDER BY RANDOM() LIMIT 1", (guild_id,)).fetchone()
     elif row_id is not None:
-        row = conn.execute("SELECT * FROM Quotes WHERE ROWID=? AND DiscordGuildID=?", (row_id, guild_id)).fetchone()
+        row = conn.execute(f"SELECT {values} FROM Quotes WHERE ROWID=? AND DiscordGuildID=?", (row_id, guild_id)).fetchone()
     else:
-        row = conn.execute("SELECT * FROM Quotes WHERE QuoteID=? AND DiscordGuildID=?", (quote_ID, guild_id)).fetchone()
+        row = conn.execute(f"SELECT {values} FROM Quotes WHERE QuoteID=? AND DiscordGuildID=?", (quote_ID, guild_id)).fetchone()
     if row is None:
         return None
     return Quote(
@@ -538,14 +546,18 @@ def get_quote(quote_ID, guild_id, conn=connect(), row_id=None, random=False) -> 
         UniqueMemberID=row[3],
         CreatedAt=row[4],
         AddedByUniqueMemberID=row[5],
-        DiscordGuildID=row[6]
+        DiscordGuildID=row[6],
+        AmountBattled=row[7],
+        AmountWon=row[8],
+        Elo=row[9]
     )
 
 
-def get_quotes_by_user(discord_user_id=None, unique_member_id=None, name=None, quote=None, guild_id=None, conn=connect(), random=False) -> list[
+def get_quotes(discord_user_id=None, unique_member_id=None, name=None, quote=None, guild_id=None, conn=connect(), random=False, limit=None) -> list[
     Quote]:
     sql = """   SELECT  Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID,
-                        DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester
+                        DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester,
+                        Q.AmountBattled, Q.AmountWon, Q.Elo
                 FROM Quotes Q
                 LEFT JOIN DiscordMembers DM on Q.UniqueMemberID = DM.UniqueMemberID
                 WHERE true"""
@@ -568,6 +580,9 @@ def get_quotes_by_user(discord_user_id=None, unique_member_id=None, name=None, q
         values.append(guild_id)
     if random:
         sql += " ORDER BY RANDOM()"
+    if limit is not None:
+        sql += " LIMIT ?"
+        values.append(limit)
     result = conn.execute(sql, values).fetchall()
     quotes = []
     for row in result:
@@ -589,7 +604,10 @@ def get_quotes_by_user(discord_user_id=None, unique_member_id=None, name=None, q
             CreatedAt=row[4],
             AddedByUniqueMemberID=row[5],
             DiscordGuildID=row[6],
-            Member=member
+            Member=member,
+            AmountBattled=row[13],
+            AmountWon=row[14],
+            Elo=row[15]
         )
         quotes.append(quote)
     return quotes
@@ -662,6 +680,14 @@ def get_quote_stats(conn=connect()) -> (int, int):
     total_quotes = conn.execute("SELECT COUNT(*) FROM Quotes").fetchone()
     total_names = conn.execute("SELECT COUNT(DISTINCT Name) FROM Quotes").fetchone()
     return total_quotes[0], total_names[0]
+
+
+def update_quote_battle(quote_id, battles_amount, battles_won, elo, conn=connect()):
+    sql = "UPDATE Quotes SET AmountBattled=?, AmountWon=?, Elo=? WHERE QuoteID=?"
+    try:
+        conn.execute(sql, (battles_amount, battles_won, elo, quote_id))
+    finally:
+        conn.commit()
 
 
 class Name:

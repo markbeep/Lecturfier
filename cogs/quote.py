@@ -1,12 +1,16 @@
 import asyncio
 import math
+import random
+from enum import Enum
+
 import discord
 from discord.ext import commands, menus
 from pytz import timezone
 from discord.ext.commands.cooldowns import BucketType
 from helper.sql import SQLFunctions
-from discord_components import DiscordComponents, Button, ButtonStyle, InteractionType
+from discord_components import DiscordComponents, Button, ButtonStyle, InteractionType, Interaction
 import time
+from datetime import datetime
 
 
 def isascii(s):
@@ -23,8 +27,37 @@ async def send_quote(channel: discord.channel, quote: SQLFunctions.Quote):
     embed = discord.Embed(description=quote.QuoteText, color=0x404648)
     local_tz = timezone("Europe/Zurich")
     dt = quote.CreatedAt.astimezone(local_tz).strftime("%d.%b %Y").lstrip("0")
-    embed.set_footer(text=f"-{quote.Name}, {dt} | Quote ID: {quote.QuoteID}")
+    embed.set_footer(text=f"-{quote.Name}, {dt} | Quote ID: {quote.QuoteID} | Elo: {round(quote.Elo)}")
     await channel.send(embed=embed)
+
+
+class Winner(Enum):
+    First = 1
+    Second = 2
+
+
+def calculate_elo(elo1, elo2, winner: Winner, K_VALUE=16) -> tuple[int, int]:
+    """
+    Calculates the new Elos depending on who won.
+    https://metinmediamath.wordpress.com/2013/11/27/how-to-calculate-the-elo-rating-including-example/
+    """
+    t_rating1 = 10**(elo1/400)
+    t_rating2 = 10**(elo2/400)
+    expected_score1 = t_rating1 / (t_rating1 + t_rating2)
+    expected_score2 = t_rating2 / (t_rating1 + t_rating2)
+    if winner == Winner.First:
+        act_score1 = 1
+        act_score2 = 0
+    else:
+        act_score1 = 0
+        act_score2 = 1
+    updated_elo1 = elo1 + K_VALUE * (act_score1 - expected_score1)
+    updated_elo2 = elo2 + K_VALUE * (act_score2 - expected_score2)
+    if updated_elo1 < 0:
+        updated_elo1 = 0
+    if updated_elo2 < 0:
+        updated_elo2 = 0
+    return updated_elo1, updated_elo2
 
 
 class Quote(commands.Cog):
@@ -33,6 +66,9 @@ class Quote(commands.Cog):
         self.time = 0
         self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
+        self.user_vote_count = {}  # amount of quote battles a user has voted on today
+        self.last_day = datetime.day  # the day the user_vote_count accounts to know when to reset
+        self.TIME_FOR_BATTLE = 30  # how long a battle lasts
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -58,6 +94,12 @@ class Quote(commands.Cog):
                 return
 
             await self.add_quote(username=user, message=message, quote=message.content, quoteAdder=quoteAdder, reactionQuote=True)
+
+    @commands.Cog.listener()
+    async def on_button_click(self, res: Interaction):
+        await asyncio.sleep(1)
+        if not res.responded:
+            await res.respond(type=InteractionType.ChannelMessageWithSource, content="Something went wrong. Click again.")
 
     @commands.cooldown(4, 10, BucketType.user)
     @commands.guild_only()
@@ -115,9 +157,9 @@ class Quote(commands.Cog):
                         discord_member = ctx.message.guild.get_member(int(name))
                     if discord_member is not None:
                         member = SQLFunctions.get_or_create_discord_member(discord_member, 0, self.conn)
-                        quotes = SQLFunctions.get_quotes_by_user(unique_member_id=member.UniqueMemberID, guild_id=ctx.message.guild.id, conn=self.conn, random=True)
+                        quotes = SQLFunctions.get_quotes(unique_member_id=member.UniqueMemberID, guild_id=ctx.message.guild.id, conn=self.conn, random=True)
                     else:
-                        quotes = SQLFunctions.get_quotes_by_user(name=name, guild_id=ctx.message.guild.id, conn=self.conn, random=True)
+                        quotes = SQLFunctions.get_quotes(name=name, guild_id=ctx.message.guild.id, conn=self.conn, random=True)
                     if len(quotes) == 0:
                         q = None
                     else:
@@ -139,9 +181,9 @@ class Quote(commands.Cog):
                     index = int(quote)
                     user_id = name.replace("<@", "").replace(">", "").replace("!", "")
                     if user_id.isnumeric():
-                        quotes = SQLFunctions.get_quotes_by_user(discord_user_id=int(user_id), guild_id=ctx.message.guild.id, conn=self.conn)
+                        quotes = SQLFunctions.get_quotes(discord_user_id=int(user_id), guild_id=ctx.message.guild.id, conn=self.conn)
                     else:
-                        quotes = SQLFunctions.get_quotes_by_user(name=name, guild_id=ctx.message.guild.id, conn=self.conn)
+                        quotes = SQLFunctions.get_quotes(name=name, guild_id=ctx.message.guild.id, conn=self.conn)
                     if len(quotes) == 0:
                         embed = discord.Embed(
                             title="Quotes Error",
@@ -282,9 +324,9 @@ class Quote(commands.Cog):
 
         # checks if the quote exists already
         if uniqueID is None:
-            res = SQLFunctions.get_quotes_by_user(quote=quote, guild_id=channel.guild.id, name=quoted_name)
+            res = SQLFunctions.get_quotes(quote=quote, guild_id=channel.guild.id, name=quoted_name)
         else:
-            res = SQLFunctions.get_quotes_by_user(quote=quote, guild_id=channel.guild.id, unique_member_id=uniqueID)
+            res = SQLFunctions.get_quotes(quote=quote, guild_id=channel.guild.id, unique_member_id=uniqueID)
         if len(res) > 0:
             embed = discord.Embed(
                 title="Quote Error",
@@ -425,7 +467,7 @@ class Quote(commands.Cog):
     @commands.guild_only()
     @quote.command(usage="search <part of quote>")
     async def search(self, ctx, *, args):
-        quotes = SQLFunctions.get_quotes_by_user(guild_id=ctx.message.guild.id, quote=args, conn=self.conn)
+        quotes = SQLFunctions.get_quotes(guild_id=ctx.message.guild.id, quote=args, conn=self.conn)
         quotes_list = ""
         i = 1
         for q in quotes:
@@ -477,9 +519,9 @@ class Quote(commands.Cog):
 
         # executes query to get all quotes
         if member is not None:
-            all_quotes = SQLFunctions.get_quotes_by_user(unique_member_id=member.UniqueMemberID, guild_id=ctx.message.guild.id, conn=self.conn)
+            all_quotes = SQLFunctions.get_quotes(unique_member_id=member.UniqueMemberID, guild_id=ctx.message.guild.id, conn=self.conn)
         else:
-            all_quotes = SQLFunctions.get_quotes_by_user(name=user, guild_id=ctx.message.guild.id, conn=self.conn)
+            all_quotes = SQLFunctions.get_quotes(name=user, guild_id=ctx.message.guild.id, conn=self.conn)
 
         # If there are no quotes for the given person;
         if len(all_quotes) == 0:
@@ -601,6 +643,103 @@ class Quote(commands.Cog):
         else:
             await ctx.send(embed=p.create_embed(), delete_after=60)
             await ctx.message.delete(delay=60)
+
+    @commands.cooldown(1, 30, BucketType.channel)
+    @commands.guild_only()
+    @quote.command(aliases=["b"], usage="battle")
+    async def battle(self, ctx):
+        """
+        Picks two random quotes and allows users to vote on which quote they find better. \
+        Each vote from a user counts as a win for that quote and immediately takes effect.
+        """
+        quotes = SQLFunctions.get_quotes(conn=self.conn, guild_id=ctx.message.guild.id)
+        min_battles = 99999
+        max_battles = 0
+        for q in quotes:
+            min_battles = min(q.AmountBattled, min_battles)
+            max_battles = max(q.AmountBattled, max_battles)
+        # Tokens is what is used to give weights to quotes so quotes that have been shown less are more likely to be shown
+        tokens = max_battles - min_battles + 1
+        quote_weights = [tokens - x.AmountBattled for x in quotes]
+        random.seed()
+
+        # Re-raffles until we have two unique quotes
+        while True:
+            two_random_quotes = random.choices(quotes, weights=quote_weights, k=2)
+            if two_random_quotes[0].QuoteID != two_random_quotes[1].QuoteID:
+                break
+        quote1 = two_random_quotes[0]
+        quote2 = two_random_quotes[1]
+
+        embed = discord.Embed(
+            title="Epic Quote Battle",
+            description=f"Choose the better quote using the buttons. Battle ends after {self.TIME_FOR_BATTLE} seconds.\nVotes: 0",
+            color=discord.Color.gold()
+        )
+        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID}", value=quote1.QuoteText, inline=False)
+        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID}", value=quote2.QuoteText, inline=False)
+        components = [[
+            Button(style=ButtonStyle.blue, emoji="1️⃣", id="1"),
+            Button(style=ButtonStyle.blue, emoji="2️⃣", id="2")
+        ]]
+        msg = await ctx.send(embed=embed, components=components)
+
+        def check(m: Interaction):
+            return m.message.id == msg.id
+        start_time = time.time()
+        starting_elo1 = current_elo1 = quote1.Elo
+        starting_elo2 = current_elo2 = quote2.Elo
+
+        voted_users = []
+        wins1 = 0
+        wins2 = 0
+        if datetime.day != self.last_day:  # resets the dictionary if its a new day
+            self.user_vote_count = {}
+
+        while start_time + self.TIME_FOR_BATTLE > time.time():
+            embed.description = f"Choose the better quote using the buttons. Battle ends after {int(start_time + self.TIME_FOR_BATTLE - time.time())} seconds.\nVotes: {len(voted_users)}"
+            await msg.edit(embed=embed)
+            try:
+                res: Interaction = await self.bot.wait_for("button_click", timeout=5, check=check)
+            except asyncio.TimeoutError:
+                continue
+            if res.user.id in voted_users:
+                await res.respond(type=InteractionType.ChannelMessageWithSource, content="You already voted on this battle. You can't vote twice.")
+                continue
+            if res.user.id in self.user_vote_count and self.user_vote_count[res.user.id] == 10:
+                await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"You reached the max amount of battles you can vote on for today: `{self.user_vote_count[res.user.id]}`")
+                continue
+
+            voted_users.append(res.user.id)
+            # adds the user to the daily vote dictionary. Each user has a max amount of battles they can vote on
+            if res.user.id in self.user_vote_count:
+                self.user_vote_count[res.user.id] += 1
+            else:
+                self.user_vote_count[res.user.id] = 1
+
+            if res.component.id == "1":
+                wins1 += 1
+                new_elos = calculate_elo(current_elo1, current_elo2, Winner.First)
+                await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"Successfully voted on quote {quote1.QuoteID}")
+            else:
+                wins2 += 1
+                new_elos = calculate_elo(current_elo1, current_elo2, Winner.Second)
+                await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"Successfully voted on quote {quote2.QuoteID}")
+            current_elo1 = new_elos[0]
+            current_elo2 = new_elos[1]
+            print(new_elos)
+
+        embed = discord.Embed(
+            title="Epic Quote Battle Over",
+            description=f"Quote Battle over. There were {len(voted_users)} intense battles.",
+            color=discord.Color.gold()
+        )
+        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | {round(starting_elo1)} → {round(current_elo1)} | Wins: {wins1}", value=quote1.QuoteText, inline=False)
+        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | {round(starting_elo2)} → {round(current_elo2)} | Wins: {wins2}", value=quote2.QuoteText, inline=False)
+        await msg.edit(embed=embed, components=[])
+
+        SQLFunctions.update_quote_battle(quote1.QuoteID, quote1.AmountBattled+wins1+wins2, quote1.AmountWon+wins1, current_elo1, self.conn)
+        SQLFunctions.update_quote_battle(quote2.QuoteID, quote2.AmountBattled+wins1+wins2, quote2.AmountWon+wins2, current_elo2, self.conn)
 
 
 def setup(bot):
