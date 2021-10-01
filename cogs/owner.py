@@ -233,7 +233,7 @@ class Owner(commands.Cog):
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         start_time = time.perf_counter()
-        sql = sql.lower().replace("insert", "insert or ignore")
+        sql = sql.replace("insert", "insert or ignore").replace("INSERT", "INSERT OR IGNORE")
         error = False
         try:
             c.execute(sql)
