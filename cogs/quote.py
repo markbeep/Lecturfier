@@ -36,7 +36,17 @@ class Winner(Enum):
     Second = 2
 
 
-def calculate_elo(elo1, elo2, winner: Winner, K_VALUE=16) -> tuple[int, int]:
+def determine_k_value(rating) -> int:
+    if rating < 600:
+        return 40
+    if rating < 1200:
+        return 32
+    if rating < 1600:
+        return 24
+    return 16
+
+
+def calculate_elo(elo1, elo2, winner: Winner) -> tuple[int, int]:
     """
     Calculates the new Elos depending on who won.
     https://metinmediamath.wordpress.com/2013/11/27/how-to-calculate-the-elo-rating-including-example/
@@ -51,8 +61,8 @@ def calculate_elo(elo1, elo2, winner: Winner, K_VALUE=16) -> tuple[int, int]:
     else:
         act_score1 = 0
         act_score2 = 1
-    updated_elo1 = elo1 + K_VALUE * (act_score1 - expected_score1)
-    updated_elo2 = elo2 + K_VALUE * (act_score2 - expected_score2)
+    updated_elo1 = elo1 + determine_k_value(elo1) * (act_score1 - expected_score1)
+    updated_elo2 = elo2 + determine_k_value(elo2) * (act_score2 - expected_score2)
     if updated_elo1 < 0:
         updated_elo1 = 0
     if updated_elo2 < 0:
@@ -67,6 +77,7 @@ class Quote(commands.Cog):
         self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
         self.TIME_FOR_BATTLE = 30  # how long a battle lasts
+        self.active_quotes = []  # quotes which are currently battling
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -664,10 +675,16 @@ class Quote(commands.Cog):
         # Re-raffles until we have two unique quotes
         while True:
             two_random_quotes = random.choices(quotes, weights=quote_weights, k=2)
+            quote1 = two_random_quotes[0]
+            quote2 = two_random_quotes[1]
+            if quote1.Name == "test" or quote2.Name == "test":
+                continue
+            if quote1.QuoteID in self.active_quotes or quote2.QuoteID in self.active_quotes:
+                continue
             if two_random_quotes[0].QuoteID != two_random_quotes[1].QuoteID:
                 break
-        quote1 = two_random_quotes[0]
-        quote2 = two_random_quotes[1]
+        self.active_quotes.append(quote1.QuoteID)
+        self.active_quotes.append(quote2.QuoteID)
 
         embed = discord.Embed(
             title="Epic Quote Battle",
@@ -715,7 +732,6 @@ class Quote(commands.Cog):
                 await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"Successfully voted on quote {quote2.QuoteID}")
             current_elo1 = new_elos[0]
             current_elo2 = new_elos[1]
-            print(new_elos)
 
         embed = discord.Embed(
             title="Epic Quote Battle Over",
@@ -726,8 +742,11 @@ class Quote(commands.Cog):
         embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | {round(starting_elo2)} → {round(current_elo2)} | Wins: {wins2}", value=quote2.QuoteText, inline=False)
         await msg.edit(embed=embed, components=[])
 
+        self.active_quotes.pop(self.active_quotes.index(quote1.QuoteID))
+        self.active_quotes.pop(self.active_quotes.index(quote2.QuoteID))
         SQLFunctions.update_quote_battle(quote1.QuoteID, quote1.AmountBattled+wins1+wins2, quote1.AmountWon+wins1, current_elo1, self.conn)
         SQLFunctions.update_quote_battle(quote2.QuoteID, quote2.AmountBattled+wins1+wins2, quote2.AmountWon+wins2, current_elo2, self.conn)
+
 
     @commands.guild_only()
     @quote.command(aliases=["lb"], usage="leaderboard")
