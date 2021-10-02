@@ -45,7 +45,7 @@ class Statistics(commands.Cog):
             with open("./data/settings.json", "r") as f:
                 settings = json.load(f)
             if settings["upload to git"]:
-                sent_file = True
+                self.sent_file = True
                 output = gitpush("./data")
                 user = self.bot.get_user(self.bot.owner_id)
                 await user.send("Updated GIT\n"

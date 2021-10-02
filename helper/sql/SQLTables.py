@@ -175,3 +175,7 @@ def create_tables():
         print(e)
     finally:
         conn.commit()
+
+
+if __name__ == "__main__":
+    create_tables()
