@@ -642,7 +642,7 @@ class Quote(commands.Cog):
             await ctx.send(embed=p.create_embed(), delete_after=60)
             await ctx.message.delete(delay=60)
 
-    @commands.cooldown(1, 30, BucketType.channel)
+    @commands.cooldown(1, 15, BucketType.channel)
     @commands.guild_only()
     @quote.command(aliases=["b"], usage="battle")
     async def battle(self, ctx):
@@ -728,6 +728,34 @@ class Quote(commands.Cog):
 
         SQLFunctions.update_quote_battle(quote1.QuoteID, quote1.AmountBattled+wins1+wins2, quote1.AmountWon+wins1, current_elo1, self.conn)
         SQLFunctions.update_quote_battle(quote2.QuoteID, quote2.AmountBattled+wins1+wins2, quote2.AmountWon+wins2, current_elo2, self.conn)
+
+    @commands.guild_only()
+    @quote.command(aliases=["lb"], usage="leaderboard")
+    async def leaderboard(self, ctx):
+        quotes = SQLFunctions.get_quotes(guild_id=ctx.message.guild.id, rank_by_elo=True)
+        quotes_list = ""
+        i = 1
+        for q in quotes:
+            quotes_list += f"\n**{i}**: {q.QuoteText} `[{q.QuoteID}][Elo: {round(q.Elo)}]`"
+            i += 1
+        # creates the pages
+        pages = []
+        while len(quotes_list) > 0:
+            # split quotes into multiple fields of max 1000 chars
+            if len(quotes_list) >= 1000:
+                rind2 = quotes_list.rindex("\n", 0, 1000)
+                if rind2 == 0:
+                    # one quote is more than 1000 chars
+                    rind2 = quotes_list.rindex(" ", 0, 1000)
+                    if rind2 == 0:
+                        # the quote is longer than 1000 chars and has no spaces
+                        rind2 = 1000
+            else:
+                rind2 = len(quotes_list)
+            pages.append(quotes_list[0:rind2])
+            quotes_list = quotes_list[rind2:]
+        qm = Pages(self.bot, ctx, pages, ctx.message.author.id, f"Quote Leaderboard")
+        await qm.handle_pages()
 
 
 def setup(bot):

@@ -553,7 +553,7 @@ def get_quote(quote_ID, guild_id, conn=connect(), row_id=None, random=False) -> 
     )
 
 
-def get_quotes(discord_user_id=None, unique_member_id=None, name=None, quote=None, guild_id=None, conn=connect(), random=False, limit=None) -> list[
+def get_quotes(discord_user_id=None, unique_member_id=None, name=None, quote=None, guild_id=None, conn=connect(), random=False, limit=None, rank_by_elo=False) -> list[
     Quote]:
     sql = """   SELECT  Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID,
                         DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester,
@@ -580,6 +580,8 @@ def get_quotes(discord_user_id=None, unique_member_id=None, name=None, quote=Non
         values.append(guild_id)
     if random:
         sql += " ORDER BY RANDOM()"
+    if rank_by_elo:
+        sql += " ORDER BY Q.Elo DESC"
     if limit is not None:
         sql += " LIMIT ?"
         values.append(limit)
