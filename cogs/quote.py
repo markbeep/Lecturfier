@@ -34,6 +34,7 @@ async def send_quote(channel: discord.channel, quote: SQLFunctions.Quote):
 class Winner(Enum):
     First = 1
     Second = 2
+    Draw = 3
 
 
 def determine_k_value(rating) -> int:
@@ -58,6 +59,9 @@ def calculate_elo(elo1, elo2, winner: Winner) -> tuple[int, int]:
     if winner == Winner.First:
         act_score1 = 1
         act_score2 = 0
+    elif winner == Winner.Draw:
+        act_score1 = 0.5
+        act_score2 = 0.5
     else:
         act_score1 = 0
         act_score2 = 1
@@ -70,6 +74,32 @@ def calculate_elo(elo1, elo2, winner: Winner) -> tuple[int, int]:
     return updated_elo1, updated_elo2
 
 
+def set_new_elo(score1, score2, quote1: SQLFunctions.Quote, quote2: SQLFunctions.Quote, conn) -> tuple[int, int]:
+    if score1 == score2:  # draw
+        current_elo1, current_elo2 = quote1.Elo, quote2.Elo
+        for _ in range(score1+score2):
+            current_elo1, current_elo2 = calculate_elo(current_elo1, current_elo2, Winner.Draw)
+        SQLFunctions.update_quote_battle(quote1.QuoteID, quote1.AmountBattled + score1 + score2, quote1.AmountWon + score1, current_elo1, conn)
+        SQLFunctions.update_quote_battle(quote2.QuoteID, quote2.AmountBattled + score1 + score2, quote2.AmountWon + score2, current_elo2, conn)
+        return current_elo1, current_elo2
+    if score1 > score2:  # first quote won
+        diff = score1 - score2
+        current_elo1, current_elo2 = quote1.Elo, quote2.Elo
+        for _ in range(diff):
+            current_elo1, current_elo2 = calculate_elo(current_elo1, current_elo2, Winner.First)
+        SQLFunctions.update_quote_battle(quote1.QuoteID, quote1.AmountBattled + score1 + score2, quote1.AmountWon + score1, current_elo1, conn)
+        SQLFunctions.update_quote_battle(quote2.QuoteID, quote2.AmountBattled + score1 + score2, quote2.AmountWon + score2, current_elo2, conn)
+        return current_elo1, current_elo2
+    # second quote won
+    diff = score2 - score1
+    current_elo1, current_elo2 = quote1.Elo, quote2.Elo
+    for _ in range(diff):
+        current_elo1, current_elo2 = calculate_elo(current_elo1, current_elo2, Winner.Second)
+    SQLFunctions.update_quote_battle(quote1.QuoteID, quote1.AmountBattled + score1 + score2, quote1.AmountWon + score1, current_elo1, conn)
+    SQLFunctions.update_quote_battle(quote2.QuoteID, quote2.AmountBattled + score1 + score2, quote2.AmountWon + score2, current_elo2, conn)
+    return current_elo1, current_elo2
+
+
 class Quote(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -78,6 +108,8 @@ class Quote(commands.Cog):
         self.conn = SQLFunctions.connect()
         self.TIME_FOR_BATTLE = 30  # how long a battle lasts
         self.active_quotes = []  # quotes which are currently battling
+        self.battle_scores = {}  # message id and score of the battle as a tuple
+        self.voted_users = {}  # dict with lists of users that voted on a battle
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -106,9 +138,17 @@ class Quote(commands.Cog):
 
     @commands.Cog.listener()
     async def on_button_click(self, res: Interaction):
-        await asyncio.sleep(1)
-        if not res.responded and res.component.id in ["1", "2"]:
-            await res.respond(type=InteractionType.ChannelMessageWithSource, content="Something went wrong. Click again.")
+        if res.component.id in ["1", "2"]:
+            if res.message.id in self.battle_scores and res.message.id in self.voted_users:
+                if res.user.id in self.voted_users[res.message.id]:
+                    await res.respond(type=InteractionType.ChannelMessageWithSource,
+                                      content="You already voted on this battle. You can't vote twice.")
+                else:
+                    self.battle_scores[res.message.id][int(res.component.id)-1] += 1  # increments the score
+                    self.voted_users[res.message.id].append(res.user.id)
+                    await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"Successfully voted for option {res.component.id}")
+            else:
+                await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"Didn't find this battle. Is it still going on?")
 
     @commands.cooldown(4, 10, BucketType.user)
     @commands.guild_only()
@@ -697,56 +737,37 @@ class Quote(commands.Cog):
             Button(style=ButtonStyle.blue, emoji="1️⃣", id="1"),
             Button(style=ButtonStyle.blue, emoji="2️⃣", id="2")
         ]]
-        msg = await ctx.send(embed=embed, components=components)
+        msg: discord.Message = await ctx.send(embed=embed, components=components)
+        starting_elo1 = quote1.Elo
+        starting_elo2 = quote2.Elo
 
-        def check(m: Interaction):
-            return m.message.id == msg.id
+        self.voted_users[msg.id] = []
+        self.battle_scores[msg.id] = [0, 0]
+
         start_time = time.time()
-        starting_elo1 = current_elo1 = quote1.Elo
-        starting_elo2 = current_elo2 = quote2.Elo
-
-        voted_users = []
-        wins1 = 0
-        wins2 = 0
-
         while start_time + self.TIME_FOR_BATTLE > time.time():
-            embed.description = f"Choose the better quote using the buttons. Battle ends after {int(start_time + self.TIME_FOR_BATTLE - time.time())} seconds.\nVotes: {len(voted_users)}"
+            embed.description = f"Choose the better quote using the buttons. Battle ends after {int(start_time + self.TIME_FOR_BATTLE - time.time())} seconds.\nVotes: {len(self.voted_users[msg.id])}"
             await msg.edit(embed=embed)
-            try:
-                res: Interaction = await self.bot.wait_for("button_click", timeout=5, check=check)
-            except asyncio.TimeoutError:
-                continue
-            if res.user.id in voted_users:
-                await res.respond(type=InteractionType.ChannelMessageWithSource, content="You already voted on this battle. You can't vote twice.")
-                continue
-
-            voted_users.append(res.user.id)
-
-            if res.component.id == "1":
-                wins1 += 1
-                new_elos = calculate_elo(current_elo1, current_elo2, Winner.First)
-                await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"Successfully voted on quote {quote1.QuoteID}")
-            else:
-                wins2 += 1
-                new_elos = calculate_elo(current_elo1, current_elo2, Winner.Second)
-                await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"Successfully voted on quote {quote2.QuoteID}")
-            current_elo1 = new_elos[0]
-            current_elo2 = new_elos[1]
+            await asyncio.sleep(5)
 
         embed = discord.Embed(
             title="Epic Quote Battle Over",
-            description=f"Quote Battle over. There were {len(voted_users)} intense battles.",
+            description=f"Quote Battle over. There were {len(self.voted_users[msg.id])} intense battles.",
             color=discord.Color.gold()
         )
-        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | {round(starting_elo1)} → {round(current_elo1)} | Wins: {wins1}", value=quote1.QuoteText, inline=False)
-        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | {round(starting_elo2)} → {round(current_elo2)} | Wins: {wins2}", value=quote2.QuoteText, inline=False)
+
+        score1, score2 = self.battle_scores[msg.id]
+        new_elo1, new_elo2 = set_new_elo(score1, score2, quote1, quote2, self.conn)
+
+        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | {round(starting_elo1)} → {round(new_elo1)} | Wins: {score1}", value=quote1.QuoteText, inline=False)
+        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | {round(starting_elo2)} → {round(new_elo2)} | Wins: {score2}", value=quote2.QuoteText, inline=False)
         await msg.edit(embed=embed, components=[])
 
+        # remove all entries that were created again
+        self.voted_users.pop(msg.id)
+        self.battle_scores.pop(msg.id)
         self.active_quotes.pop(self.active_quotes.index(quote1.QuoteID))
         self.active_quotes.pop(self.active_quotes.index(quote2.QuoteID))
-        SQLFunctions.update_quote_battle(quote1.QuoteID, quote1.AmountBattled+wins1+wins2, quote1.AmountWon+wins1, current_elo1, self.conn)
-        SQLFunctions.update_quote_battle(quote2.QuoteID, quote2.AmountBattled+wins1+wins2, quote2.AmountWon+wins2, current_elo2, self.conn)
-
 
     @commands.guild_only()
     @quote.command(aliases=["lb"], usage="leaderboard")
