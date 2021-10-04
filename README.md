@@ -1,3 +1,5 @@
+**Note:** The Lecturfier bot has been fitted for a specific Discord server, so a lot of things might not work when run on your system.
+
 # Lecturfier
 
 Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 2020 Discord Server.
@@ -12,9 +14,7 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
 [Click Here](https://github.com/markbeep/Lecturfier/projects/1)
 
 ## List of noteworthy functions (not up to date)
-  - Cipher (Ciphers text using the idea of Caesar's Cipher)
   - Event (Plan and organize events)
-  - Hash (Hash text using any OpenSSL hashing method)
   - Help (Fully fleshed out help page with a lot of information on how to use commands)
   - Voice XP (Get xp points for being active in voice channels and for chatting)
   - Lecture starts (Get pings when lectures start)
