@@ -46,11 +46,12 @@ class Statistics(commands.Cog):
                 settings = json.load(f)
             if settings["upload to git"]:
                 self.sent_file = True
-                output = gitpush("./data")
+                commit, push = gitpush("./data")
                 user = self.bot.get_user(self.bot.owner_id)
-                await user.send("Updated GIT\n"
-                                f"Commit: `{output[0]}`\n"
-                                f"Push: `{output[1]}`")
+                if push != 0:
+                    await user.send("Updated GIT\n"
+                                    f"Commit: `{commit}`\n"
+                                    f"Push: `{push}`")
         if datetime.now().hour % 2 != 0:
             self.sent_file = False
 
