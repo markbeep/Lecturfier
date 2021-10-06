@@ -693,7 +693,7 @@ class Quote(commands.Cog):
             await ctx.send(embed=p.create_embed(), delete_after=60)
             await ctx.message.delete(delay=60)
 
-    @commands.cooldown(1, 15, BucketType.channel)
+    @commands.cooldown(2, 15, BucketType.channel)
     @commands.guild_only()
     @quote.command(aliases=["b"], usage="battle")
     async def battle(self, ctx):
@@ -768,6 +768,14 @@ class Quote(commands.Cog):
         self.battle_scores.pop(msg.id)
         self.active_quotes.pop(self.active_quotes.index(quote1.QuoteID))
         self.active_quotes.pop(self.active_quotes.index(quote2.QuoteID))
+        try:
+            await msg.delete(delay=60)
+        except (discord.NotFound, discord.Forbidden):
+            pass
+        try:
+            await ctx.message.delete(delay=60)
+        except (discord.NotFound, discord.Forbidden):
+            pass
 
     @commands.guild_only()
     @quote.command(aliases=["lb"], usage="leaderboard [user ID | mention]")
