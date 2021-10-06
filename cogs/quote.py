@@ -731,8 +731,8 @@ class Quote(commands.Cog):
             description=f"Choose the better quote using the buttons. Battle ends after {self.TIME_FOR_BATTLE} seconds.\nVotes: 0",
             color=discord.Color.gold()
         )
-        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID}", value=quote1.QuoteText, inline=False)
-        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID}", value=quote2.QuoteText, inline=False)
+        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | Name: {quote1.Name}", value=quote1.QuoteText, inline=False)
+        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | Name: {quote2.Name}", value=quote2.QuoteText, inline=False)
         components = [[
             Button(style=ButtonStyle.blue, emoji="1️⃣", id="1"),
             Button(style=ButtonStyle.blue, emoji="2️⃣", id="2")
@@ -759,8 +759,8 @@ class Quote(commands.Cog):
         score1, score2 = self.battle_scores[msg.id]
         new_elo1, new_elo2 = set_new_elo(score1, score2, quote1, quote2, self.conn)
 
-        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | {round(starting_elo1)} → {round(new_elo1)} | Wins: {score1}", value=quote1.QuoteText, inline=False)
-        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | {round(starting_elo2)} → {round(new_elo2)} | Wins: {score2}", value=quote2.QuoteText, inline=False)
+        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | Name: {quote1.Name} | {round(starting_elo1)} → {round(new_elo1)} | Wins: {score1}", value=quote1.QuoteText, inline=False)
+        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | Name: {quote2.Name} | {round(starting_elo2)} → {round(new_elo2)} | Wins: {score2}", value=quote2.QuoteText, inline=False)
         await msg.edit(embed=embed, components=[])
 
         # remove all entries that were created again
@@ -770,9 +770,21 @@ class Quote(commands.Cog):
         self.active_quotes.pop(self.active_quotes.index(quote2.QuoteID))
 
     @commands.guild_only()
-    @quote.command(aliases=["lb"], usage="leaderboard")
-    async def leaderboard(self, ctx):
-        quotes = SQLFunctions.get_quotes(guild_id=ctx.message.guild.id, rank_by_elo=True)
+    @quote.command(aliases=["lb"], usage="leaderboard [user ID | mention]")
+    async def leaderboard(self, ctx, user=None):
+        if user is None:
+            title = "Quote Leaderboard"
+            quotes = SQLFunctions.get_quotes(guild_id=ctx.message.guild.id, rank_by_elo=True)
+        else:
+            user_id:str = user.replace("<@", "").replace(">", "").replace("!", "")
+            if not user_id.isnumeric():
+                await ctx.reply(f"Did not find a user with the given ID/mention.")
+                raise discord.ext.commands.errors.BadArgument
+            quotes = SQLFunctions.get_quotes(guild_id=ctx.message.guild.id, rank_by_elo=True, discord_user_id=int(user_id))
+            if len(quotes) == 0:
+                await ctx.reply(f"Did not find any quotes from the given user.")
+                raise discord.ext.commands.errors.BadArgument
+            title = f"Quote Leaderboard from {quotes[0].Name}"
         quotes_list = ""
         i = 1
         for q in quotes:
@@ -794,7 +806,7 @@ class Quote(commands.Cog):
                 rind2 = len(quotes_list)
             pages.append(quotes_list[0:rind2])
             quotes_list = quotes_list[rind2:]
-        qm = Pages(self.bot, ctx, pages, ctx.message.author.id, f"Quote Leaderboard")
+        qm = Pages(self.bot, ctx, pages, ctx.message.author.id, title)
         await qm.handle_pages()
 
 
