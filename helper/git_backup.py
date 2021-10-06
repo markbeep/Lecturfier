@@ -13,4 +13,4 @@ def gitpush(directory):
     push_out = subprocess.run(["git", "-C", directory, "push", "-u"])
     # git -C ./data push -u origin main
     log(f"Pushed: {push_out}", "GIT")
-    return commit_out, push_out
+    return commit_out.returncode, push_out.returncode
