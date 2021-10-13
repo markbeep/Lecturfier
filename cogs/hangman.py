@@ -37,7 +37,7 @@ class Hangman(commands.Cog):
         """
         if ctx.invoked_subcommand is None:
             start = time.time()
-            word_length = random.randint(3, 15)
+            word_length = random.randint(4, 15)
             previous = []
             ignored = []
             current_word = ["_"] * word_length
@@ -79,23 +79,25 @@ class Hangman(commands.Cog):
 
                 letter_count, fitting = hangman.solve("".join(current_word), ignore=ignored)
 
-                if len(fitting) == 0:
-                    if len(previous) == 0:
+                if len(fitting) == 0:  # no fitting letters
+                    if len(previous) == 0:  # this is called in the first iteration if previous hasn't been filled in yet
                         word_length -= 1
                         if word_length < 0:
                             break
                         else:
-                            current_word = ["_"] * word_length
-                            continue
-                    else:
-                        ignored.pop(ignored.index(guess))  # additionally remove the letter from the ignored chars
-
-                        rand_word = random.choice(previous)
-                        for i in range(len(rand_word)):
-                            if rand_word[i] == guess:
-                                current_word[i] = guess
+                            current_word = ["_"] * word_length  # we create a new underscore word
+                    else:  # we found no fitting words, so pick one of the previous words randomly
+                        rand_word = random.choice(previous)  # pick a random word of the previous list
+                        if guess in rand_word:  # if the guess is in the word, we have to change all _ to the guess
+                            for i in range(len(rand_word)):
+                                if rand_word[i] == guess:
+                                    current_word[i] = guess
+                            ignored.pop(ignored.index(guess))  # additionally remove the letter from the ignored chars
+                        else:  # we keep the guess as a wrong guess
+                            pass
                 else:
                     previous = fitting.copy()
+                    
                 if current_word.count("_") == 0:
                     await ctx.send(f"{ctx.message.author.mention}! You guessed the word!\n`{''.join(current_word)}`")
                     break
