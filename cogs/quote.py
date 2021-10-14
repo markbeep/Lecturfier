@@ -622,6 +622,9 @@ class Quote(commands.Cog):
         Deletes the quote with the given ID.
         Permissions: Owner
         """
+        if quoteID is None:
+            await ctx.send("No quote ID given.")
+            raise discord.ext.commands.BadArgument
         try:
             quote_id = int(quoteID)
             try:
@@ -647,9 +650,6 @@ class Quote(commands.Cog):
             embed = discord.Embed(title="Quote Error", description="There are no quotes on this server yet.", color=0xFF0000)
             await ctx.send(embed=embed)
             raise discord.ext.commands.errors.BadArgument
-
-        MAX_FIELDS = 21
-        per_field = math.ceil(len(quoted_names) / MAX_FIELDS)  # the amount of names per field to have a max of 21 fields
 
         # create mention message to cache the mentions for the watching discord users
         mention_message = ""

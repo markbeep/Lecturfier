@@ -81,9 +81,12 @@ class Admin(commands.Cog):
         # find out who deleted it
         await asyncio.sleep(3)  # small delay as audit log sometimes takes a bit
         audit: discord.AuditLogEntry = None
-        async for entry in message.guild.audit_logs(action=discord.AuditLogAction.message_delete, limit=10):
-            if entry.target.id == message.author.id and entry.created_at >= message.created_at:
-                audit = entry
+        try:
+            async for entry in message.guild.audit_logs(action=discord.AuditLogAction.message_delete, limit=10):
+                if entry.target.id == message.author.id and entry.created_at >= message.created_at:
+                    audit = entry
+        except discord.errors.Forbidden:
+            pass
         if audit is None:
             embed.add_field(name="Deleted by", value="A bot or the user")
         else:

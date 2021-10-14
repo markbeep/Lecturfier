@@ -122,7 +122,7 @@ def get_or_create_discord_member(member: discord.Member, semester=0, conn=connec
 
 
 class UserStatistics:
-    def __init__(self, *args):
+    def __init__(self, args):
         self.UserStatisticsID = args[0]
         self.UniqueMemberID = args[1]
         self.SubjectID = args[2]
@@ -165,7 +165,7 @@ def update_statistics(member: discord.Member, subject_id: int, conn=connect(), m
     :return: True if a new entry was created, False otherwise
     """
     dm = get_or_create_discord_member(member, conn=conn)
-    sql = """   UPDATE UserStatistics
+    sql = """   UPDATE OR IGNORE UserStatistics
                 SET MessagesSent = MessagesSent + ?,
                     MessagesDeleted = MessagesDeleted + ?,
                     MessagesEdited = MessagesEdited + ?,
@@ -183,18 +183,18 @@ def update_statistics(member: discord.Member, subject_id: int, conn=connect(), m
                 WHERE UniqueMemberID = ? AND SubjectID = ?"""
     value = False
     try:
-        conn.execute(sql, (messages_sent, messages_deleted, messages_edited, characters_sent, words_sent, spoilers_sent, emojis_sent, files_sent,
-                           file_size_sent, images_sent, reactions_added, reactions_removed, reactions_received, reactions_taken_away,
-                           dm.UniqueMemberID, subject_id))
+        rows = conn.execute(sql,
+                            (messages_sent, messages_deleted, messages_edited, characters_sent, words_sent, spoilers_sent, emojis_sent, files_sent,
+                             file_size_sent, images_sent, reactions_added, reactions_removed, reactions_received, reactions_taken_away,
+                             dm.UniqueMemberID, subject_id)).rowcount
         conn.commit()
-    except sqlite3.IntegrityError:
-        # The user doesn't have a statistics entry yet
-        get_or_create_user_statistics(member, subject_id, conn)
-        conn.execute(sql, (messages_sent, messages_deleted, messages_edited, characters_sent, words_sent, spoilers_sent, emojis_sent, files_sent,
-                           file_size_sent, images_sent, reactions_added, reactions_removed, reactions_received, reactions_taken_away,
-                           dm.UniqueMemberID, subject_id))
-        conn.commit()
-        value = True
+        if rows == 0:
+            get_or_create_user_statistics(member, subject_id, conn)
+            conn.execute(sql, (messages_sent, messages_deleted, messages_edited, characters_sent, words_sent, spoilers_sent, emojis_sent, files_sent,
+                               file_size_sent, images_sent, reactions_added, reactions_removed, reactions_received, reactions_taken_away,
+                               dm.UniqueMemberID, subject_id))
+            conn.commit()
+            value = True
     finally:
         conn.commit()
     return value
@@ -374,8 +374,10 @@ def get_event_joined_users(event: Event, conn=connect()) -> list:
 
 
 def mark_events_done(current_time=datetime.now(), conn=connect()) -> int:
-    events_changed = conn.execute("Update Events SET IsDone=1 WHERE EventStartingAt < ?", (str(current_time),)).rowcount
-    conn.commit()
+    try:
+        events_changed = conn.execute("Update Events SET IsDone=1 WHERE EventStartingAt < ?", (str(current_time),)).rowcount
+    finally:
+        conn.commit()
     return events_changed
 
 
@@ -532,7 +534,7 @@ class Quote:
 def get_quote(quote_ID, guild_id, conn=connect(), row_id=None, random=False) -> Quote:
     values = "QuoteID, Quote, Name, UniqueMemberID, CreatedAt, AddedByUniqueMemberID, DiscordGuildID, AmountBattled, AmountWon, Elo"
     if random:
-        row = conn.execute(f"SELECT {values} WHERE DiscordGuildID=? ORDER BY RANDOM() LIMIT 1", (guild_id,)).fetchone()
+        row = conn.execute(f"SELECT {values} FROM Quotes WHERE DiscordGuildID=? ORDER BY RANDOM() LIMIT 1", (guild_id,)).fetchone()
     elif row_id is not None:
         row = conn.execute(f"SELECT {values} FROM Quotes WHERE ROWID=? AND DiscordGuildID=?", (row_id, guild_id)).fetchone()
     else:
@@ -553,7 +555,8 @@ def get_quote(quote_ID, guild_id, conn=connect(), row_id=None, random=False) -> 
     )
 
 
-def get_quotes(discord_user_id=None, unique_member_id=None, name=None, quote=None, guild_id=None, conn=connect(), random=False, limit=None, rank_by_elo=False) -> list[
+def get_quotes(discord_user_id=None, unique_member_id=None, name=None, quote=None, guild_id=None, conn=connect(), random=False, limit=None,
+               rank_by_elo=False) -> list[
     Quote]:
     sql = """   SELECT  Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID,
                         DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester,
@@ -701,13 +704,14 @@ class Name:
 
 def get_quoted_names(guild: discord.Guild, conn=connect()) -> list[Name]:
     sql = """   SELECT  COUNT(*), DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester,
-                        Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID
+                        Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID,
+                        Q.AmountBattled, Q.AmountWon, Q.Elo
                 FROM Quotes Q
                 LEFT JOIN DiscordMembers DM on Q.UniqueMemberID = DM.UniqueMemberID
                 WHERE Q.DiscordGuildID=?
                 GROUP BY Q.Name
                 ORDER BY COUNT(*) DESC"""
-    results = conn.execute(sql, (guild.id,))
+    results = conn.execute(sql, (guild.id,)).fetchall()
     all_names = []
     for row in results:
         member = None
