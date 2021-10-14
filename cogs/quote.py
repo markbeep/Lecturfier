@@ -123,6 +123,9 @@ class Quote(commands.Cog):
         quoteAdder = payload.member
         emoji = payload.emoji
         if str(emoji) == "<:addQuote:840982832654712863>":
+            if user.bot:
+                print("Quoted message author is a bot. Ignoring Quote.")
+                return
             # We first check if the channel is an announcement channel
                 # To avoid unecessary queries
             if channel.type == discord.ChannelType.news:
