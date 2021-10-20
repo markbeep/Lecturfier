@@ -115,7 +115,7 @@ class Statistics(commands.Cog):
         spoiler_count = msg.count("||") // 2
 
         # File Statistics
-        files_amount = 0
+        files_amount = len(message.attachments)
         file_sizes = 0
         images_amt = 0
         for f in message.attachments:
@@ -184,20 +184,20 @@ class Statistics(commands.Cog):
     async def on_reaction_add(self, reaction, member):
         if reaction.message.guild is None or member.bot:
             return
-        SUBJECT_ID = self.get_current_subject()
-        SQLFunctions.update_statistics(member, SUBJECT_ID, reactions_added=1)
         if member.id == reaction.message.author.id:
             return
-        SQLFunctions.update_statistics(reaction.message.author, SUBJECT_ID, reactions_received=1)
+        SUBJECT_ID = self.get_current_subject()
+        SQLFunctions.update_statistics(member, SUBJECT_ID, reactions_added=1)  # reactions added by the user
+        SQLFunctions.update_statistics(reaction.message.author, SUBJECT_ID, reactions_received=1)  # reactions received by the user
 
     @commands.Cog.listener()
     async def on_reaction_remove(self, reaction, member):
         if reaction.message.guild is None or member.bot:
             return
-        SUBJECT_ID = self.get_current_subject()
-        SQLFunctions.update_statistics(member, SUBJECT_ID, reactions_removed=1)
         if member.id == reaction.message.author.id:
             return
+        SUBJECT_ID = self.get_current_subject()
+        SQLFunctions.update_statistics(member, SUBJECT_ID, reactions_removed=1)
         SQLFunctions.update_statistics(reaction.message.author, SUBJECT_ID, reactions_taken_away=1)
 
     async def create_embed(self, member: discord.Member, statistic_columns) -> discord.Embed:
