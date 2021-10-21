@@ -148,7 +148,10 @@ class Quote(commands.Cog):
                     self.voted_users[res.message.id].append(res.user.id)
                     await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"Successfully voted for option {res.component.id}")
             else:
-                await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"Didn't find this battle. Is it still going on?")
+                try:
+                    await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"Didn't find this battle. Is it still going on?")
+                except discord.NotFound:
+                    pass
 
     @commands.cooldown(4, 10, BucketType.user)
     @commands.guild_only()
@@ -188,6 +191,12 @@ class Quote(commands.Cog):
             await send_quote(ctx, quote)
 
         else:  # there's a user given
+            # we check the aliases of that name
+            aliases = SQLFunctions.get_quote_aliases(self.conn)
+            for a in aliases.keys():
+                if a.lower() == name.lower():
+                    name = aliases[a]
+                    break
             # if there is only a name/ID given, send a random quote from that user
             if len(quote) == 0:
 
@@ -204,10 +213,10 @@ class Quote(commands.Cog):
                     discord_member = None
                     if name.isnumeric():
                         discord_member = ctx.message.guild.get_member(int(name))
-                    if discord_member is not None:
+                    if discord_member is not None:  # we have a quote by a discord user
                         member = SQLFunctions.get_or_create_discord_member(discord_member, 0, self.conn)
                         quotes = SQLFunctions.get_quotes(unique_member_id=member.UniqueMemberID, guild_id=ctx.message.guild.id, conn=self.conn, random=True)
-                    else:
+                    else:  # its a quote by a non-discord user
                         quotes = SQLFunctions.get_quotes(name=name, guild_id=ctx.message.guild.id, conn=self.conn, random=True)
                     if len(quotes) == 0:
                         q = None
@@ -368,7 +377,7 @@ class Quote(commands.Cog):
         aliases = SQLFunctions.get_quote_aliases(self.conn)
         for a in aliases.keys():
             if a.lower() == quoted_name.lower():
-                quoted_name = a
+                quoted_name = aliases[a]
                 break
 
         # checks if the quote exists already
@@ -425,7 +434,12 @@ class Quote(commands.Cog):
             embed.add_field(name="Total Names", value=total_names)
             await ctx.message.reply(embed=embed)
             return
-
+        # we check the aliases of that name
+        aliases = SQLFunctions.get_quote_aliases(self.conn)
+        for a in aliases.keys():
+            if a.lower() == user.lower():
+                user = aliases[a]
+                break
         await self.get_all_quotes(ctx, user)
 
     @quote.group(aliases=["rep"], usage="report <quote ID>", invoke_without_command=True)
@@ -693,7 +707,49 @@ class Quote(commands.Cog):
             await ctx.send(embed=p.create_embed(), delete_after=60)
             await ctx.message.delete(delay=60)
 
-    @commands.cooldown(2, 15, BucketType.channel)
+    def pick_top_quotes(self, quotes) -> tuple[tuple[int, SQLFunctions.Quote], tuple[int, SQLFunctions.Quote]]:
+        """
+        Picks two quotes that are at the top of the leaderboards
+        85% to pick 2 top 10 quotes
+        10% to pick a top 50 quote
+        5% to pick some other quote
+        """
+        n = len(quotes)
+        chance_for_top10 = 0.85
+        chance_for_top50 = 0.10
+        chance_for_rest = 1 - chance_for_top10 - chance_for_top50
+        """
+        The min/max methods make sure that there are the same amount of weights
+        as there are quotes.
+        min(n, 10) = n if n<10, else it's just 10
+        min(max(0, n-10)) = 0 if n<10, else = n-10 if n<40, else its 40
+        max(0, n-50) = 0 if n<50, else it's =n-50
+        """
+        quote_weights = [chance_for_top10/10 for _ in range(min(n, 10))] + \
+                        [chance_for_top50/40 for _ in range(min(max(0, n-10), 40))] + \
+                        [chance_for_rest/(n-50) for _ in range(max(0, n-50))]
+        return self.pick_random_quotes(quotes, quote_weights)
+
+    def pick_random_quotes(self, quotes, quote_weights) -> tuple[tuple[int, SQLFunctions.Quote], tuple[int, SQLFunctions.Quote]]:
+        """
+        Picks two random quotes and assumes the given quotes list is order by rank.
+        :returns Two tuples each including the rank of the quote and the quote object itself.
+        """
+        # Re-raffles until we have two unique quotes
+        quotes_with_rank = [(i+1, quotes[i]) for i in range(len(quotes))]
+        while True:
+            two_random_quotes = random.choices(quotes_with_rank, weights=quote_weights, k=2)
+            (rank1, quote1) = two_random_quotes[0]
+            (rank2, quote2) = two_random_quotes[1]
+            if quote1.Name == "test" or quote2.Name == "test":
+                continue
+            if quote1.QuoteID in self.active_quotes or quote2.QuoteID in self.active_quotes:
+                continue
+            if quote1.QuoteID != quote2.QuoteID:
+                break
+        return (rank1, quote1), (rank2, quote2)
+
+    @commands.cooldown(4, 15, BucketType.channel)
     @commands.guild_only()
     @quote.command(aliases=["b"], usage="battle")
     async def battle(self, ctx):
@@ -701,38 +757,42 @@ class Quote(commands.Cog):
         Picks two random quotes and allows users to vote on which quote they find better. \
         Each vote from a user counts as a win for that quote and immediately takes effect.
         """
-        quotes = SQLFunctions.get_quotes(conn=self.conn, guild_id=ctx.message.guild.id)
-        min_battles = 99999
-        max_battles = 0
-        for q in quotes:
-            min_battles = min(q.AmountBattled, min_battles)
-            max_battles = max(q.AmountBattled, max_battles)
-        # Tokens is what is used to give weights to quotes so quotes that have been shown less are more likely to be shown
-        tokens = max_battles - min_battles + 1
-        quote_weights = [tokens - x.AmountBattled for x in quotes]
+        quotes = SQLFunctions.get_quotes(conn=self.conn, guild_id=ctx.message.guild.id, rank_by_elo=True)
         random.seed()
 
-        # Re-raffles until we have two unique quotes
-        while True:
-            two_random_quotes = random.choices(quotes, weights=quote_weights, k=2)
-            quote1 = two_random_quotes[0]
-            quote2 = two_random_quotes[1]
-            if quote1.Name == "test" or quote2.Name == "test":
-                continue
-            if quote1.QuoteID in self.active_quotes or quote2.QuoteID in self.active_quotes:
-                continue
-            if two_random_quotes[0].QuoteID != two_random_quotes[1].QuoteID:
-                break
-        self.active_quotes.append(quote1.QuoteID)
-        self.active_quotes.append(quote2.QuoteID)
-
         embed = discord.Embed(
-            title="Epic Quote Battle",
             description=f"Choose the better quote using the buttons. Battle ends after {self.TIME_FOR_BATTLE} seconds.\nVotes: 0",
             color=discord.Color.gold()
         )
-        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | Name: {quote1.Name}", value=quote1.QuoteText, inline=False)
-        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | Name: {quote2.Name}", value=quote2.QuoteText, inline=False)
+
+        if random.random() <= 0.1:  # there's a 5% chance for a top battle to show up
+            embed.title = "TOP QUOTE BATTLE"
+            (rank1, quote1), (rank2, quote2) = self.pick_top_quotes(quotes)
+            embed.set_thumbnail(url="https://media4.giphy.com/media/LO8oXHPum0xworIyk4/giphy.gif")
+        else:
+            embed.title = "Epic Quote Battle"
+            min_battles = 99999
+            max_battles = 0
+            for q in quotes:
+                min_battles = min(q.AmountBattled, min_battles)
+                max_battles = max(q.AmountBattled, max_battles)
+            # Tokens is what is used to give weights to quotes so quotes that have been shown less are more likely to be shown
+            tokens = max_battles - min_battles + 1
+            quote_weights = [tokens - x.AmountBattled for x in quotes]
+            (rank1, quote1), (rank2, quote2) = self.pick_random_quotes(quotes, quote_weights)
+
+        self.active_quotes.append(quote1.QuoteID)
+        self.active_quotes.append(quote2.QuoteID)
+
+        quote1_text = quote1.QuoteText
+        quote2_text = quote2.QuoteText
+        if len(quote1_text) > 1000:
+            quote1_text = quote1_text[:1000] + " **[...]**"
+        if len(quote2_text) > 1000:
+            quote2_text = quote2_text[:1000] + " **[...]**"
+
+        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | Name: {quote1.Name} | Rank: {rank1}", value=quote1_text, inline=False)
+        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | Name: {quote2.Name} | Rank: {rank2}", value=quote2_text, inline=False)
         components = [[
             Button(style=ButtonStyle.blue, emoji="1️⃣", id="1"),
             Button(style=ButtonStyle.blue, emoji="2️⃣", id="2")
@@ -751,7 +811,7 @@ class Quote(commands.Cog):
             await asyncio.sleep(5)
 
         embed = discord.Embed(
-            title="Epic Quote Battle Over",
+            title=embed.title + " Over",
             description=f"Quote Battle over. There were {len(self.voted_users[msg.id])} intense battles.",
             color=discord.Color.gold()
         )
