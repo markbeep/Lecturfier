@@ -77,14 +77,14 @@ async def create_buffer(ctx, x1, x2, y1, y2):
 
 
 def is_valid_msg(msg):
-    filt = "!\"#$%&'()*+, -./:;<=>?@[\\]^_`{|}~"
+    filt = "!\"#$%&'()*+, -./:;<=>?@[\\]^_`{|}~ "
     if len(msg) > 200 or len(msg) < 15:
         return False
     count = 0
     for c in msg:
         if c in filt:
             count += 1
-    if count > 30:
+    if count / len(msg) > 0.7:
         return False
     return True
 
