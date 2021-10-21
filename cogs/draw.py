@@ -76,6 +76,19 @@ async def create_buffer(ctx, x1, x2, y1, y2):
     return buffer
 
 
+def is_valid_msg(msg):
+    filt = "!\"#$%&'()*+, -./:;<=>?@[\\]^_`{|}~"
+    if len(msg) > 200 or len(msg) < 15:
+        return False
+    count = 0
+    for c in msg:
+        if c in filt:
+            count += 1
+    if count > 30:
+        return False
+    return True
+
+
 class Draw(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -90,9 +103,9 @@ class Draw(commands.Cog):
         self.place_path = "./place/"
         self.conn = SQLFunctions.connect()
 
-        self.LINE_HEIGHT = 67  # amount of lines which fit on the place canvas
-        self.CHAR_WIDTH = 167  # amount of chars which fit in a line on the place canvas
-        self.font = ImageFont.truetype("./data/Merchant Copy.ttf", 16)
+        self.LINE_HEIGHT = 62  # amount of lines which fit on the place canvas
+        self.CHAR_WIDTH = 166  # amount of chars which fit in a line on the place canvas
+        self.font = ImageFont.truetype("./data/nk57-monospace-cd-rg.ttf", 12)
         self.userToCopyTextFrom = 155419933998579713
         self.last_line = SQLFunctions.get_config("Draw_Last_Line", self.conn)
         if len(self.last_line) == 0:
@@ -219,8 +232,10 @@ class Draw(commands.Cog):
                         channel = self.bot.get_channel(402563165247766528)
                     await channel.send(f".place setpixel {x} {y} {color} | COUNTERING {message.author.name}")
 
-        if message.author.id == self.userToCopyTextFrom:
+        if message.author.id == self.userToCopyTextFrom and is_valid_msg(message.content):
             pil_img, self.last_line, self.last_char = self.draw_text(message.content, self.last_line, self.last_char)
+            SQLFunctions.insert_or_update_config("Draw_Last_Line", self.last_line, self.conn)
+            SQLFunctions.insert_or_update_config("Draw_Last_Char", self.last_char, self.conn)
             # id to stop specific draw
             ID = str(random.randint(1000, 10000))
             img = im2q.PixPlace(ID, ID, False, pil_img=pil_img)
@@ -340,7 +355,6 @@ class Draw(commands.Cog):
         if len(ctx.message.attachments) == 0:
             await ctx.send("No text file given")
             raise discord.ext.commands.errors.BadArgument
-        setpixels_file = ""
         async with aiohttp.ClientSession() as cs:
             async with cs.get(ctx.message.attachments[0].url) as r:
                 setpixels_file = await r.text()
@@ -553,7 +567,7 @@ class Draw(commands.Cog):
             last_line = (last_line + len(li)) % self.LINE_HEIGHT
 
             text = "\n".join(empty_lines + li)
-            d.text((0, 0), text, fill=(255, 0, 0, 255))
+            d.text((0, 0), text, fill=(255, 215, 0, 255), font=self.font)
 
         if last_char > 0:
             last_line -= 1
