@@ -14,7 +14,7 @@ def hex_to_rgb(value):
 
 
 class PixPlace:
-    def __init__(self, fp, name, setup=True, setpixels=None):
+    def __init__(self, fp, name, setup=True, setpixels=None, pil_img: Image = None):
         self.fp = fp
         self.name = name
         self.pixel_array = None
@@ -29,13 +29,21 @@ class PixPlace:
             self.size = len(self.pixel_array)
             self._set_corners()
 
+        if pil_img is not None:
+            self._remove_transparent(pil_img)
+            self.size = len(self.pixel_array)
+            self._set_corners()
+
         if setup:
             self._remove_transparent()
             self.size = len(self.pixel_array)
             self._set_corners()
 
-    def _remove_transparent(self):
-        img = imread(self.fp)
+    def _remove_transparent(self, pil_img=None):
+        if pil_img is None:
+            img = imread(self.fp)
+        else:
+            img = np.array(pil_img)
 
         # width, height, and d is depth, which we don't need.
         width, height, d = img.shape
@@ -77,7 +85,7 @@ class PixPlace:
 
     async def add_place(self):
         arr = await self.get_image()
-        arr[:,:,0]=arr[:,:,1]=arr[:,:,2] = np.mean(arr, 2)
+        arr[:, :, 0] = arr[:, :, 1] = arr[:, :, 2] = np.mean(arr, 2)
         self.place_board = arr.astype("uint8")
 
     def get_preview(self):
@@ -97,13 +105,13 @@ class PixPlace:
 
         while cur < rem:
             pix = self.pixel_array[cur:cur + n]
-            blank_place[pix[:,1], pix[:,0]] = pix[:, 2:5]
+            blank_place[pix[:, 1], pix[:, 0]] = pix[:, 2:5]
             if cur + n < rem:
                 cur += n
             else:
                 cur += rem - cur
             # crops the gif to the image
-            images.append(Image.fromarray(blank_place).crop((max(x1-10, 0), max(y1-10, 0), min(x2+10, 999), min(y2+10, 999))))
+            images.append(Image.fromarray(blank_place).crop((max(x1 - 10, 0), max(y1 - 10, 0), min(x2 + 10, 999), min(y2 + 10, 999))))
         buffer = io.BytesIO()
         images[0].save(buffer, format="GIF", append_images=images[1:], save_all=True, duration=50, loop=0)
         buffer.seek(0)

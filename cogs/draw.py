@@ -6,7 +6,7 @@ import asyncio
 import os
 from helper import image2queue as im2q
 from helper.sql import SQLFunctions
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import PIL
 import io
 from discord.ext.commands.cooldowns import BucketType
@@ -17,8 +17,8 @@ def rgb2hex(r, g, b):
 
 
 def loading_bar_draw(a, b):
-    prog = int(10*a/b)
-    return "<:green_box:764901465948684289>"*prog + (10-prog)*"<:grey_box:764901465592037388>"
+    prog = int(10 * a / b)
+    return "<:green_box:764901465948684289>" * prog + (10 - prog) * "<:grey_box:764901465592037388>"
 
 
 def modifiers(img: im2q.PixPlace, mods: tuple) -> int:
@@ -27,16 +27,16 @@ def modifiers(img: im2q.PixPlace, mods: tuple) -> int:
     end = -1
     for i in range(len(mods)):
         m = mods[i]
-        last = i == len(mods)-1
+        last = i == len(mods) - 1
         if m.startswith("p"):  # percent start
             if not last:
-                if mods[i+1].isnumeric():
-                    start = int(mods[i+1])
+                if mods[i + 1].isnumeric():
+                    start = int(mods[i + 1])
                     i += 1
         if m.startswith("e"):  # percent end
             if not last:
-                if mods[i+1].isnumeric():
-                    end = int(mods[i+1])
+                if mods[i + 1].isnumeric():
+                    end = int(mods[i + 1])
                     i += 1
         elif m.startswith("f"):  # flip
             img.flip()
@@ -90,6 +90,21 @@ class Draw(commands.Cog):
         self.place_path = "./place/"
         self.conn = SQLFunctions.connect()
 
+        self.LINE_HEIGHT = 67  # amount of lines which fit on the place canvas
+        self.CHAR_WIDTH = 167  # amount of chars which fit in a line on the place canvas
+        self.font = ImageFont.truetype("./data/Merchant Copy.ttf", 16)
+        self.userToCopyTextFrom = 155419933998579713
+        self.last_line = SQLFunctions.get_config("Draw_Last_Line", self.conn)
+        if len(self.last_line) == 0:
+            self.last_line = 0
+        else:
+            self.last_line = self.last_line[0]
+        self.last_char = SQLFunctions.get_config("Draw_Last_Char", self.conn)
+        if len(self.last_char) == 0:
+            self.last_char = 0
+        else:
+            self.last_char = self.last_char[0]
+
     def get_task(self):
         self.pause_draws = True
         return self.background_draw
@@ -112,10 +127,10 @@ class Draw(commands.Cog):
                     "queue": im.get_queue()
                 }
                 self.queue.append({
-                        "ID": im.fp,
-                        "size": im.size,
-                        "img": im,
-                        "queue": im.get_queue()
+                    "ID": im.fp,
+                    "size": im.size,
+                    "img": im,
+                    "queue": im.get_queue()
                 })
 
         channelID = SQLFunctions.get_config("PlaceChannel", self.conn)
@@ -141,8 +156,6 @@ class Draw(commands.Cog):
             else:
                 end = end[0]
             done = await self.draw_pixels(drawing["ID"], channel, start, end)
-
-            print(done)
             if done:
                 self.remove_drawing(drawing["ID"])
 
@@ -206,6 +219,14 @@ class Draw(commands.Cog):
                         channel = self.bot.get_channel(402563165247766528)
                     await channel.send(f".place setpixel {x} {y} {color} | COUNTERING {message.author.name}")
 
+        if message.author.id == self.userToCopyTextFrom:
+            pil_img, self.last_line, self.last_char = self.draw_text(message.content, self.last_line, self.last_char)
+            # id to stop specific draw
+            ID = str(random.randint(1000, 10000))
+            img = im2q.PixPlace(ID, ID, False, pil_img=pil_img)
+            img.low_to_high_res()
+            self.handle_image(img, 0, ID)
+
     def draw_desc(self, ID):
         if ID not in self.progress:
             return "Project has no info"
@@ -218,7 +239,7 @@ class Draw(commands.Cog):
                f"X: {topX} | Y: {topY}\n" \
                f"Width: {botX - topX} | Height: {botY - topY}\n" \
                f"Pixel Total: {pix_total}\n" \
-               f"Pixels to draw: {pix_total-pix_drawn}\n" \
+               f"Pixels to draw: {pix_total - pix_drawn}\n" \
                f"Pixels drawn: {pix_drawn}\n" \
                f"{loading_bar_draw(pix_drawn, pix_total)}  {round(100 * pix_drawn / pix_total, 2)}%\n" \
                f"Time Remaining: {round((pix_total - pix_drawn) * len(self.progress) / 60, 2)} mins\n" \
@@ -253,6 +274,25 @@ class Draw(commands.Cog):
             else:
                 await ctx.send("Command not found. Right now only `cancel`, `image` and `square` exist.")
 
+    def handle_image(self, img: im2q, drawn: int, ID: str):
+        self.progress[ID] = {
+            "count": drawn,
+            "img": img,
+            "queue": img.get_queue()
+        }
+        self.queue.append({
+            "ID": ID,
+            "size": img.size,
+            "img": img,
+            "queue": img.get_queue()
+        })
+
+        SQLFunctions.insert_or_update_config(f"Start_{ID}", 0, self.conn)
+        SQLFunctions.insert_or_update_config(f"End_{ID}", img.size, self.conn)
+
+        # saves the img as a numpy file so it can easily be reload when the bot restarts
+        img.save_array(f"{self.place_path}{ID}")
+
     @commands.is_owner()
     @draw.command(aliases=["i"], usage="image <x1> <x2> <y1> <y2> {mods}")
     async def image(self, ctx, x1=None, x2=None, y1=None, y2=None, *mods):
@@ -286,23 +326,7 @@ class Draw(commands.Cog):
         img = im2q.PixPlace(buffer, ID)
         drawn = modifiers(img, mods)
 
-        self.progress[ID] = {
-            "count": drawn,
-            "img": img,
-            "queue": img.get_queue()
-        }
-        self.queue.append({
-            "ID": ID,
-            "size": img.size,
-            "img": img,
-            "queue": img.get_queue()
-        })
-
-        SQLFunctions.insert_or_update_config(f"Start_{ID}", 0, self.conn)
-        SQLFunctions.insert_or_update_config(f"End_{ID}", img.size, self.conn)
-
-        # saves the img as a numpy file so it can easily be reload when the bot restarts
-        img.save_array(f"{self.place_path}{ID}")
+        self.handle_image(img, drawn, ID)
 
         embed = discord.Embed(title="Started Drawing", description=self.draw_desc(ID))
         await ctx.send(embed=embed)
@@ -328,23 +352,7 @@ class Draw(commands.Cog):
 
         img = im2q.PixPlace(ID, ID, setup=False, setpixels=setpixels_file)
 
-        self.progress[ID] = {
-            "count": 0,
-            "img": img,
-            "queue": img.get_queue()
-        }
-        self.queue.append({
-            "ID": ID,
-            "size": img.size,
-            "img": img,
-            "queue": img.get_queue()
-        })
-
-        SQLFunctions.insert_or_update_config(f"Start_{ID}", 0, self.conn)
-        SQLFunctions.insert_or_update_config(f"End_{ID}", img.size, self.conn)
-
-        # saves the img as a numpy file so it can easily be reload when the bot restarts
-        img.save_array(f"{self.place_path}{ID}")
+        self.handle_image(img, 0, ID)
 
         embed = discord.Embed(title="Started Drawing", description=self.draw_desc(ID))
         await ctx.send(embed=embed)
@@ -409,8 +417,8 @@ class Draw(commands.Cog):
         return
 
     @draw.command(usage="progress <ID>", aliases=["prog"])
-    async def progress(self, ctx, ID=None):
-        if ID is None or ID not in self.progress:
+    async def progress(self, ctx, ID=""):
+        if "comp" not in ID and (ID == "" or ID not in self.progress):
             keys = ""
             rank = 1
             total_pix = 0
@@ -419,15 +427,32 @@ class Draw(commands.Cog):
                 current_amount = self.progress[k["ID"]]["count"]
                 img_total = k["img"].size
                 percentage = round(current_amount * 100 / img_total, 2)
-                total_pix += img_total-current_amount
+                total_pix += img_total - current_amount
                 keys += f"`{rank}:` ID: {k['ID']}\n" \
                         f"---**Starting in:** {time_to_start}mins\n" \
                         f"---**Progress:** {percentage}%\n" \
-                        f"---**Duration:** {img_total-current_amount} pixels | {(img_total-current_amount)//60}mins\n" \
+                        f"---**Duration:** {img_total - current_amount} pixels | {(img_total - current_amount) // 60}mins\n" \
                         f"---**Finished in:** {total_pix // 60}mins\n"
                 rank += 1
+            if len(keys) > 2000:
+                await ctx.send("Too many projects currently in work. Use `$d prog compact` to get a compact view.")
+                return
             await ctx.send(f"Project IDs | Count:{len(self.progress)} | Paused: {self.pause_draws}\n{keys}")
             return
+        if "comp" in ID.lower():  # compact view to send a lot of projects easier
+            total_pix = 0
+            id_list = []
+            for k in self.queue:
+                total_pix += k["img"].size
+                id_list.append(k["ID"])
+            id_msg = ", ".join(id_list)
+            if len(id_msg) > 2000:
+                id_msg = id_msg[:2000] + "**[...]**"
+            embed = discord.Embed(title="Compact Projects", description=id_msg)
+            embed.add_field(name="Time", value=f"All projects finished in `{total_pix // 60}` mins")
+            await ctx.send(embed=embed)
+            return
+
         embed = discord.Embed(
             title=f"Drawing Progress | Project {ID}",
             description=self.draw_desc(ID)
@@ -500,10 +525,69 @@ class Draw(commands.Cog):
                 if a != 0:
                     rp, gp, bp, ap = place_pixels[x, y]
                     if color_to_check.replace("#", "") == rgb2hex(rp, gp, bp).replace("#", "") or color_to_check == "" and (r, g, b, a) != (
-                    rp, gp, bp, ap):
+                            rp, gp, bp, ap):
                         count += 1
                         pixels[x, y] = (r, g, b, a)
         return im, count
+
+    def draw_text(self, text, last_line, last_char) -> tuple[Image.Image, int, int]:
+        img = Image.new("RGBA", (1000, 1000), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+
+        text = " | " + text.replace("\n", " ")
+
+        # splits the text into lines
+        lines, last_char = self.write_lines(text, last_char)
+
+        # draws the lines
+        while len(lines) > 0:
+            empty_lines = ["" for _ in range(last_line)]
+
+            if len(lines) > self.LINE_HEIGHT - last_line:
+                li = lines[:self.LINE_HEIGHT - last_line]
+                lines = lines[self.LINE_HEIGHT - last_line:]
+            else:
+                li = lines
+                lines = []
+
+            last_line = (last_line + len(li)) % self.LINE_HEIGHT
+
+            text = "\n".join(empty_lines + li)
+            d.text((0, 0), text, fill=(255, 0, 0, 255))
+
+        if last_char > 0:
+            last_line -= 1
+        return img, last_line, last_char
+
+    def write_lines(self, text: str, last_char: int) -> tuple[list[str], int]:
+        """Last char is the last character of the last line
+
+        Args:
+            text (str): The string which should be split into lines
+            last_char (int): The last character of the last line
+
+        Returns:
+            (list[str], int): A list with all the lines and an int where the last character was placed.
+        """
+        lines = []
+        while len(text) > 0:
+            t = " " * last_char  # we add spaces to move the text to the right by enough
+            chars_added = 0  # amount of characters added to the line
+
+            # if the text is too long to add to the line, we cut it so it fits perfectly
+            if len(text) > self.CHAR_WIDTH - last_char:
+                t += text[:self.CHAR_WIDTH - last_char]
+                chars_added = len(text[:self.CHAR_WIDTH - last_char])
+                text = text[self.CHAR_WIDTH - last_char:]
+            else:
+                t += text
+                chars_added = len(text)
+                text = ""
+
+            last_char = (last_char + chars_added) % self.CHAR_WIDTH
+            lines.append(t)
+
+        return lines, last_char
 
 
 def setup(bot):
