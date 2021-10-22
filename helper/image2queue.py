@@ -126,9 +126,19 @@ class PixPlace:
         botY = np.amax(self.pixel_array[:, 1])
         self.bot_right_corner = [botX, botY]
 
+    def left_to_right(self):
+        """
+        Orders the array so that the pixels on the left are drawn first
+        and adds pixel outwards.
+        """
+        arr = self.pixel_array
+
+        # sorts by the x cord
+        self.pixel_array = arr[np.argsort(arr[:, 0])]
+
     def center_first(self):
         """
-        Orders the array so that the pixels in the center are draw first
+        Orders the array so that the pixels in the center are drawn first
         and adds pixel outwards.
         """
         arr = self.pixel_array

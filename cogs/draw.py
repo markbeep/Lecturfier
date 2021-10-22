@@ -42,8 +42,10 @@ def modifiers(img: im2q.PixPlace, mods: tuple) -> int:
             img.flip()
         elif m.startswith("c"):  # center
             img.center_first()
-        elif m.startswith("l"):  # low to high def
+        elif m.startswith("r"):  # low to high def
             img.low_to_high_res()
+        elif m.startswith("l"):  # left to right
+            img.left_to_right()
 
     if start != -1 or end != -1:
         print("Modfiers", start, end)
@@ -179,6 +181,8 @@ class Draw(commands.Cog):
         if ID in self.progress:
             self.progress.pop(ID)
             self.queue.pop(0)
+        while ID in self.cancel_draws:
+            self.cancel_draws.remove(ID)
         os.remove(f"{self.place_path}{ID}.npy")
 
     def get_all_queues(self, dir="./"):
@@ -232,14 +236,14 @@ class Draw(commands.Cog):
                         channel = self.bot.get_channel(402563165247766528)
                     await channel.send(f".place setpixel {x} {y} {color} | COUNTERING {message.author.name}")
 
-        if message.author.id == self.userToCopyTextFrom and is_valid_msg(message.content):
+        if message.author.id == self.userToCopyTextFrom and message.channel.id != 813430350965375046 and is_valid_msg(message.content):
             pil_img, self.last_line, self.last_char = self.draw_text(message.content, self.last_line, self.last_char)
             SQLFunctions.insert_or_update_config("Draw_Last_Line", self.last_line, self.conn)
             SQLFunctions.insert_or_update_config("Draw_Last_Char", self.last_char, self.conn)
             # id to stop specific draw
             ID = str(random.randint(1000, 10000))
             img = im2q.PixPlace(ID, ID, False, pil_img=pil_img)
-            img.low_to_high_res()
+            img.left_to_right()
             self.handle_image(img, 0, ID)
 
     def draw_desc(self, ID):
@@ -284,8 +288,11 @@ class Draw(commands.Cog):
             elif command == "cancel":
                 if x1 is None:
                     self.cancel_all = True
+                    for d in self.queue:
+                        self.remove_drawing(d["ID"])
                 else:
                     self.cancel_draws.append(x1)
+                    self.remove_drawing(x1)
             else:
                 await ctx.send("Command not found. Right now only `cancel`, `image` and `square` exist.")
 
@@ -321,7 +328,8 @@ class Draw(commands.Cog):
         `e <int>`: Percentage to stop image at
         `f`: Flip queue order
         `c`: Center to out draw order
-        `l`: Low to High Def draw order
+        `r`: "Random" order
+        `l`: Left to right draw order
         Permissions: Owner
         """
         if len(ctx.message.attachments) == 0:
@@ -567,7 +575,7 @@ class Draw(commands.Cog):
             last_line = (last_line + len(li)) % self.LINE_HEIGHT
 
             text = "\n".join(empty_lines + li)
-            d.text((0, 0), text, fill=(255, 215, 0, 255), font=self.font)
+            d.text((0, 0), text, fill=(34, 189, 67, 255), font=self.font)
 
         if last_char > 0:
             last_line -= 1
