@@ -159,7 +159,7 @@ def get_or_create_user_statistics(member: discord.Member, subject_id, conn=conne
 def update_statistics(member: discord.Member, subject_id: int, conn=connect(), messages_sent=0, messages_deleted=0, messages_edited=0,
                       characters_sent=0,
                       words_sent=0, spoilers_sent=0, emojis_sent=0, files_sent=0, file_size_sent=0, images_sent=0, reactions_added=0,
-                      reactions_removed=0, reactions_received=0, reactions_taken_away=0) -> bool:
+                      reactions_removed=0, reactions_received=0, reactions_taken_away=0, vote_count=0) -> bool:
     """
     Updates the statistics table
     :return: True if a new entry was created, False otherwise
@@ -179,19 +179,20 @@ def update_statistics(member: discord.Member, subject_id: int, conn=connect(), m
                     ReactionsAdded = ReactionsAdded + ?,
                     ReactionsRemoved = ReactionsRemoved + ?,
                     ReactionsReceived = ReactionsReceived + ?,
-                    ReactionsTakenAway = ReactionsTakenAway + ?
+                    ReactionsTakenAway = ReactionsTakenAway + ?,
+                    VoteCount = VoteCount + ?
                 WHERE UniqueMemberID = ? AND SubjectID = ?"""
     value = False
     try:
         rows = conn.execute(sql,
                             (messages_sent, messages_deleted, messages_edited, characters_sent, words_sent, spoilers_sent, emojis_sent, files_sent,
-                             file_size_sent, images_sent, reactions_added, reactions_removed, reactions_received, reactions_taken_away,
+                             file_size_sent, images_sent, reactions_added, reactions_removed, reactions_received, reactions_taken_away, vote_count,
                              dm.UniqueMemberID, subject_id)).rowcount
         conn.commit()
         if rows == 0:
             get_or_create_user_statistics(member, subject_id, conn)
             conn.execute(sql, (messages_sent, messages_deleted, messages_edited, characters_sent, words_sent, spoilers_sent, emojis_sent, files_sent,
-                               file_size_sent, images_sent, reactions_added, reactions_removed, reactions_received, reactions_taken_away,
+                               file_size_sent, images_sent, reactions_added, reactions_removed, reactions_received, reactions_taken_away, vote_count,
                                dm.UniqueMemberID, subject_id))
             conn.commit()
             value = True

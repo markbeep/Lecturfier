@@ -274,7 +274,8 @@ class Statistics(commands.Cog):
                 "ReactionsAdded": [],
                 "ReactionsRemoved": [],
                 "ReactionsReceived": [],
-                "ReactionsTakenAway": []
+                "ReactionsTakenAway": [],
+                "VoteCount": []
             }
 
             for key in statistic_columns.keys():
@@ -524,6 +525,21 @@ class Statistics(commands.Cog):
             mx = 20
         column = SQLFunctions.get_statistic_rows("ReactionsTakenAway", mx, self.conn)
         embed = await self.get_top_users(single_statistic=column, single_statistic_name="Reactions Taken Away")
+        await ctx.send(embed=embed)
+    
+    @commands.guild_only()
+    @statistics.command(aliases=["votecount", "voted", "vote"], usage="VoteCount [amount shown]")
+    async def VoteCount(self, ctx, mx=10):
+        """
+        See only ReactionsTakenAway Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        column = SQLFunctions.get_statistic_rows("VoteCount", mx, self.conn)
+        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Quote Battles voted on")
         await ctx.send(embed=embed)
 
 

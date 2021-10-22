@@ -146,6 +146,10 @@ class Quote(commands.Cog):
                 else:
                     self.battle_scores[res.message.id][int(res.component.id)-1] += 1  # increments the score
                     self.voted_users[res.message.id].append(res.user.id)
+                    member = res.message.guild.get_member(res.user.id)
+                    if member is None:
+                        member = await res.message.guild.fetch_member(res.user.id)
+                    SQLFunctions.update_statistics(member, 0, self.conn, vote_count=1)
                     await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"Successfully voted for option {res.component.id}")
             else:
                 try:
@@ -791,8 +795,8 @@ class Quote(commands.Cog):
         if len(quote2_text) > 1000:
             quote2_text = quote2_text[:1000] + " **[...]**"
 
-        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | Name: {quote1.Name} | Rank: {rank1}", value=quote1_text, inline=False)
-        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | Name: {quote2.Name} | Rank: {rank2}", value=quote2_text, inline=False)
+        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | Name: {quote1.Name}", value=quote1_text, inline=False)
+        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | Name: {quote2.Name}", value=quote2_text, inline=False)
         components = [[
             Button(style=ButtonStyle.blue, emoji="1️⃣", id="1"),
             Button(style=ButtonStyle.blue, emoji="2️⃣", id="2")
@@ -819,8 +823,20 @@ class Quote(commands.Cog):
         score1, score2 = self.battle_scores[msg.id]
         new_elo1, new_elo2 = set_new_elo(score1, score2, quote1, quote2, self.conn)
 
-        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | Name: {quote1.Name} | {round(starting_elo1)} → {round(new_elo1)} | Wins: {score1}", value=quote1.QuoteText, inline=False)
-        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | Name: {quote2.Name} | {round(starting_elo2)} → {round(new_elo2)} | Wins: {score2}", value=quote2.QuoteText, inline=False)
+        # gets the new ranks
+        quotes = SQLFunctions.get_quotes(conn=self.conn, guild_id=ctx.message.guild.id, rank_by_elo=True)
+        new_rank1 = 0
+        new_rank2 = 0
+        for i, q in enumerate(quotes):
+            if q.QuoteID == quote1.QuoteID:
+                new_rank1 = i+1
+            elif q.QuoteID == quote2.QuoteID:
+                new_rank2 = i+1
+            if new_rank1 != 0 and new_rank2 != 0:
+                break
+
+        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | Name: {quote1.Name} | Rank: {rank1} → {new_rank1} | Wins: {score1}", value=quote1.QuoteText, inline=False)
+        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | Name: {quote2.Name} | Rank: {rank2} → {new_rank2} | Wins: {score2}", value=quote2.QuoteText, inline=False)
         await msg.edit(embed=embed, components=[])
 
         # remove all entries that were created again

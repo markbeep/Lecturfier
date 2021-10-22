@@ -71,6 +71,7 @@ UserStatistics = """ CREATE TABLE IF NOT EXISTS UserStatistics (
                         ReactionsRemoved integer DEFAULT 0,
                         ReactionsReceived integer DEFAULT 0,
                         ReactionsTakenAway integer DEFAULT 0,
+                        VoteCount integer DEFAULT 0,
                         FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID),
                         FOREIGN KEY (SubjectID) REFERENCES Subjects(SubjectID)
                                     );"""
