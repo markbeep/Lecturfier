@@ -30,7 +30,7 @@ class PixPlace:
             self._set_corners()
 
         if pil_img is not None:
-            self._remove_transparent(pil_img)
+            self._remove_transparent(pil_img, 0)
             self.size = len(self.pixel_array)
             self._set_corners()
 
@@ -39,7 +39,7 @@ class PixPlace:
             self.size = len(self.pixel_array)
             self._set_corners()
 
-    def _remove_transparent(self, pil_img=None):
+    def _remove_transparent(self, pil_img=None, alpha_threshold=230):
         if pil_img is None:
             img = imread(self.fp)
         else:
@@ -60,7 +60,7 @@ class PixPlace:
             loc[:, :, 2:] = img
 
         # remoes all pixels with alpha less than 230
-        self.pixel_array = loc[(loc[:, :, 5] > 230)]
+        self.pixel_array = loc[(loc[:, :, 5] > alpha_threshold)]
 
     async def get_place(self) -> str:
         res = ""
