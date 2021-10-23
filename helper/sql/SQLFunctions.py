@@ -679,13 +679,14 @@ def get_quote_aliases(conn=connect()) -> dict[str, str]:
     return aliases
 
 
-def get_quote_stats(conn=connect()) -> (int, int):
+def get_quote_stats(guild_id: int, conn=connect()) -> (int, int, int):
     """
     :return: (total_quotes, total_names)
     """
-    total_quotes = conn.execute("SELECT COUNT(*) FROM Quotes").fetchone()
-    total_names = conn.execute("SELECT COUNT(DISTINCT Name) FROM Quotes").fetchone()
-    return total_quotes[0], total_names[0]
+    total_quotes = conn.execute("SELECT COUNT(*) FROM Quotes WHERE DiscordGuildID = ?", (guild_id,)).fetchone()
+    total_names = conn.execute("SELECT COUNT(DISTINCT Name) FROM Quotes WHERE DiscordGuildID = ?", (guild_id,)).fetchone()
+    total_voted_on = conn.execute("SELECT COUNT(*) FROM Quotes WHERE AmountBattled > 0 AND DiscordGuildID = ?", (guild_id,)).fetchone()
+    return total_quotes[0], total_names[0], total_voted_on[0]
 
 
 def update_quote_battle(quote_id, battles_amount, battles_won, elo, conn=connect()):
