@@ -590,6 +590,112 @@ class Quote(commands.Cog):
             await ctx.message.delete(delay=120)
             await ctx.send(embed=p.create_embed(), delete_after=120)
 
+    @quote.command(name="favorite", usage="favorite <name>")
+    async def favorite_quotes(self, ctx, name=None):
+        """
+        Show favorite quotes.
+        """
+        if name is None:
+            name = ctx.message.author.name
+        name = name.replace("<@", "").replace(">", "").replace("!", "")
+        discord_member = None
+        if name.isnumeric():
+            discord_member = ctx.message.guild.get_member(int(name))
+        member = SQLFunctions.get_or_create_discord_member(discord_member, 0, self.conn)
+        quotes = SQLFunctions.get_favorite_quotes_of_user(unique_member_id=member.UniqueMemberID, guild_id=ctx.message.guild.id, conn=self.conn)
+        if len(quotes) == 0:
+            embed = discord.Embed(title="Quotes Error", description=f"{name} doesn't have any favorite quotes.", color=0xFF0000)
+            await ctx.send(embed=embed)
+            raise discord.ext.commands.errors.BadArgument
+        quote_list = ""
+
+        # If there are no quotes for the given person;
+        if len(quotes) == 0:
+            embed = discord.Embed(title="Quotes Error", description=f"{name} doesn't have any favorite quotes yet.", color=0xFF0000)
+            await ctx.send(embed=embed)
+            raise discord.ext.commands.errors.BadArgument
+
+        i = 0
+        for quote in quotes:
+            quote_to_add = quote.QuoteText.replace("*", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "")
+            if quote_to_add.count("\n") > 2:
+                # makes multiline quotes not fill too many lines
+                split_lines = quote_to_add.split("\n")
+                quote_to_add = "\n".join(split_lines[:2]) + "\n **[...]**"
+            if len(quote_to_add) > 150:
+                quote_to_add = quote_to_add[:150] + "**[...]**"
+            quote_list += f"\n**#{i}:** {quote_to_add} `({quote.Name})` `[ID: {quote.QuoteID}]`"
+            i += 1
+        
+        pages = []
+        # creates the pages
+        while len(quote_list) > 0:
+            # split quotes into multiple fields of max 1000 chars
+            if len(quote_list) >= 1000:
+                rind2 = quote_list.rindex("\n", 0, 1000)
+                if rind2 == 0:
+                    # one quote is more than 1000 chars
+                    rind2 = quote_list.rindex(" ", 0, 1000)
+                    if rind2 == 0:
+                        # the quote is longer than 1000 chars and has no spaces
+                        rind2 = 1000
+            else:
+                rind2 = len(quote_list)
+            pages.append(quote_list[0:rind2])
+            quote_list = quote_list[rind2:]
+
+        p = Pages(self.bot, ctx, pages, ctx.message.author.id, f"Favorite quotes of {member.name}", 180)
+        if len(pages) > 1:
+            await p.handle_pages()
+        else:
+            await ctx.message.delete(delay=120)
+            await ctx.send(embed=p.create_embed(), delete_after=120)
+
+    @quote.command(name="favorite add", usage="favorite add<quoteID>")
+    async def add_favorite_quote(self, ctx, quoteID):
+        """
+        Adds a quote to the user's favorite list.
+        """
+        quote = SQLFunctions.get_quote(quoteID, self.conn)
+        if quote is None:
+            await ctx.message.reply("That quote doesn't exist.")
+            return
+
+        member = SQLFunctions.get_or_create_discord_member(ctx.message.author, 0, self.conn)
+        if member is None:
+            await ctx.message.reply("Something went wrong. Please try again.")
+            return
+
+        if SQLFunctions.add_favorite_quote(member.UniqueMemberID, quote.QuoteID, self.conn):
+            await ctx.message.add_reaction("<:checkmark:776717335242211329>")
+            await ctx.message.reply("Quote added to favorites.")
+        else:
+            await ctx.message.add_reaction("<:xmark:776717315139698720>")
+            await ctx.message.reply("Something went wrong. Please try again.")
+
+    @quote.command(name="favorite remove", usage="favorite remove <quoteID>")
+    async def remove_favorite_quote(self, ctx, quoteID):
+        """
+        Removes a quote from the user's favorite list.
+        """
+        quote = SQLFunctions.get_quote(quoteID, self.conn)
+        if quote is None:
+            await ctx.message.reply("That quote doesn't exist.")
+            return
+
+        member = SQLFunctions.get_or_create_discord_member(ctx.message.author, 0, self.conn)
+        if member is None:
+            await ctx.message.reply("Something went wrong. Please try again.")
+            return
+
+        if SQLFunctions.remove_favorite_quote(member.UniqueMemberID, quote.QuoteID, self.conn):
+            await ctx.message.add_reaction("<:checkmark:776717335242211329>")
+            await ctx.message.reply("Quote removed from favorites.")
+        else:
+            await ctx.message.add_reaction("<:xmark:776717315139698720>")
+            await ctx.message.reply("Something went wrong. Please try again.")
+
+
     @quote.group(aliases=["rep"], usage="report <quote ID>", invoke_without_command=True)
     async def report(self, ctx, quoteID=None, *, reason=""):
         """

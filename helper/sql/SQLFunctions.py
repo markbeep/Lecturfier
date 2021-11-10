@@ -947,3 +947,18 @@ def update_or_insert_weekdaytime(name, abbreviation, link, zoom_link, stream_lin
                      (subject_id, day, starting_hour, ending_hour, stream_link, zoom_link, on_site_location))
     finally:
         conn.commit()
+
+def get_favorite_quotes_of_user(user_id, conn=connect()):
+    return conn.execute("SELECT Quote FROM FavoriteQuotes WHERE UserID=?", (user_id,)).fetchall()
+
+def add_favorite_quote(user_id, quote, conn=connect()):
+    try:
+        conn.execute("INSERT INTO FavoriteQuotes(UserID, Quote) VALUES (?,?)", (user_id, quote))
+    finally:
+        conn.commit()
+
+def remove_favorite_quote(user_id, quote, conn=connect()):
+    try:
+        conn.execute("DELETE FROM FavoriteQuotes WHERE UserID=? AND Quote=?", (user_id, quote))
+    finally:
+        conn.commit()
