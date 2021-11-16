@@ -575,7 +575,8 @@ class Draw(commands.Cog):
             last_line = (last_line + len(li)) % self.LINE_HEIGHT
 
             text = "\n".join(empty_lines + li)
-            d.text((0, 0), text, fill=(34, 189, 67, 255), font=self.font)
+            r = random.randrange  # for readability on the next line
+            d.text((0, 0), text, fill=(r(256), r(256), r(256), 255), font=self.font)
 
         if last_char > 0:
             last_line -= 1
