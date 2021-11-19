@@ -1133,6 +1133,7 @@ class QuotesToRemove(menus.Menu):
         SQLFunctions.delete_quote(quoteID, self.conn)
         self.pages.pop(self.page_count)
         embed = discord.Embed(title="Deleted Quote", description=f"Quote with ID {quoteID} was YEEEEEETED.", color=0xffff00)
+        embed.add_field(name="Quote", value=quote)
         await self.ctx.send(content=f"Reported by <@{reporterID}>", embed=embed)
 
         if len(self.pages) == 0:

@@ -725,30 +725,35 @@ def get_quoted_names(guild: discord.Guild, conn=connect()) -> list[Name]:
 
 
 class QuoteToRemove:
-    def __init__(self, quote: Quote, reason: str, member: DiscordMember = None):
+    def __init__(self, quote: Quote, reason: str, member: DiscordMember):
         self.Quote = quote
         self.Reporter = member
         self.Reason = reason
 
 
 def get_quotes_to_remove(conn=connect()) -> list[QuoteToRemove]:
-    sql = """   SELECT  QTR.QuoteID, DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester,
+    sql = """   SELECT  DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester, --Quote Member
                         Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID, Q.AmountBattled,
-                        Q.AmountWon, Q.Elo, QTR.Reason
+                        Q.AmountWon, Q.Elo, -- Quote
+                        REP.UniqueMemberID, REP.DiscordUserID, REP.DiscordGuildID, REP.JoinedAt, REP.Nickname, REP.Semester, -- Reporter
+                        QTR.Reason
                 FROM QuotesToRemove QTR
-                INNER JOIN DiscordMembers DM on QTR.UniqueMemberID = DM.UniqueMemberID
+                INNER JOIN DiscordMembers DM on Q.UniqueMemberID = DM.UniqueMemberID
+                INNER JOIN DiscordMembers REP on QTR.UniqueMemberiD = REP.UniqueMemberID
                 INNER JOIN Quotes Q on QTR.QuoteID = Q.QuoteID"""
     result = conn.execute(sql).fetchall()
     quotes_to_remove = []
     for row in result:
-        member = DiscordMember(*row[1:7])
-        quote = Quote(*row[7:-1], Member=member)
-        quotes_to_remove.append(QuoteToRemove(quote, row[-1], member))
+        member = DiscordMember(*row[0:6])
+        quote = Quote(*row[6:16], Member=member)
+        reporter = DiscordMember(*row[16:22])
+        quotes_to_remove.append(QuoteToRemove(quote, row[-1], reporter))
     return quotes_to_remove
 
 
 def insert_quote_to_remove(quote_id, reason: str, member: DiscordMember, conn=connect()):
     try:
+        # UniqueMemberID is the reporter's unique ID in this case
         conn.execute("INSERT INTO QuotesToRemove(QuoteID, UniqueMemberID, Reason) VALUES(?,?,?)", (quote_id, member.UniqueMemberID, reason))
     finally:
         conn.commit()
