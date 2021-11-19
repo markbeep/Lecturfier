@@ -237,6 +237,8 @@ class Draw(commands.Cog):
                     await channel.send(f".place setpixel {x} {y} {color} | COUNTERING {message.author.name}")
 
         if message.author.id == self.userToCopyTextFrom and message.channel.id != 813430350965375046 and is_valid_msg(message.content):
+            if len(self.queue) > 50:
+                return
             pil_img, self.last_line, self.last_char = self.draw_text(message.content, self.last_line, self.last_char)
             SQLFunctions.insert_or_update_config("Draw_Last_Line", self.last_line, self.conn)
             SQLFunctions.insert_or_update_config("Draw_Last_Char", self.last_char, self.conn)
@@ -467,7 +469,7 @@ class Draw(commands.Cog):
             for k in self.queue:
                 total_pix += k["img"].size
                 id_list.append(k["ID"])
-            id_msg = ", ".join(id_list)
+            id_msg = f"`n: {len(self.queue)}`\n" + ", ".join(id_list)
             if len(id_msg) > 2000:
                 id_msg = id_msg[:2000] + "**[...]**"
             embed = discord.Embed(title="Compact Projects", description=id_msg)
