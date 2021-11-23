@@ -954,7 +954,7 @@ def update_or_insert_weekdaytime(name, abbreviation, link, zoom_link, stream_lin
         conn.commit()
 
 
-def store_covid_cases(cases, date=datetime.now(), weekday=datetime.now().weekday(), conn=connect()):
+def store_covid_cases(cases, date=str(datetime.date(datetime.now())), weekday=datetime.now().weekday(), conn=connect()):
     try:
         conn.execute("INSERT INTO CovidCases(Cases, Date, Weekday) VALUES (?,?,?)", (cases, date, weekday))
     finally:
