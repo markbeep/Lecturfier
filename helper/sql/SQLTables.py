@@ -160,6 +160,13 @@ CommandPermissions = """    CREATE TABLE IF NOT EXISTS "CommandPermissions" (
                                 "PermissionLevel" INTEGER DEFAULT 0,
                                 "Tag" TEXT -- tag is for finding out what object ID was added
                                 );"""
+covid_cases = """   CREATE TABLE IF NOT EXISTS "CovidCases" (
+                        "CovidCaseID" INTEGER PRIMARY KEY,
+                        "Cases" INTEGER NOT NULL,
+                        "Date" TEXT NOT NULL,
+                        "Weekday" INTEGER NOT NULL
+                    );"""
+
 
 all_tables = [DiscordUsers, DiscordGuilds, DiscordChannels, DiscordMembers, Subjects, WeekDayTimes,
               UserStatistics, VoiceLevels, CovidGuessing, Reputations, Events, EventJoinedUsers,

@@ -97,6 +97,7 @@ class Games(commands.Cog):
                 log("Daily cases have been updated", print_it=True)
                 SQLFunctions.insert_or_update_config("COVID_Cases", new_cases, self.conn)
                 SQLFunctions.insert_or_update_config("COVID_Day", day, self.conn)
+                SQLFunctions.store_covid_cases(new_cases, conn=self.conn)
         except Exception as e:
             print(f"COVID loop messed up:\n{e}")
             await asyncio.sleep(20)

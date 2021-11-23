@@ -679,7 +679,7 @@ def get_quote_aliases(conn=connect()) -> dict[str, str]:
     return aliases
 
 
-def get_quote_stats(guild_id: int, conn=connect()) -> (int, int, int):
+def get_quote_stats(guild_id: int, conn=connect()) -> tuple[int, int, int]:
     """
     :return: (total_quotes, total_names)
     """
@@ -950,5 +950,12 @@ def update_or_insert_weekdaytime(name, abbreviation, link, zoom_link, stream_lin
     try:
         conn.execute("INSERT INTO WeekDayTimes(SubjectID, DayID, TimeFrom, TimeTo, StreamLink, ZoomLink, OnSiteLocation) VALUES (?,?,?,?,?,?,?)",
                      (subject_id, day, starting_hour, ending_hour, stream_link, zoom_link, on_site_location))
+    finally:
+        conn.commit()
+
+
+def store_covid_cases(cases, date=datetime.now(), weekday=datetime.now().weekday(), conn=connect()):
+    try:
+        conn.execute("INSERT INTO CovidCases(Cases, Date, Weekday) VALUES (?,?,?)", (cases, date, weekday))
     finally:
         conn.commit()
