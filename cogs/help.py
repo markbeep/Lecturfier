@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands
 
-
 attributes = {
     "aliases": ["h", "halp", "hell", "hepl", "helps", "guide", "manual"],
     "usage": "help [command | group | cog]"

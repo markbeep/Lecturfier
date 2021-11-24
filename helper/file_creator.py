@@ -1,5 +1,6 @@
-import os
 import json
+import os
+
 from helper.log import log
 from helper.sql.SQLTables import *
 

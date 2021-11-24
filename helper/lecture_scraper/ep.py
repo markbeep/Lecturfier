@@ -1,6 +1,10 @@
-from helper.lecture_scraper.helpers import find_edit_events, other_event, new_event, check_wrapper
-from bs4 import BeautifulSoup as bs
 from urllib.parse import urljoin
+
+from bs4 import BeautifulSoup as bs
+
+from helper.lecture_scraper.helpers import (check_wrapper, find_edit_events,
+                                            new_event, other_event)
+
 
 def ep_check(url: str, online_soup: bs, local_soup: bs) -> bool:
     """

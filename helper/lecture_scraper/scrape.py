@@ -1,8 +1,9 @@
 import requests
 from bs4 import BeautifulSoup as bs
+
+from helper.lecture_scraper.ad import ad_check
 from helper.lecture_scraper.dm import dm_check
 from helper.lecture_scraper.ep import ep_check
-from helper.lecture_scraper.ad import ad_check
 from helper.lecture_scraper.la import la_check
 
 

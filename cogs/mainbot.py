@@ -1,8 +1,10 @@
+import random
+
 import discord
 from discord.ext import commands
-from helper.log import log
+
 from helper import file_creator
-import random
+from helper.log import log
 
 
 class MainBot(commands.Cog):

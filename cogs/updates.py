@@ -1,11 +1,13 @@
+import asyncio
+import time
+import traceback
+from datetime import datetime, timedelta
+
 import discord
 from discord.ext import commands, tasks
-import asyncio
-from datetime import datetime, timedelta
 from pytz import timezone
-import time
+
 from helper.lecture_scraper.scrape import scraper
-import traceback
 from helper.log import log
 from helper.sql import SQLFunctions
 

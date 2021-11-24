@@ -1,6 +1,9 @@
-from helper.lecture_scraper.helpers import other_event, check_wrapper
-from bs4 import BeautifulSoup as bs
 from urllib.parse import urljoin
+
+from bs4 import BeautifulSoup as bs
+
+from helper.lecture_scraper.helpers import check_wrapper, other_event
+
 
 def dm_check(url: str, online_soup: bs, local_soup: bs):
     """

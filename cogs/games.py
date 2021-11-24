@@ -1,17 +1,19 @@
-import discord
-from discord.ext import commands, tasks
-from datetime import datetime
-import time
-from helper.log import log
-from PIL import UnidentifiedImageError
-import aiohttp
-from bs4 import BeautifulSoup as bs
-from pytz import timezone
-from helper.sql import SQLFunctions
-import io
-from colorthief import ColorThief
 import asyncio
+import io
+import time
+from datetime import datetime
+
+import aiohttp
+import discord
+from bs4 import BeautifulSoup as bs
+from colorthief import ColorThief
+from discord.ext import commands, tasks
 from discord.ext.commands.cooldowns import BucketType
+from PIL import UnidentifiedImageError
+from pytz import timezone
+
+from helper.log import log
+from helper.sql import SQLFunctions
 
 
 def calculate_points(confirmed_cases, guess):

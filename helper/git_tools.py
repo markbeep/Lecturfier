@@ -1,5 +1,5 @@
-import os
 import datetime
+import os
 
 
 def version_format(year, month, day):

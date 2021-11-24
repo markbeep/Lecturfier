@@ -1,10 +1,11 @@
+import io
+import os
+import time
+
 import numpy as np
 import websockets
-from imageio import imread, mimsave, imwrite
-import time
-import os
+from imageio import imread, imwrite, mimsave
 from PIL import Image
-import io
 
 
 def hex_to_rgb(value):

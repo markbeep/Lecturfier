@@ -1,12 +1,14 @@
-import time
+import asyncio
 import random
+import string
+import time
+
 import discord
 from discord.ext import commands
-from helper import hangman
-import string
-import asyncio
 from discord.ext.commands.cooldowns import BucketType
 from discord_components import *
+
+from helper import hangman
 
 
 def joinTuple(string_tuples) -> str:

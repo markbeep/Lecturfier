@@ -1,7 +1,9 @@
+import json
+
 import discord
 from discord.ext import commands
-import json
 from discord_components import DiscordComponents
+
 from helper.sql import SQLFunctions
 
 with open("./data/settings.json", "r") as f:

@@ -1,8 +1,9 @@
 import logging
-import discord
 import sqlite3
 from datetime import datetime
 from typing import Union
+
+import discord
 
 logger = logging.getLogger()
 logger.addHandler(logging.StreamHandler())
