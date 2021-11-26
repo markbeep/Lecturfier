@@ -1,3 +1,5 @@
+import sqlite3
+
 from helper.sql.SQLFunctions import connect
 
 DiscordUsers = """  CREATE TABLE IF NOT EXISTS DiscordUsers (
@@ -166,24 +168,67 @@ covid_cases = """   CREATE TABLE IF NOT EXISTS "CovidCases" (
                         "Date" TEXT NOT NULL,
                         "Weekday" INTEGER NOT NULL
                     );"""
-
+favorite_quotes = """   CREATE TABLE IF NOT EXISTS "FavoriteQuotes" (
+                            "FavoriteID" INTEGER PRIMARY KEY,
+                            "QuoteID" INTEGER NOT NULL,
+                            "UniqueMemberID" INTEGER NOT NULL,
+                            FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID") ON DELETE CASCADE 
+                        );"""
 
 all_tables = [DiscordUsers, DiscordGuilds, DiscordChannels, DiscordMembers, Subjects, WeekDayTimes,
               UserStatistics, VoiceLevels, CovidGuessing, Reputations, Events, EventJoinedUsers,
-              Quotes, QuoteAliases, QuotesToRemove, Config, CommandPermissions]
+              Quotes, QuoteAliases, QuotesToRemove, Config, CommandPermissions, covid_cases,
+              favorite_quotes]
 
 
-def create_tables():
-    conn = connect()
+def create_tables(conn=connect()):
     try:
         for table in all_tables:
-            print(table)
             conn.execute(table)
+            name = get_table_name(table)
+            if name == "Subjects":
+                rows = conn.execute("SELECT * FROM Subjects LIMIT 1").fetchall()
+                if len(rows) == 0:
+                    conn.execute("INSERT INTO Subjects(SubjectID, SubjectName) VALUES (0, 'No Lecture')")
     except Exception as e:
         print(e)
     finally:
         conn.commit()
+        conn.close()
+
+
+def get_table_name(table: str) -> str:
+    spl = table.replace('"', '').split(" ")
+    return spl[spl.index("(\n") - 1]  # gets the word right before the opening bracket
+
+
+def compare_headers(table: str, header: list[str]):
+    name = get_table_name(table)
+    spl = table.replace('"', '').replace("\t", " ").split("\n")
+    ex_headers = []
+    for line in spl[1:-1]:
+        tmp = line.split(" ")
+        tmp = [x for x in tmp if x != ""]  # takes out all the whitespace elements
+        if tmp[0].startswith("FOREIGN") or tmp[0].startswith("PRIMARY") or tmp[0].startswith("--"):
+            continue
+        ex_headers.append(tmp[0])
+    for col in header:  # check if headers are the same both way
+        if col not in ex_headers:
+            print(f"WARNING! {name}: {col} exists in table, but is not defined in SQLTables.py!")
+    for col in ex_headers:  # check if headers are the same both way
+        if col not in header:
+            print(f"WARNING! {name}: {col} is defined in SQLTables.py, but is not in the actual DB! (This can cause problems!)")
+
+
+def check_columns(conn=connect()):
+    for table in all_tables:
+        name = get_table_name(table)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(f"PRAGMA table_info({name});").fetchall()
+        header = [x[1] for x in rows]
+        compare_headers(table, header)
+    conn.close()
 
 
 if __name__ == "__main__":
-    create_tables()
+    check_columns(connect())

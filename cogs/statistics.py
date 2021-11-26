@@ -65,11 +65,13 @@ class Statistics(commands.Cog):
             return
         else:
             if isinstance(error, CommandOnCooldown):
-                embed = discord.Embed(description=str(error), color=0x8F0000)
+                embed = discord.Embed(description=str(error), color=discord.Color.red())
                 await ctx.reply(embed=embed, delete_after=3)
+                await ctx.message.delete(delay=3)
             if isinstance(error, CheckFailure):
-                embed = discord.Embed(description="This command is disabled for you, your role, this channel or this guild.", color=0x8F0000)
+                embed = discord.Embed(description="This command is disabled for you, your role, this channel or this guild.", color=discord.Color.red())
                 await ctx.reply(embed=embed, delete_after=5)
+                await ctx.message.delete(delay=5)
             try:
                 await ctx.message.add_reaction("<:ERROR:792154973559455774>")
             except discord.errors.NotFound:

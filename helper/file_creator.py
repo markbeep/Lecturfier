@@ -32,10 +32,11 @@ def createFiles():
         with open("../LECTURFIER.json", "w") as f:
             f.write('{"token":""}')
 
-    if not os.path.exists("./data/discord.db"):
-        print("Creating rewrite DB table")
+    if os.path.exists("./data/discord.db"):
+        print("Making sure all DB tables exist")
         create_tables()
-        print("Created rewrite DB tables successfully")
+        check_columns()
+        print("----- DB Check Complete -----")
 
     if not os.path.exists("./data/settings.json"):
         log("Creating settings.json", keyword)

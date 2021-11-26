@@ -54,8 +54,8 @@ def calculate_elo(elo1, elo2, winner: Winner) -> tuple[int, int]:
     Calculates the new Elos depending on who won.
     https://metinmediamath.wordpress.com/2013/11/27/how-to-calculate-the-elo-rating-including-example/
     """
-    t_rating1 = 10**(elo1/400)
-    t_rating2 = 10**(elo2/400)
+    t_rating1 = 10 ** (elo1 / 400)
+    t_rating2 = 10 ** (elo2 / 400)
     expected_score1 = t_rating1 / (t_rating1 + t_rating2)
     expected_score2 = t_rating2 / (t_rating1 + t_rating2)
     if winner == Winner.First:
@@ -79,7 +79,7 @@ def calculate_elo(elo1, elo2, winner: Winner) -> tuple[int, int]:
 def set_new_elo(score1, score2, quote1: SQLFunctions.Quote, quote2: SQLFunctions.Quote, conn) -> tuple[int, int]:
     if score1 == score2:  # draw
         current_elo1, current_elo2 = quote1.Elo, quote2.Elo
-        for _ in range(score1+score2):
+        for _ in range(score1 + score2):
             current_elo1, current_elo2 = calculate_elo(current_elo1, current_elo2, Winner.Draw)
         SQLFunctions.update_quote_battle(quote1.QuoteID, quote1.AmountBattled + score1 + score2, quote1.AmountWon + score1, current_elo1, conn)
         SQLFunctions.update_quote_battle(quote2.QuoteID, quote2.AmountBattled + score1 + score2, quote2.AmountWon + score2, current_elo2, conn)
@@ -103,7 +103,8 @@ def set_new_elo(score1, score2, quote1: SQLFunctions.Quote, quote2: SQLFunctions
 
 
 class Battle:
-    def __init__(self, embed: discord.Embed, components: list[list[Button]], quote1: SQLFunctions.Quote, quote2: SQLFunctions.Quote, rank1: int, rank2: int, pause: bool):
+    def __init__(self, embed: discord.Embed, components: list[list[Button]], quote1: SQLFunctions.Quote, quote2: SQLFunctions.Quote, rank1: int,
+                 rank2: int, pause: bool):
         self.embed = embed
         self.components = components
         self.quote1 = quote1
@@ -170,7 +171,7 @@ class Quote(commands.Cog):
         emoji = payload.emoji
         if str(emoji) == "<:addQuote:840982832654712863>":
             # We first check if the channel is an announcement channel
-                # To avoid unecessary queries
+            # To avoid unecessary queries
             if channel.type == discord.ChannelType.news:
                 print("Channel is an announcement channel. Ignoring Quote.")
                 return
@@ -187,7 +188,8 @@ class Quote(commands.Cog):
         if res.component.id in ["1", "2", "3"]:
             found_battle = None
             # True if the message hasnt been edited in a while
-            battle_deactivated = res.message.edited_at is None or datetime.timestamp(res.message.edited_at) + 15 < datetime.timestamp(datetime.utcnow())
+            battle_deactivated = res.message.edited_at is None or datetime.timestamp(res.message.edited_at) + 15 < datetime.timestamp(
+                datetime.utcnow())
             if res.message.id not in self.battle_scores or res.message.id not in self.voted_users or battle_deactivated:
                 # the message ID is not in any of dicts => battle isn't active right now
                 # if the battle exists in self.active_battles, start the battle, else its simply a lost battle
@@ -213,7 +215,7 @@ class Quote(commands.Cog):
                                           content="You already voted on this battle. You can't vote twice.\n"
                                                   "*If this battle is bugged, try the button in ~10 seconds again. That should reactivate it again.*")
                     else:
-                        self.battle_scores[res.message.id][int(res.component.id)-1] += 1  # increments the score
+                        self.battle_scores[res.message.id][int(res.component.id) - 1] += 1  # increments the score
                         self.voted_users[res.message.id].append(res.user.id)
                         member = res.message.guild.get_member(res.user.id)
                         if member is None:
@@ -239,7 +241,8 @@ class Quote(commands.Cog):
                     await asyncio.sleep(random.randrange(5, 8))
                 except KeyError:
                     if not res.responded:
-                        await res.respond(type=InteractionType.ChannelMessageWithSource, content="The battle you voted on seems to have already ended.")
+                        await res.respond(type=InteractionType.ChannelMessageWithSource,
+                                          content="The battle you voted on seems to have already ended.")
 
     @commands.cooldown(4, 10, BucketType.user)
     @commands.guild_only()
@@ -303,7 +306,8 @@ class Quote(commands.Cog):
                         discord_member = ctx.message.guild.get_member(int(name))
                     if discord_member is not None:  # we have a quote by a discord user
                         member = SQLFunctions.get_or_create_discord_member(discord_member, 0, self.conn)
-                        quotes = SQLFunctions.get_quotes(unique_member_id=member.UniqueMemberID, guild_id=ctx.message.guild.id, conn=self.conn, random=True)
+                        quotes = SQLFunctions.get_quotes(unique_member_id=member.UniqueMemberID, guild_id=ctx.message.guild.id, conn=self.conn,
+                                                         random=True)
                     else:  # its a quote by a non-discord user
                         quotes = SQLFunctions.get_quotes(name=name, guild_id=ctx.message.guild.id, conn=self.conn, random=True)
                     if len(quotes) == 0:
@@ -376,7 +380,8 @@ class Quote(commands.Cog):
 
         return None, uniqueIDs
 
-    async def add_quote(self, username, message: discord.Message, quote, quoteAdder: discord.Member = None, reactionQuote=False, discord_member: discord.Member = None):
+    async def add_quote(self, username, message: discord.Message, quote, quoteAdder: discord.Member = None, reactionQuote=False,
+                        discord_member: discord.Member = None):
         username = username.replace("<@", "").replace(">", "").replace("!", "")
         channel = message.channel
         member = None
@@ -522,7 +527,7 @@ class Quote(commands.Cog):
             embed.add_field(name="Total Names", value=total_names)
             if total_quotes == 0:  # just to avoid a DivByZero if there are 0 quotes
                 total_quotes = 1
-            embed.add_field(name="Voted On", value=f"{total_voted_on} / {total_quotes} ({round(100*total_voted_on/total_quotes, 1)}%)")
+            embed.add_field(name="Voted On", value=f"{total_voted_on} / {total_quotes} ({round(100 * total_voted_on / total_quotes, 1)}%)")
             await ctx.message.reply(embed=embed)
             return
         # we check the aliases of that name
@@ -555,35 +560,7 @@ class Quote(commands.Cog):
             await ctx.send(embed=embed)
             raise discord.ext.commands.errors.BadArgument
 
-        i = 0
-        for quote in all_quotes:
-            quote_to_add = quote.QuoteText.replace("*", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "")
-            if quote_to_add.count("\n") > 2:
-                # makes multiline quotes not fill too many lines
-                split_lines = quote_to_add.split("\n")
-                quote_to_add = "\n".join(split_lines[:2]) + "\n **[...]**"
-            if len(quote_to_add) > 150:
-                quote_to_add = quote_to_add[:150] + "**[...]**"
-            quote_list += f"\n**#{i}:** {quote_to_add} `[ID: {quote.QuoteID}]`"
-            i += 1
-
-        # splits the messages into different pages by character length
-        pages = []
-        # creates the pages
-        while len(quote_list) > 0:
-            # split quotes into multiple fields of max 1000 chars
-            if len(quote_list) >= 1000:
-                rind2 = quote_list.rindex("\n", 0, 1000)
-                if rind2 == 0:
-                    # one quote is more than 1000 chars
-                    rind2 = quote_list.rindex(" ", 0, 1000)
-                    if rind2 == 0:
-                        # the quote is longer than 1000 chars and has no spaces
-                        rind2 = 1000
-            else:
-                rind2 = len(quote_list)
-            pages.append(quote_list[0:rind2])
-            quote_list = quote_list[rind2:]
+        pages = create_pages(all_quotes)
 
         p = Pages(self.bot, ctx, pages, ctx.message.author.id, f"All quotes from {all_quotes[0].Name}", 180)
         if len(pages) > 1:
@@ -632,7 +609,7 @@ class Quote(commands.Cog):
                     color=0xFF0000)
                 await ctx.send(embed=embed, delete_after=5)
                 raise discord.ext.commands.errors.BadArgument
-        
+
         # At this point we have a valid Quote ID, so add it to the database
         member = SQLFunctions.get_or_create_discord_member(ctx.message.author, conn=self.conn)
         SQLFunctions.insert_quote_to_remove(quoteID, reason, member, self.conn)
@@ -673,7 +650,7 @@ class Quote(commands.Cog):
         if len(pages) == 0:
             await ctx.send("There are no reported quotes to remove.")
             return
-        
+
         m = QuotesToRemove(pages, self.conn)
         await m.start(ctx=ctx, channel=ctx.channel)
 
@@ -685,7 +662,7 @@ class Quote(commands.Cog):
         i = 1
         for q in quotes:
             idx = q.QuoteText.lower().find(args.lower())
-            formatted_quote = q.QuoteText[:idx] + f"**{q.QuoteText[idx: idx+len(args)]}**" + q.QuoteText[idx+len(args):]
+            formatted_quote = q.QuoteText[:idx] + f"**{q.QuoteText[idx: idx + len(args)]}**" + q.QuoteText[idx + len(args):]
             quotes_list += f"\n**{i}**: {formatted_quote} `[{q.QuoteID}]`"
             i += 1
             # creates the pages
@@ -708,7 +685,7 @@ class Quote(commands.Cog):
             args = args[:200] + "[...]"
         if len(pages) == 0:
             embed = discord.Embed(title="No Matching Quotes Found",
-                                  description=f"Tag:\n```{args.replace('```','')}```",
+                                  description=f"Tag:\n```{args.replace('```', '')}```",
                                   color=discord.Color.red())
             await ctx.reply(embed=embed)
             raise discord.ext.commands.BadArgument
@@ -818,9 +795,9 @@ class Quote(commands.Cog):
         min(max(0, n-10)) = 0 if n<10, else = n-10 if n<40, else its 40
         max(0, n-50) = 0 if n<50, else it's =n-50
         """
-        quote_weights = [chance_for_first/first_cat for _ in range(min(n, first_cat))] + \
-                        [chance_for_second/second_cat for _ in range(min(max(0, n-first_cat), second_cat))] + \
-                        [chance_for_rest/(n-first_cat-second_cat) for _ in range(max(0, n-first_cat-second_cat))]
+        quote_weights = [chance_for_first / first_cat for _ in range(min(n, first_cat))] + \
+                        [chance_for_second / second_cat for _ in range(min(max(0, n - first_cat), second_cat))] + \
+                        [chance_for_rest / (n - first_cat - second_cat) for _ in range(max(0, n - first_cat - second_cat))]
         return self.pick_random_quotes(quotes, quote_weights)
 
     def pick_random_quotes(self, quotes, quote_weights) -> tuple[tuple[int, SQLFunctions.Quote], tuple[int, SQLFunctions.Quote]]:
@@ -829,7 +806,7 @@ class Quote(commands.Cog):
         :returns Two tuples each including the rank of the quote and the quote object itself.
         """
         # Re-raffles until we have two unique quotes
-        quotes_with_rank = [(i+1, quotes[i]) for i in range(len(quotes))]
+        quotes_with_rank = [(i + 1, quotes[i]) for i in range(len(quotes))]
         while True:
             two_random_quotes = random.choices(quotes_with_rank, weights=quote_weights, k=2)
             (rank1, quote1) = two_random_quotes[0]
@@ -1041,7 +1018,7 @@ class Quote(commands.Cog):
             title = "Quote Leaderboard"
             quotes = SQLFunctions.get_quotes(guild_id=ctx.message.guild.id, rank_by_elo=True)
         else:
-            user_id:str = user.replace("<@", "").replace(">", "").replace("!", "")
+            user_id: str = user.replace("<@", "").replace(">", "").replace("!", "")
             if not user_id.isnumeric():
                 await ctx.reply(f"Did not find a user with the given ID/mention.")
                 raise discord.ext.commands.errors.BadArgument
@@ -1050,29 +1027,120 @@ class Quote(commands.Cog):
                 await ctx.reply(f"Did not find any quotes from the given user.")
                 raise discord.ext.commands.errors.BadArgument
             title = f"Quote Leaderboard from {quotes[0].Name}"
-        quotes_list = ""
-        i = 1
-        for q in quotes:
-            quotes_list += f"\n**{i}**: {q.QuoteText} `[{q.QuoteID}][Elo: {round(q.Elo)}]`"
-            i += 1
-        # creates the pages
-        pages = []
-        while len(quotes_list) > 0:
-            # split quotes into multiple fields of max 1000 chars
-            if len(quotes_list) >= 1000:
-                rind2 = quotes_list.rindex("\n", 0, 1000)
-                if rind2 == 0:
-                    # one quote is more than 1000 chars
-                    rind2 = quotes_list.rindex(" ", 0, 1000)
-                    if rind2 == 0:
-                        # the quote is longer than 1000 chars and has no spaces
-                        rind2 = 1000
-            else:
-                rind2 = len(quotes_list)
-            pages.append(quotes_list[0:rind2])
-            quotes_list = quotes_list[rind2:]
-        qm = Pages(self.bot, ctx, pages, ctx.message.author.id, title)
+        qm = Pages(self.bot, ctx, create_pages(quotes), ctx.message.author.id, title)
         await qm.handle_pages()
+
+    @commands.guild_only()
+    @quote.group(aliases=["f", "favorite", "favourite", "favourites"], usage="favorites", invoke_without_command=True)
+    async def favorites(self, ctx):
+        """
+        Used to store and view your favorite quotes. Check out the subcommands `add` and `remove` to add some favorite quotes.
+        """
+        if ctx.invoked_subcommand is not None:
+            return
+        quotes = SQLFunctions.get_favorite_quotes_of_user(ctx.author, self.conn)
+        # If there are no quotes for the given person;
+        if len(quotes) == 0:
+            embed = discord.Embed(
+                title="Quotes Error",
+                description=f"You don't have any favorite quotes yet.\nCheck out the subcommand `add` to add your first favorite command!",
+                color=discord.Color.red())
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            await ctx.send(embed=embed)
+            raise discord.ext.commands.errors.BadArgument
+
+        pages = create_pages(quotes)
+        qm = Pages(self.bot, ctx, pages, ctx.author.id, "Favorite Quotes")
+        await qm.handle_pages()
+
+    @commands.guild_only()
+    @favorites.command(name="add", aliases=["a"], usage="add <quote ID>")
+    async def add_favorite(self, ctx, quote_id=None):
+        """
+        Add a quote to your personal quote favorites! Quote ID needs to be a valid \
+        quote and an integer of course.
+        """
+        # Input parsing
+        if quote_id is None:
+            embed = discord.Embed(description=f"No Quote ID given as parameter.", color=discord.Color.red())
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            await ctx.reply(embed=embed)
+            raise discord.ext.commands.errors.BadArgument
+        if not quote_id.isnumeric():
+            embed = discord.Embed(description=f"The given Quote ID is not an int!", color=discord.Color.red())
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            await ctx.reply(embed=embed)
+            raise discord.ext.commands.errors.BadArgument
+        quote_id = int(quote_id)
+
+        # if the quote ID even exists
+        quote = SQLFunctions.get_quote(quote_id, ctx.message.guild.id, self.conn)
+        if quote is None:
+            embed = discord.Embed(description=f"Quote ID `{quote_id}` does not exist!", color=discord.Color.red())
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            await ctx.reply(embed=embed)
+            raise discord.ext.commands.errors.BadArgument
+
+        # if the quote ID was already favoritted by this user
+        quotes = SQLFunctions.get_favorite_quotes_of_user(ctx.author, self.conn)
+        for q in quotes:
+            if q.QuoteID == quote_id:
+                embed = discord.Embed(description=f"You already favorited the quote with ID `{quote_id}`!", color=discord.Color.red())
+                embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+                await ctx.reply(embed=embed)
+                raise discord.ext.commands.errors.BadArgument
+
+        # add favorite
+        SQLFunctions.add_favorite_quote(ctx.author, quote_id, self.conn)
+        embed = discord.Embed(description=f"Successfully favorited quote ID `{quote_id}` by {quote.Name}!", color=discord.Color.green())
+        embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+        await ctx.reply(embed=embed)
+
+    @commands.guild_only()
+    @favorites.command(name="remove", aliases=["delete", "del", "r"], usage="remove <quote ID>")
+    async def remove_favorite(self, ctx, quote_id=None):
+        """
+        Remove a quote from your personal quote favorites! Quote ID needs to be a valid \
+        quote and an integer of course.
+        """
+        # Input parsing
+        if quote_id is None:
+            embed = discord.Embed(description=f"No Quote ID given as parameter.", color=discord.Color.red())
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            await ctx.reply(embed=embed)
+            raise discord.ext.commands.errors.BadArgument
+        if not quote_id.isnumeric():
+            embed = discord.Embed(description=f"The given Quote ID is not an int!", color=discord.Color.red())
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            await ctx.reply(embed=embed)
+            raise discord.ext.commands.errors.BadArgument
+        quote_id = int(quote_id)
+
+        # if the quote ID even exists
+        quote = SQLFunctions.get_quote(quote_id, ctx.message.guild.id, self.conn)
+        if quote is None:
+            embed = discord.Embed(description=f"Quote ID `{quote_id}` does not exist!", color=discord.Color.red())
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            await ctx.reply(embed=embed)
+            raise discord.ext.commands.errors.BadArgument
+
+        # checks if the quote was ever favorited
+        quotes = SQLFunctions.get_favorite_quotes_of_user(ctx.author, self.conn)
+        for q in quotes:
+            if q.QuoteID == quote_id:
+                break
+        else:
+            # Quote wasn't favorited
+            embed = discord.Embed(description=f"Quote with ID `{quote_id}` was never favorited!", color=discord.Color.red())
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            await ctx.reply(embed=embed)
+            raise discord.ext.commands.errors.BadArgument
+
+        # remove favorite
+        SQLFunctions.remove_favorite_quote(ctx.author, quote_id, self.conn)
+        embed = discord.Embed(description=f"Successfully unfavorited quote ID `{quote_id}`!", color=discord.Color.blurple())
+        embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+        await ctx.reply(embed=embed)
 
 
 def setup(bot):
@@ -1093,14 +1161,15 @@ class QuotesToRemove(menus.Menu):
         return await ctx.send(embed=embed)
 
     def create_embed(self, page_number):
-        embed = discord.Embed(title="Quotes to Remove", description=f"Page {page_number+1}/{len(self.pages)}", color=0x00003f)
+        embed = discord.Embed(title="Quotes to Remove", description=f"Page {page_number + 1}/{len(self.pages)}", color=0x00003f)
         userID, quoteID, quote, reporterID, name, reason = self.pages[page_number]
         if len(reason) > 700:
             reason = reason[:700] + "..."
         elif reason == "":
             reason = "*No reason was given.*"
         if userID is not None:
-            embed.add_field(name=f"ID: {quoteID} | {name}", value=f"Discord User: <@{userID}>\nReported by: <@{reporterID}>\n**Quote:**\n{quote}\n**Reason:**\n{reason}")
+            embed.add_field(name=f"ID: {quoteID} | {name}",
+                            value=f"Discord User: <@{userID}>\nReported by: <@{reporterID}>\n**Quote:**\n{quote}\n**Reason:**\n{reason}")
         else:
             embed.add_field(name=f"ID: {quoteID} | {name}", value="Reported by: <@{reporterID}>\n**Quote:**\n{quote}\n**Reason:**\n{reason}")
         return embed
@@ -1167,6 +1236,38 @@ class QuotesToRemove(menus.Menu):
         await self.message.edit(embed=embed)
 
 
+def create_pages(quotes: list[SQLFunctions.Quote]) -> list[str]:
+    quotes_list = ""
+    i = 1
+    for q in quotes:
+        quote_to_add = q.QuoteText.replace("*", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "")
+        if quote_to_add.count("\n") > 2:
+            # makes multiline quotes not fill too many lines
+            split_lines = quote_to_add.split("\n")
+            quote_to_add = "\n".join(split_lines[:2]) + "\n **[...]**"
+        if len(quote_to_add) > 150:
+            quote_to_add = quote_to_add[:150] + "**[...]**"
+        quotes_list += f"\n**{i}**: {quote_to_add} `[{q.QuoteID}][Elo: {round(q.Elo)}]`"
+        i += 1
+    # creates the pages
+    pages = []
+    while len(quotes_list) > 0:
+        # split quotes into multiple fields of max 1000 chars
+        if len(quotes_list) >= 1000:
+            rind2 = quotes_list.rindex("\n", 0, 1000)
+            if rind2 == 0:
+                # one quote is more than 1000 chars
+                rind2 = quotes_list.rindex(" ", 0, 1000)
+                if rind2 == 0:
+                    # the quote is longer than 1000 chars and has no spaces
+                    rind2 = 1000
+        else:
+            rind2 = len(quotes_list)
+        pages.append(quotes_list[0:rind2])
+        quotes_list = quotes_list[rind2:]
+    return pages
+
+
 class Pages:
     def __init__(self, bot: discord.Client, ctx: discord.ext.commands.Context, pages: list, user_id: int, embed_title: str, seconds=60):
         self.bot = bot  # bot object required so we can wait for the button click
@@ -1212,7 +1313,8 @@ class Pages:
                     else:
                         await res.respond(type=InteractionType.ChannelMessageWithSource, content="This page wasn't called by you.")
                 except AttributeError:
-                    await res.respond(type=InteractionType.ChannelMessageWithSource, content="Sorry got a little error. Simply press the button again.")
+                    await res.respond(type=InteractionType.ChannelMessageWithSource,
+                                      content="Sorry got a little error. Simply press the button again.")
         try:
             await self.ctx.message.delete()
         except discord.errors.NotFound:
@@ -1242,7 +1344,7 @@ class Pages:
             Button(style=ButtonStyle.blue, label=">"),
             Button(style=ButtonStyle.blue, label=">>")
         ]
-        if self.page_count == len(self.pages)-1:  # we are on the last page
+        if self.page_count == len(self.pages) - 1:  # we are on the last page
             components[3] = Button(style=ButtonStyle.grey, label=">", disabled=True)
             components[4] = Button(style=ButtonStyle.grey, label=">>", disabled=True)
 

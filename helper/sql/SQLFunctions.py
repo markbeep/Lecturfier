@@ -10,8 +10,8 @@ logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.WARNING)
 
 
-def connect() -> sqlite3.Connection:
-    conn = sqlite3.connect("./data/discord.db")
+def connect(fp="./data/discord.db") -> sqlite3.Connection:
+    conn = sqlite3.connect(fp)
     conn.execute("PRAGMA foreign_keys=ON")
     conn.commit()
     return conn
@@ -533,7 +533,7 @@ class Quote:
         return str(self.QuoteID)
 
 
-def get_quote(quote_ID, guild_id, conn=connect(), row_id=None, random=False) -> Quote:
+def get_quote(quote_ID, guild_id, conn=connect(), row_id=None, random=False) -> Union[Quote, None]:
     values = "QuoteID, Quote, Name, UniqueMemberID, CreatedAt, AddedByUniqueMemberID, DiscordGuildID, AmountBattled, AmountWon, Elo"
     if random:
         row = conn.execute(f"SELECT {values} FROM Quotes WHERE DiscordGuildID=? ORDER BY RANDOM() LIMIT 1", (guild_id,)).fetchone()
@@ -698,6 +698,34 @@ def update_quote_battle(quote_id, battles_amount, battles_won, elo, conn=connect
         conn.commit()
 
 
+def get_favorite_quotes_of_user(member: discord.Member, conn=connect()) -> list[Quote]:
+    dm = get_or_create_discord_member(member, 0, conn)
+    sql = """   SELECT Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID,
+                       Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID,
+                       Q.AmountBattled, Q.AmountWon, Q.Elo
+                FROM FavoriteQuotes FQ
+                INNER JOIN Quotes Q on FQ.QuoteID = Q.QuoteID
+                WHERE FQ.UniqueMemberID = ?"""
+    rows = conn.execute(sql, (dm.UniqueMemberID,))
+    return [Quote(*q) for q in rows]
+
+
+def add_favorite_quote(member: discord.Member, quote_id: int, conn=connect()):
+    dm = get_or_create_discord_member(member, 0, conn)
+    try:
+        conn.execute("INSERT INTO FavoriteQuotes(QuoteID, UniqueMemberID) VALUES (?,?)", (quote_id, dm.UniqueMemberID))
+    finally:
+        conn.commit()
+
+
+def remove_favorite_quote(member: discord.Member, quote_id: int, conn=connect()):
+    dm = get_or_create_discord_member(member, 0, conn)
+    try:
+        conn.execute("DELETE FROM FavoriteQuotes WHERE QuoteID=? AND UniqueMemberID=?", (quote_id, dm.UniqueMemberID))
+    finally:
+        conn.commit()
+
+
 class Name:
     def __init__(self, total_quotes: int, quote: Quote, member: DiscordMember = None):
         self.total_quotes = total_quotes
@@ -739,9 +767,9 @@ def get_quotes_to_remove(conn=connect()) -> list[QuoteToRemove]:
                         REP.UniqueMemberID, REP.DiscordUserID, REP.DiscordGuildID, REP.JoinedAt, REP.Nickname, REP.Semester, -- Reporter
                         QTR.Reason
                 FROM QuotesToRemove QTR
+                INNER JOIN Quotes Q on QTR.QuoteID = Q.QuoteID
                 INNER JOIN DiscordMembers DM on Q.UniqueMemberID = DM.UniqueMemberID
-                INNER JOIN DiscordMembers REP on QTR.UniqueMemberiD = REP.UniqueMemberID
-                INNER JOIN Quotes Q on QTR.QuoteID = Q.QuoteID"""
+                INNER JOIN DiscordMembers REP on QTR.UniqueMemberiD = REP.UniqueMemberID"""
     result = conn.execute(sql).fetchall()
     quotes_to_remove = []
     for row in result:
