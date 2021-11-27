@@ -1012,7 +1012,7 @@ class Quote(commands.Cog):
         await self.handle_battle(ctx.channel, battle, 30, ctx.message)
 
     @commands.guild_only()
-    @quote.command(aliases=["lb"], usage="leaderboard [user ID | mention]")
+    @quote.command(aliases=["lb", "top"], usage="leaderboard [user ID | mention]")
     async def leaderboard(self, ctx, user=None):
         if user is None:
             title = "Quote Leaderboard"
