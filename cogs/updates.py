@@ -60,6 +60,7 @@ class Updates(commands.Cog):
             "second": 885810349121622056,
             "third": 885810401969831978
         }
+        self.sent_advent = False
         self.sent_website_updates = False
 
     def heartbeat(self):
@@ -118,9 +119,11 @@ class Updates(commands.Cog):
                 print("No subjects going on right now. So skipping the loop completely.")
                 return
 
-            # Check what lectures are starting
             dt = datetime.now(timezone("Europe/Zurich"))
             minute = dt.minute
+            day = dt.day
+
+            # Check what lectures are starting
             for sem in semesters:
                 if not self.sent_updates[sem] and minute <= 5:
                     role_id = 0
@@ -154,6 +157,17 @@ class Updates(commands.Cog):
                 self.sent_website_updates = True
             elif minute % 10 != 0:
                 self.sent_website_updates = False
+
+            # advent of code ping
+            if minute > 5:
+                self.sent_advent = False
+            if month == 12 and not self.sent_advent and 1 <= day <= 25 and dt.hour == 6 and minute <= 5:
+                channel = self.bot.get_channel(910450760234467328)
+                embed = discord.Embed(
+                    description=f"Good Morning <@&910433615689699388>! It's time for **Advent of Code** day #{day}!\n[*Click here to get to the challenge*](https://adventofcode.com/2021/day/{day})",
+                    color=discord.Color.red())
+                await channel.send(embed=embed)
+                self.sent_advent = True
 
         except AttributeError as e:
             print(f"ERROR in Lecture Updates Loop! Probably wrong channel ID | {e}")
