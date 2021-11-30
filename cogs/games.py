@@ -64,7 +64,9 @@ class Games(commands.Cog):
                 if not self.sent_covid and "10:00" in cur_time and "Sat" not in cur_time and "Sun" not in cur_time:
                     self.sent_covid = True
                     general = self.bot.get_channel(747752542741725247)
-                    await general.send("<@&770968106679926868> it's time to guess today's covid cases using `$g <guess>`!")
+                    msg = "Good Morning!\nGuess today's covid cases using `$g <guess>`!"
+                    embed = discord.Embed(description=msg, color=discord.Color.gold())
+                    await general.send("<@&770968106679926868>", embed=embed)
                 if "10:00" not in cur_time:
                     self.sent_covid = False
             except Exception as e:
