@@ -174,11 +174,19 @@ favorite_quotes = """   CREATE TABLE IF NOT EXISTS "FavoriteQuotes" (
                             "UniqueMemberID" INTEGER NOT NULL,
                             FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID") ON DELETE CASCADE 
                         );"""
+activity = """      CREATE TABLE IF NOT EXISTS "Activity" (
+                        "ActivityID" INTEGER PRIMARY KEY,
+                        "DiscordUserID" INTEGER NOT NULL,
+                        "DiscordChannelID" INTEGER NOT NULL,
+                        "DiscordGuildID" INTEGER NOT NULL,
+                        "ActivityType" INTEGER NOT NULL, -- 0 = typing, 1 = reaction, 2 = message
+                        "Timestamp" INTEGER NOT NULL
+                    );"""
 
 all_tables = [DiscordUsers, DiscordGuilds, DiscordChannels, DiscordMembers, Subjects, WeekDayTimes,
               UserStatistics, VoiceLevels, CovidGuessing, Reputations, Events, EventJoinedUsers,
               Quotes, QuoteAliases, QuotesToRemove, Config, CommandPermissions, covid_cases,
-              favorite_quotes]
+              favorite_quotes, activity]
 
 
 def create_tables(conn=connect()):

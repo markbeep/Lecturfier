@@ -93,6 +93,13 @@ class Statistics(commands.Cog):
         self.script_start = time.time()
 
     @commands.Cog.listener()
+    async def on_typing(self, channel, user, when: datetime):
+        if user.bot or channel.type != discord.ChannelType.text:
+            return
+        t = int(when.timestamp())
+        SQLFunctions.add_activity(user, channel, t, SQLFunctions.ActivityType.typing, self.conn)
+
+    @commands.Cog.listener()
     async def on_message(self, message):
         # only count stats in servers
         if message.guild is None:
