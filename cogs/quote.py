@@ -1269,7 +1269,7 @@ def create_pages(quotes: list[SQLFunctions.Quote]) -> list[str]:
 
 
 class Pages:
-    def __init__(self, bot: discord.Client, ctx: discord.ext.commands.Context, pages: list, user_id: int, embed_title: str, seconds=60):
+    def __init__(self, bot: discord.Client, ctx: discord.ext.commands.Context, pages: list, user_id: int, embed_title: str, seconds=60, description=""):
         self.bot = bot  # bot object required so we can wait for the button click
         self.ctx = ctx  # so that we can remove the original message in the end
         self.page_count = 0  # current page
@@ -1279,6 +1279,7 @@ class Pages:
         self.embed_title = embed_title  # the title of each page
         self.seconds = seconds  # time in seconds to wait until we delete the message
         self.message = None  # the quotes message sent by the bot
+        self.description = description  # description of the embed
 
     async def handle_pages(self):
         """
@@ -1360,6 +1361,8 @@ class Pages:
         the title and the page depending on the current page we're on.
         """
         embed = discord.Embed(title=self.embed_title, color=0x404648)
+        if (len(self.description) > 0):
+            embed.description = self.description
         embed.add_field(name=f"Page {self.page_count + 1} / {len(self.pages)}", value=self.pages[self.page_count])
         embed.set_author(name=str(self.ctx.message.author), icon_url=self.ctx.message.author.avatar_url)
         if len(self.pages) > 1:

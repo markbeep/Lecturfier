@@ -1,10 +1,15 @@
-import hashlib
 import math
 import random
 import string
 import time
 from calendar import monthrange
 from datetime import datetime
+
+# AoC Imports
+import aiohttp
+import json
+from cogs.quote import Pages
+import os
 
 import discord
 import psutil
@@ -19,8 +24,11 @@ from helper.sql import SQLFunctions
 def get_formatted_time(rem):
     if rem < 0:
         return f"*Passed*"
+    if rem < 60:
+        return f"{round(rem)} seconds"
     if rem < 3600:
-        return f"{round(rem / 60)} minutes"
+        minutes = rem // 60
+        return f"{int(minutes)} minutes {get_formatted_time(rem - minutes * 60)}"
     if rem < 86400:
         hours = rem // 3600
         return f"{int(hours)} hours {get_formatted_time(rem - hours * 3600)}"
@@ -149,6 +157,16 @@ class Information(commands.Cog):
         self.background_events.start()
         # emote used for adding users to an event
         self.emote = ":greenverify:829432586098049034"
+        
+        
+        # AoC specific things
+        self.aoc_path = "./data/aoc_data.json"
+        self.background_fetch_aoc.start()
+        self.data = {}
+        if os.path.isfile(self.aoc_path):
+            with open(self.aoc_path, "r") as f:
+                self.data = json.load(f)
+        self.last_updated = 0
 
     def heartbeat(self):
         return self.background_events.is_running()
@@ -199,6 +217,26 @@ class Information(commands.Cog):
                         print(f"Can't dm {user.name}")
         # Marks all older events as done
         SQLFunctions.mark_events_done(current_time, conn=self.conn)
+
+    # AoC fetch loop
+    @tasks.loop(minutes=15)
+    async def background_fetch_aoc(self):
+        print("Starting AoC Fetch Loop")
+        await self.bot.wait_until_ready()
+        session_key = SQLFunctions.get_config("AoCSession", self.conn)[0]
+        cookie = {"session": session_key}
+        async with aiohttp.ClientSession(cookies=cookie) as session:
+            async with session.get("https://adventofcode.com/2021/leaderboard/private/view/951576.json") as response:
+                if response.status == 200:
+                    self.data = await response.read()
+                    self.data = json.loads(self.data)
+                    print("Got data")
+                    self.last_updated = time.time()
+                    # saves the file to the data folder
+                    with open(self.aoc_path, "w") as f:
+                        json.dump(self.data, f)
+                    print("Successfully updated the AoC data.")
+                    
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -277,6 +315,122 @@ class Information(commands.Cog):
             except discord.Forbidden:
                 pass
 
+    @commands.guild_only()
+    @commands.group(aliases=["adventofcode", "AdventOfCode"])
+    async def aoc(self, ctx, day=None, star=None):
+        """
+        `{prefix}aoc` - Total Leaderboard
+        `{prefix}aoc 1-25` - Day Leaderboard
+        `{prefix}aoc 1-25 1-2` - Day Leaderboard with star
+        """
+        d = self.data
+        desc = f"Last Updated: `{get_formatted_time(int(time.time() - self.last_updated))}` ago"
+        if day is None or day == "0" and star is None:  # send the general lb
+            pages = []
+            members = [d["members"][key] for key in d["members"] 
+                       if len(d["members"][key]["completion_day_level"])>0]
+            
+            points_fn = lambda k: k["local_score"]
+            members.sort(key=points_fn, reverse=True)
+             
+            msg = []
+            for i, m in enumerate(members):
+                msg.append(f"`[{i+1}]` **{m['name']}** - {m['local_score']} points | {m['stars']} stars")
+            pages = self.create_pages("\n".join(msg), 500)
+            
+            menu = Pages(self.bot, ctx, pages, ctx.author.id, "Total AoC Leaderboard", description=desc)
+            await menu.handle_pages()
+        elif star is None and day.isnumeric() and 1<=int(day)<=25:  # send the lb for that day
+            
+            day = int(day)
+            pages = []
+            members = [d["members"][key] for key in d["members"]
+                       if len(d["members"][key]["completion_day_level"])>0 
+                       and f"{day}" in d["members"][key]["completion_day_level"]]
+            
+            members, points = self.sort_by_times(members, len(d["members"]), day)
+            msg = []
+            for i, m in enumerate(members):
+                msg.append(f"`[{i+1}]` **{d['members'][m]['name']}** - {points[d['members'][m]['id']]} points")
+            pages = self.create_pages("\n".join(msg), 500)
+            
+            if len(pages) > 0:
+                menu = Pages(self.bot, ctx, pages, ctx.author.id, f"Day {day} AoC Leaderboard", description=desc)
+                await menu.handle_pages()
+            else:
+                await ctx.reply("There are no stats for that day yet.", delete_after=10)
+                await ctx.message.delete(delay=10)
+        elif day.isnumeric() and 1<=int(day)<=25 and star in ["1", "2"]:  # sends the lb for that day and star
+            day = int(day)
+            star = int(star)
+            pages = []
+            members = [d["members"][key] for key in d["members"]
+                       if len(d["members"][key]["completion_day_level"])>0
+                       and f"{day}" in d["members"][key]["completion_day_level"]
+                       and f"{star}" in d["members"][key]["completion_day_level"][f"{day}"]]
+            
+            points_fn = lambda m: m["completion_day_level"][f"{day}"][f"{star}"]["get_star_ts"]
+            members.sort(key=points_fn)
+            
+            min_hour = 0
+            if len(members) > 0:
+                # round down minimum time to hour
+                min_hour = members[0]["completion_day_level"][f"{day}"][f"{star}"]["get_star_ts"] // 3600 * 3600
+            
+            msg = []
+            for i, m in enumerate(members):
+                form = get_formatted_time(m['completion_day_level'][f'{day}'][f'{star}']['get_star_ts']-min_hour)
+                msg.append(f"`[{i+1}]` **{m['name']}** - {form}")
+            pages = self.create_pages("\n".join(msg), 500)
+            
+            if len(pages) > 0:
+                menu = Pages(self.bot, ctx, pages, ctx.author.id, f"Day {day} Star {star} AoC Leaderboard", description=desc)
+                await menu.handle_pages()
+            else:
+                await ctx.reply("There are no stats for that day or star yet.", delete_after=10)
+                await ctx.message.delete(delay=10)
+        else:
+            await ctx.reply("Unrecognized command parameters. Please check the help page.", delete_after=10)
+            await ctx.message.delete(delay=10)
+    
+    def sort_by_times(self, members: list, total: int, day: int):
+        points = {m["id"]:0 for m in members}
+        first_star = [m for m in members if "1" in m["completion_day_level"][f"{day}"]]
+        second_star = [m for m in members if "2" in m["completion_day_level"][f"{day}"]]
+        
+        # sort by the person's submission time (earliest times at the end)
+        sort_fn1 = lambda m: m["completion_day_level"][f"{day}"]["1"]["get_star_ts"]
+        sort_fn2 = lambda m: m["completion_day_level"][f"{day}"]["2"]["get_star_ts"]
+        first_star.sort(key=sort_fn1)
+        second_star.sort(key=sort_fn2)
+        
+        for i, m in enumerate(first_star):
+            points[m["id"]] = total - i
+        for i, m in enumerate(second_star):
+            points[m["id"]] += total - i
+        
+        final = sorted(points, key= lambda x: points[x], reverse=True)  # sorted by final points
+        return final, points
+        
+    
+    def create_pages(self, msg: str, CHAR_LIMIT: int) -> list[str]:
+        pages = []
+        while len(msg) > 0:
+            # split quotes into multiple fields of max 1000 chars
+            if len(msg) >= CHAR_LIMIT:
+                rind2 = msg.rindex("\n", 0, CHAR_LIMIT)
+                if rind2 == 0:
+                    # one quote is more than 1000 chars
+                    rind2 = msg.rindex(" ", 0, CHAR_LIMIT)
+                    if rind2 == 0:
+                        # the quote is longer than 1000 chars and has no spaces
+                        rind2 = CHAR_LIMIT
+            else:
+                rind2 = len(msg)
+            pages.append(msg[0:rind2])
+            msg = msg[rind2:]
+        return pages
+    
     @commands.cooldown(4, 10, BucketType.user)
     @commands.command(usage="guild")
     async def guild(self, ctx):
