@@ -254,7 +254,7 @@ class Statistics(commands.Cog):
             for i, row in enumerate(column):
                 member: SQLFunctions.DiscordMember = row[0]
                 value = row[1]
-                if key == "FileSentSize":
+                if key == "FileSentSize" or key == "Total File Size Sent":
                     value = round(value / 1000000.0, 2)
                     value = f"{value} MB"
                 lb_msg += f"**{i + 1}.** <@{member.DiscordUserID}> *({value})*\n"
