@@ -290,7 +290,7 @@ class Statistics(commands.Cog):
             }
 
             for key in statistic_columns.keys():
-                statistic_columns[key] = SQLFunctions.get_statistic_rows(key, 500, self.conn)
+                statistic_columns[key] = SQLFunctions.get_statistic_rows(key, 5000, self.conn)
             if user is None:
                 embed = await self.create_embed(ctx.message.author, statistic_columns)
                 await ctx.send(embed=embed)
