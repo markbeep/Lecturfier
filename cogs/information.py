@@ -3,7 +3,7 @@ import random
 import string
 import time
 from calendar import monthrange
-from datetime import datetime
+from datetime import date, datetime
 
 # AoC Imports
 import aiohttp
@@ -372,10 +372,14 @@ class Information(commands.Cog):
             points_fn = lambda m: m["completion_day_level"][f"{day}"][f"{star}"]["get_star_ts"]
             members.sort(key=points_fn)
             
-            min_hour = 0
+            min_time = 0
             if len(members) > 0:
-                # round down minimum time to hour
-                min_hour = members[0]["completion_day_level"][f"{day}"][f"{star}"]["get_star_ts"] // 3600 * 3600
+                min_time = members[0]["completion_day_level"][f"{day}"][f"{star}"]["get_star_ts"]
+            mytz = timezone("Europe/Zurich")
+            dt = datetime.fromtimestamp(min_time).strftime(f"{day}/%m/%Y, 06:00:00")
+            dt = datetime.strptime(dt, "%d/%m/%Y, %H:%M:%S")
+            dt = mytz.normalize(mytz.localize(dt, is_dst=True))
+            min_hour = dt.timestamp()
             
             msg = []
             for i, m in enumerate(members):
