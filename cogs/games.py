@@ -58,6 +58,11 @@ class Games(commands.Cog):
         try:
             await self.bot.wait_until_ready()
 
+            # TURN OFF OVER NEW YEAR
+            dt = datetime.now(timezone("Europe/Zurich"))
+            if (dt.month == 12 and dt.day == 31) or (dt.month == 1 and dt.day in [1,2]):
+                return
+
             # Send the covid guesser notification
             try:
                 cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
