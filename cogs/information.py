@@ -161,7 +161,6 @@ class Information(commands.Cog):
         
         # AoC specific things
         self.aoc_path = "./data/aoc_data.json"
-        self.background_fetch_aoc.start()
         self.data = {}
         if os.path.isfile(self.aoc_path):
             with open(self.aoc_path, "r") as f:
@@ -217,26 +216,6 @@ class Information(commands.Cog):
                         print(f"Can't dm {user.name}")
         # Marks all older events as done
         SQLFunctions.mark_events_done(current_time, conn=self.conn)
-
-    # AoC fetch loop
-    @tasks.loop(minutes=15)
-    async def background_fetch_aoc(self):
-        print("Starting AoC Fetch Loop")
-        await self.bot.wait_until_ready()
-        session_key = SQLFunctions.get_config("AoCSession", self.conn)[0]
-        cookie = {"session": session_key}
-        async with aiohttp.ClientSession(cookies=cookie) as session:
-            async with session.get("https://adventofcode.com/2021/leaderboard/private/view/951576.json") as response:
-                if response.status == 200:
-                    self.data = await response.read()
-                    self.data = json.loads(self.data)
-                    print("Got data")
-                    self.last_updated = time.time()
-                    # saves the file to the data folder
-                    with open(self.aoc_path, "w") as f:
-                        json.dump(self.data, f)
-                    print("Successfully updated the AoC data.")
-                    
 
     @commands.Cog.listener()
     async def on_ready(self):
