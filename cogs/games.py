@@ -17,7 +17,8 @@ from helper.sql import SQLFunctions
 
 
 def calculate_points(confirmed_cases, guess):
-    points_gotten = float(confirmed_cases - abs(confirmed_cases - guess)) / confirmed_cases * 1000
+    points_gotten = float(
+        confirmed_cases - abs(confirmed_cases - guess)) / confirmed_cases * 1000
     if points_gotten > 1000:
         points_gotten = 1000
     if points_gotten < 0:
@@ -60,17 +61,20 @@ class Games(commands.Cog):
 
             # TURN OFF OVER NEW YEAR
             dt = datetime.now(timezone("Europe/Zurich"))
-            if (dt.month == 12 and dt.day == 31) or (dt.month == 1 and dt.day in [1,2]):
+            if (dt.month == 12 and dt.day == 31) or (dt.month == 1 and dt.day in [1, 2]):
                 return
 
             # Send the covid guesser notification
+            general_channel = 898674880864743444
             try:
-                cur_time = datetime.now(timezone("Europe/Zurich")).strftime("%a:%H:%M")
+                cur_time = datetime.now(
+                    timezone("Europe/Zurich")).strftime("%a:%H:%M")
                 if not self.sent_covid and "10:00" in cur_time and "Sat" not in cur_time and "Sun" not in cur_time:
                     self.sent_covid = True
-                    general = self.bot.get_channel(747752542741725247)
+                    general = self.bot.get_channel(general_channel)
                     msg = "Good Morning!\nGuess today's covid cases using `$g <guess>`!"
-                    embed = discord.Embed(description=msg, color=discord.Color.gold())
+                    embed = discord.Embed(
+                        description=msg, color=discord.Color.gold())
                     await general.send("<@&770968106679926868>", embed=embed)
                 if "10:00" not in cur_time:
                     self.sent_covid = False
@@ -86,26 +90,30 @@ class Games(commands.Cog):
             last_updated = soup.find_all("p", class_="card__subtitle")
             if len(last_updated) > 0:
                 last_updated = last_updated[0].get_text()
-                day = int(last_updated[last_updated.index("Status:")+8: last_updated.index(".")])
+                day = int(last_updated[last_updated.index(
+                    "Status:")+8: last_updated.index(".")])
             else:
                 owner = self.bot.get_user(205704051856244736)
                 await owner.send(content=f"Covid cases failed updating. Last updated is empty:\n```{last_updated}```")
                 raise ValueError
 
-            new_cases = int(soup.find_all("span", class_="bag-key-value-list__entry-value")[0].get_text().replace(" ", ""))
+            new_cases = int(soup.find_all(
+                "span", class_="bag-key-value-list__entry-value")[0].get_text().replace(" ", ""))
             if self.last_cases_day != day:
                 self.cases_today = new_cases
                 self.last_cases_day = day
                 guild = self.bot.get_guild(747752542741725244)
                 if guild is None:
                     guild = self.bot.get_guild(237607896626495498)
-                channel = guild.get_channel(747752542741725247)
+                channel = guild.get_channel(general_channel)
                 if channel is None:
                     channel = guild.get_channel(402563165247766528)
                 await self.send_message(channel, new_cases)
                 log("Daily cases have been updated", print_it=True)
-                SQLFunctions.insert_or_update_config("COVID_Cases", new_cases, self.conn)
-                SQLFunctions.insert_or_update_config("COVID_Day", day, self.conn)
+                SQLFunctions.insert_or_update_config(
+                    "COVID_Cases", new_cases, self.conn)
+                SQLFunctions.insert_or_update_config(
+                    "COVID_Day", day, self.conn)
                 SQLFunctions.store_covid_cases(new_cases, conn=self.conn)
         except Exception as e:
             print(f"COVID loop messed up:\n{e}")
@@ -142,7 +150,8 @@ class Games(commands.Cog):
                 msg = ""
                 c = 0
         if c != 0:
-            embed.add_field(name=f"Top {len(points_list)}", value=msg, inline=False)
+            embed.add_field(
+                name=f"Top {len(points_list)}", value=msg, inline=False)
         # Pings the Covid Guesser Role on sending the leaderboard message
         await channel.send(content="<@&770968106679926868>", embed=embed)
 
@@ -159,7 +168,8 @@ class Games(commands.Cog):
             msg = f"**{rank}:** <@{g.member.DiscordUserID}> got {g.TempPoints} points *(guess: {g.NextGuess})*"
             rank += 1
             lb_messages.append(msg)
-        SQLFunctions.clear_covid_guesses(users=guessers, increment=True, conn=self.conn)
+        SQLFunctions.clear_covid_guesses(
+            users=guessers, increment=True, conn=self.conn)
 
         return lb_messages
 
@@ -183,7 +193,8 @@ class Games(commands.Cog):
                     guessers.sort(key=lambda x: x.TempPoints, reverse=True)
                 else:
                     title = "'rona"
-                    guessers.sort(key=lambda x: x.TotalPointsAmount, reverse=True)
+                    guessers.sort(
+                        key=lambda x: x.TotalPointsAmount, reverse=True)
 
                 """
                 Creates the message content
@@ -215,9 +226,11 @@ class Games(commands.Cog):
                     title=f"Top {title} Guessers: **{guild_name}** <:coronavirus:767839970303410247>",
                     description=cont, color=0x00FF00)
                 if average:
-                    embed.set_footer(text="Ordered by decay (value to the right). Left is actual average.")
+                    embed.set_footer(
+                        text="Ordered by decay (value to the right). Left is actual average.")
             except KeyError:
-                embed = discord.Embed(title=f"Error", description="There are no covid guessing points yet", color=0xFF0000)
+                embed = discord.Embed(
+                    title=f"Error", description="There are no covid guessing points yet", color=0xFF0000)
         await ctx.send(embed=embed)
 
     @commands.cooldown(1, 10, BucketType.user)
@@ -240,7 +253,8 @@ class Games(commands.Cog):
 
         if number is None:
             # No values were given in the command:
-            guesser = SQLFunctions.get_covid_guessers(self.conn, discord_user_id=ctx.message.author.id, guild_id=ctx.message.guild.id)
+            guesser = SQLFunctions.get_covid_guessers(
+                self.conn, discord_user_id=ctx.message.author.id, guild_id=ctx.message.guild.id)
             if len(guesser) == 0:
                 await ctx.send(f"{ctx.message.author.mention}, you have not made any guesses yet. Guess with `$guess <integer>`.", delete_after=7)
                 return
@@ -252,7 +266,8 @@ class Games(commands.Cog):
                         async with cs.get(image_url) as r:
                             buffer = io.BytesIO(await r.read())
                     color_thief = ColorThief(buffer)
-                    dominant_color = color_thief.get_palette(color_count=2, quality=10)[0]
+                    dominant_color = color_thief.get_palette(
+                        color_count=2, quality=10)[0]
                     hex_color = int('0x%02x%02x%02x' % dominant_color, 0)
                 except UnidentifiedImageError as e:
                     hex_color = 0x808080
@@ -293,8 +308,10 @@ class Games(commands.Cog):
                         raise ValueError
                     if number > 1000000:
                         number = 1000000
-                    member = SQLFunctions.get_or_create_discord_member(ctx.message.author, conn=self.conn)
-                    SQLFunctions.insert_or_update_covid_guess(member, number, conn=self.conn)
+                    member = SQLFunctions.get_or_create_discord_member(
+                        ctx.message.author, conn=self.conn)
+                    SQLFunctions.insert_or_update_covid_guess(
+                        member, number, conn=self.conn)
                     await ctx.send(f"{ctx.message.author.mention}, received your guess.", delete_after=7)
             except ValueError:
                 await ctx.send(f"{ctx.message.author.mention}, no proper positive integer given.", delete_after=7)
