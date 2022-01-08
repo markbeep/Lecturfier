@@ -79,7 +79,8 @@ class Voice(commands.Cog):
         """
         rand_amount = random.randrange(amount_min, amount_max)
 
-        SQLFunctions.insert_or_update_voice_level(member, rand_amount, self.conn)
+        SQLFunctions.insert_or_update_voice_level(
+            member, rand_amount, self.conn)
 
     @commands.cooldown(4, 10, BucketType.user)
     @commands.guild_only()
@@ -91,7 +92,11 @@ class Voice(commands.Cog):
         if user is None:
             member = ctx.message.author
         else:
-            member = ctx.message.guild.get_member_named(user)
+            user_id = user.replace(
+                "<@", "").replace(">", "").replace("!", "")
+            member = None
+            if user_id.isnumeric():
+                member = ctx.message.guild.get_member(int(user_id))
 
         if member is None:
             await ctx.send(f"{ctx.message.author.mention}, invalid mention or user ID. Can't display rank for that user.")
