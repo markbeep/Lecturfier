@@ -2,6 +2,7 @@ import asyncio
 import io
 import time
 from datetime import datetime
+from types import new_class
 
 import aiohttp
 import discord
@@ -82,24 +83,40 @@ class Games(commands.Cog):
                 print(e)
 
             # checks the daily cases
+            url = "https://www.covid19.admin.ch/api/data/context/history"
+            response = {}
             async with aiohttp.ClientSession() as cs:
-                async with cs.get("https://www.covid19.admin.ch/en/overview") as r:
-                    response = await r.read()
-            soup = bs(response.decode('utf-8'), "html.parser")
+                async with cs.get(url) as r:
+                    response = await r.json()
             # gets the last updated day from the website
-            last_updated = soup.find_all("p", class_="card__subtitle")
-            if len(last_updated) > 0:
-                last_updated = last_updated[0].get_text()
-                day = int(last_updated[last_updated.index(
-                    "Status:")+8: last_updated.index(".")])
+            last_updated = response["dataContexts"][0]["date"]
+            daily_url = response["dataContexts"][0]["dataContextUrl"]
+            if len(last_updated) > 0:  # to make sure we even got anything
+                day = int(last_updated.split("-")[2])
             else:
                 owner = self.bot.get_user(205704051856244736)
                 await owner.send(content=f"Covid cases failed updating. Last updated is empty:\n```{last_updated}```")
                 raise ValueError
 
-            new_cases = int(soup.find_all(
-                "span", class_="bag-key-value-list__entry-value")[0].get_text().replace(" ", ""))
+            # fetches the new cases
+            # daily_url is of format https://www.covid19.admin.ch/api/data/DATE-random-gibberish/context
+            # we want to go to this instead: https://www.covid19.admin.ch/api/data/DATE-random-gibberish/sources/COVID19Cases_geoRegion.json
+
             if self.last_cases_day != day:
+                daily_url = daily_url.replace(
+                    "context", "sources/COVID19Cases_geoRegion.json")
+                async with aiohttp.ClientSession() as cs:
+                    async with cs.get(daily_url) as r:
+                        response = await r.json()
+                new_cases = -1
+                for line in response:
+                    # finds the cases for today's date and for all of switzrland and liechtenstein
+                    if line["geoRegion"] == "CHFL" and line["datum"] == last_updated:
+                        new_cases = line["entries_diff_last"]
+                        break
+                if new_cases == -1:
+                    print("Wasn't able to get daily covid cases")
+                    raise ValueError
                 self.cases_today = new_cases
                 self.last_cases_day = day
                 guild = self.bot.get_guild(747752542741725244)
