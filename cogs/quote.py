@@ -951,21 +951,17 @@ class Quote(commands.Cog):
         )
 
         score1, score2 = self.battle_scores[msg.id]
-        set_new_elo(score1, score2, quote1, quote2, self.conn)
+        new_elo1, new_elo2 = set_new_elo(score1, score2, quote1, quote2, self.conn)
 
         # gets the new ranks
         quotes = SQLFunctions.get_quotes(conn=self.conn, guild_id=channel.guild.id, rank_by_elo=True)
         new_rank1 = 0
         new_rank2 = 0
-        new_elo1 = 0
-        new_elo2 = 0
         for i, q in enumerate(quotes):
             if q.QuoteID == quote1.QuoteID:
                 new_rank1 = i + 1
-                new_elo1 = quote1.Elo
             elif q.QuoteID == quote2.QuoteID:
                 new_rank2 = i + 1
-                new_elo2 = quote2.Elo
             if new_rank1 != 0 and new_rank2 != 0:
                 break
 
@@ -984,7 +980,7 @@ class Quote(commands.Cog):
 
         embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | Name: {quote1.Name} | Wins: {score1} | Rank: {rank1} → {new_rank1} | Elo: {round(elo1)} → {round(new_elo1)}",
                         value=quote1_text, inline=False)
-        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | Name: {quote2.Name} | Wins: {score2} | Rank: {rank2} → {new_rank2} | Elo: {round(elo1)} → {round(new_elo2)}",
+        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | Name: {quote2.Name} | Wins: {score2} | Rank: {rank2} → {new_rank2} | Elo: {round(elo2)} → {round(new_elo2)}",
                         value=quote2_text, inline=False)
         await msg.edit(embed=embed, components=[])
 
