@@ -761,7 +761,7 @@ class QuoteToRemove:
         self.Reason = reason
 
 
-def get_quotes_to_remove(conn=connect()) -> list[QuoteToRemove]:
+def get_quotes_to_remove(guild_id, conn=connect()) -> list[QuoteToRemove]:
     sql = """   SELECT  DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester, --Quote Member
                         Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID, Q.AmountBattled,
                         Q.AmountWon, Q.Elo, -- Quote
@@ -770,13 +770,31 @@ def get_quotes_to_remove(conn=connect()) -> list[QuoteToRemove]:
                 FROM QuotesToRemove QTR
                 INNER JOIN Quotes Q on QTR.QuoteID = Q.QuoteID
                 INNER JOIN DiscordMembers DM on Q.UniqueMemberID = DM.UniqueMemberID
-                INNER JOIN DiscordMembers REP on QTR.UniqueMemberiD = REP.UniqueMemberID"""
-    result = conn.execute(sql).fetchall()
+                INNER JOIN DiscordMembers REP on QTR.UniqueMemberiD = REP.UniqueMemberID
+                WHERE Q.DiscordGuildID = ?"""
+    result = conn.execute(sql, (guild_id,)).fetchall()
     quotes_to_remove = []
     for row in result:
         member = DiscordMember(*row[0:6])
         quote = Quote(*row[6:16], Member=member)
         reporter = DiscordMember(*row[16:22])
+        quotes_to_remove.append(QuoteToRemove(quote, row[-1], reporter))
+    return quotes_to_remove
+
+def get_quotes_to_remove_name(guild_id, conn=connect()) -> list[QuoteToRemove]:
+    sql = """   SELECT  Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID, Q.AmountBattled,
+                        Q.AmountWon, Q.Elo, -- Quote
+                        REP.UniqueMemberID, REP.DiscordUserID, REP.DiscordGuildID, REP.JoinedAt, REP.Nickname, REP.Semester, -- Reporter
+                        QTR.Reason
+                FROM QuotesToRemove QTR
+                INNER JOIN Quotes Q on QTR.QuoteID = Q.QuoteID
+                INNER JOIN DiscordMembers REP on QTR.UniqueMemberiD = REP.UniqueMemberID
+                WHERE Q.UniqueMemberID is NULL AND Q.DiscordGuildID = ?"""
+    result = conn.execute(sql, (guild_id,)).fetchall()
+    quotes_to_remove = []
+    for row in result:
+        quote = Quote(*row[:10])
+        reporter = DiscordMember(*row[10:-1])
         quotes_to_remove.append(QuoteToRemove(quote, row[-1], reporter))
     return quotes_to_remove
 

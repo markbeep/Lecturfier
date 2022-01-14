@@ -600,7 +600,8 @@ class Quote(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
 
         # check if quote ID is already listed in db
-        quotes_to_remove = SQLFunctions.get_quotes_to_remove(self.conn)
+        quotes_to_remove = SQLFunctions.get_quotes_to_remove(ctx.message.guild.id, self.conn) \
+            + SQLFunctions.get_quotes_to_remove_name(ctx.message.guild.id, self.conn)
         for q in quotes_to_remove:
             if quote.QuoteID == q.Quote.QuoteID:
                 embed = discord.Embed(
@@ -628,7 +629,8 @@ class Quote(commands.Cog):
         Permissions: Owner
         """
         # get all the reports
-        quotes_to_remove = SQLFunctions.get_quotes_to_remove(self.conn)
+        quotes_to_remove = SQLFunctions.get_quotes_to_remove(ctx.message.guild.id, self.conn) \
+            + SQLFunctions.get_quotes_to_remove_name(ctx.message.guild.id, self.conn)
 
         # fetches each quote and adds it to a page
         # 1 quote per page
@@ -636,8 +638,11 @@ class Quote(commands.Cog):
         while len(quotes_to_remove) > 0:
             quote = quotes_to_remove.pop()
             # userID, quoteID, quote, reporterID, name, reason
+            user_id = None
+            if quote.Quote.Member:
+                user_id = quote.Quote.Member.DiscordUserID
             pages.append([
-                quote.Quote.Member.DiscordUserID,
+                user_id,
                 quote.Quote.QuoteID,
                 quote.Quote.QuoteText,
                 quote.Reporter.DiscordUserID,
@@ -925,6 +930,8 @@ class Quote(commands.Cog):
         embed = battle.embed
         rank1 = battle.rank1
         rank2 = battle.rank2
+        elo1 = quote1.Elo
+        elo2 = quote2.Elo
         msg = battle.message
 
         if battle.pause:  # the battle was paused, so we have to get the new ranks of the quotes incase they changed
@@ -950,11 +957,15 @@ class Quote(commands.Cog):
         quotes = SQLFunctions.get_quotes(conn=self.conn, guild_id=channel.guild.id, rank_by_elo=True)
         new_rank1 = 0
         new_rank2 = 0
+        new_elo1 = 0
+        new_elo2 = 0
         for i, q in enumerate(quotes):
             if q.QuoteID == quote1.QuoteID:
                 new_rank1 = i + 1
+                new_elo1 = quote1.Elo
             elif q.QuoteID == quote2.QuoteID:
                 new_rank2 = i + 1
+                new_elo2 = quote2.Elo
             if new_rank1 != 0 and new_rank2 != 0:
                 break
 
@@ -971,9 +982,9 @@ class Quote(commands.Cog):
         self.voted_users.pop(msg.id)
         self.battle_scores.pop(msg.id)
 
-        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | Name: {quote1.Name} | Rank: {rank1} → {new_rank1} | Wins: {score1}",
+        embed.add_field(name=f"1️⃣ | ID: {quote1.QuoteID} | Name: {quote1.Name} | Wins: {score1} | Rank: {rank1} → {new_rank1} | Elo: {round(elo1)} → {round(new_elo1)}",
                         value=quote1_text, inline=False)
-        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | Name: {quote2.Name} | Rank: {rank2} → {new_rank2} | Wins: {score2}",
+        embed.add_field(name=f"2️⃣ | ID: {quote2.QuoteID} | Name: {quote2.Name} | Wins: {score2} | Rank: {rank2} → {new_rank2} | Elo: {round(elo1)} → {round(new_elo2)}",
                         value=quote2_text, inline=False)
         await msg.edit(embed=embed, components=[])
 
@@ -1171,7 +1182,7 @@ class QuotesToRemove(menus.Menu):
             embed.add_field(name=f"ID: {quoteID} | {name}",
                             value=f"Discord User: <@{userID}>\nReported by: <@{reporterID}>\n**Quote:**\n{quote}\n**Reason:**\n{reason}")
         else:
-            embed.add_field(name=f"ID: {quoteID} | {name}", value="Reported by: <@{reporterID}>\n**Quote:**\n{quote}\n**Reason:**\n{reason}")
+            embed.add_field(name=f"ID: {quoteID} | {name}", value=f"Reported by: <@{reporterID}>\n**Quote:**\n{quote}\n**Reason:**\n{reason}")
         return embed
 
     @menus.button("⬅️")
