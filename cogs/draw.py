@@ -110,7 +110,7 @@ class Draw(commands.Cog):
         self.LINE_HEIGHT = 62  # amount of lines which fit on the place canvas
         self.CHAR_WIDTH = 166  # amount of chars which fit in a line on the place canvas
         self.font = ImageFont.truetype("./data/nk57-monospace-cd-rg.ttf", 12)
-        self.userToCopyTextFrom = 155419933998579713
+        self.userToCopyTextFrom = -1
         self.last_line = SQLFunctions.get_config("Draw_Last_Line", self.conn)
         if len(self.last_line) == 0:
             self.last_line = 0
