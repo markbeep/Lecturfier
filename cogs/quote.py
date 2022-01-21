@@ -819,10 +819,14 @@ class Quote(commands.Cog):
             if quote1.Name == "test" or quote2.Name == "test":
                 continue
             for b in self.active_battles:  # if one of the quotes is already in a battle, continue
-                if b.quote1.QuoteID in [quote1.QuoteID, quote2.QuoteID] or b.quote2.QuoteID in [quote1.QuoteID, quote2.QuoteID]:
+                if b.quote1 is None or b.quote2 is None:  # one of the other battles messed up and resulted in a None quote
                     continue
-            if quote1.QuoteID != quote2.QuoteID:
-                break
+                if b.quote1.QuoteID in [quote1.QuoteID, quote2.QuoteID] or b.quote2.QuoteID in [quote1.QuoteID, quote2.QuoteID]:
+                    break
+            else:  # if there are no issues, check quote IDs and break
+                if quote1.QuoteID != quote2.QuoteID:
+                    break
+            # if there was a duplicate quote, the else isn't called and another while iteration is executed
         return (rank1, quote1), (rank2, quote2)
 
     @commands.guild_only()
@@ -884,6 +888,9 @@ class Quote(commands.Cog):
             tokens = max_battles - min_battles + 1
             quote_weights = [tokens - x.AmountBattled for x in quotes]
             (rank1, quote1), (rank2, quote2) = self.pick_random_quotes(quotes, quote_weights)
+        
+        assert quote1 is not None
+        assert quote2 is not None
 
         quote1_text = quote1.QuoteText
         quote2_text = quote2.QuoteText
