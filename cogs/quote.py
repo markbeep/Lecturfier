@@ -1045,7 +1045,7 @@ class Quote(commands.Cog):
         await qm.handle_pages()
 
     @commands.guild_only()
-    @quote.group(aliases=["f", "favorite", "favourite", "favourites"], usage="favorites", invoke_without_command=True)
+    @quote.group(aliases=["f", "favorite", "favourite", "favourites", "fav"], usage="favorites", invoke_without_command=True)
     async def favorites(self, ctx):
         """
         Used to store and view your favorite quotes. Check out the subcommands `add` and `remove` to add some favorite quotes.
