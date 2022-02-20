@@ -73,7 +73,7 @@ class Statistics(commands.Cog):
                 await ctx.reply(embed=embed, delete_after=5)
                 await ctx.message.delete(delay=5)
             try:
-                await ctx.message.add_reaction("<:ERROR:792154973559455774>")
+                await ctx.message.add_reaction("<a:cross:944970382694314044>")
             except discord.errors.NotFound:
                 pass
         raise error
@@ -84,7 +84,7 @@ class Statistics(commands.Cog):
             return
         else:
             try:
-                await ctx.message.add_reaction("<:checkmark:776717335242211329>")
+                await ctx.message.add_reaction("<a:checkmark:944970382522351627>")
             except discord.errors.NotFound:
                 pass
 

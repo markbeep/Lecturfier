@@ -29,11 +29,11 @@ def loading_bar(bars, max_length=None, failed=None):
     if max_length is None:
         max_length = 10
     if failed is None:
-        return "<:blue_box:764901467097792522>" * bars + "<:grey_box:764901465592037388>" * (max_length - bars)  # First is blue square, second is grey
+        return "<:blue_box:944974657013047328>" * bars + "<:grey_box:944973724371779594>" * (max_length - bars)  # First is blue square, second is grey
     elif failed:
-        return "<:red_box:764901465872662528>"*bars  # Red square
+        return "<:red_box:944974688516440114>"*bars  # Red square
     else:
-        return "<:green_box:764901465948684289>"*bars  # Green square
+        return "<:green_box:944973724803817522>"*bars  # Green square
 
 
 class IDType(Enum):
@@ -303,9 +303,9 @@ class Owner(commands.Cog):
         msg = ""
         for name in all_loops.keys():
             if all_loops[name]:
-                msg += f"\n**{name}:** <:checkmark:776717335242211329>"
+                msg += f"\n**{name}:** <a:checkmark:944970382522351627>"
             else:
-                msg += f"\n**{name}:** <:xmark:776717315139698720>"
+                msg += f"\n**{name}:** <a:cross:944970382694314044>"
         await ctx.send(msg)
 
     @commands.is_owner()

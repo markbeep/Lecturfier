@@ -220,13 +220,13 @@ class Games(commands.Cog):
                 cont = ""
                 for g in guessers:
                     if i == 1:
-                        cont += "<:gold:413030003639582731>"
+                        cont += "<:gold:944970589158920222>"
                     elif i == 2:
-                        cont += "<:silver:413030018881552384>"
+                        cont += "<:silver:944970589133766717>"
                     elif i == 3:
-                        cont += "<:bronze:413030030076149776>"
+                        cont += "<:bronze:944970589481869352>"
                     else:
-                        cont += "<:invisible:413030446327267328>"
+                        cont += "<:invisible:944970589196652564>"
 
                     if average:
                         # Show users with the best weighted average
@@ -288,9 +288,9 @@ class Games(commands.Cog):
                     hex_color = int('0x%02x%02x%02x' % dominant_color, 0)
                 except UnidentifiedImageError as e:
                     hex_color = 0x808080
-                already_guessed = "<:xmark:776717315139698720>"
+                already_guessed = "<a:cross:944970382694314044>"
                 if guesser.NextGuess is not None:
-                    already_guessed = "<:checkmark:776717335242211329>"
+                    already_guessed = "<a:checkmark:944970382522351627>"
                 embed = discord.Embed(title="Covid Guesser Profile",
                                       description=f"**User:** <@{ctx.message.author.id}>\n"
                                                   f"**Total Points:** `{guesser.TotalPointsAmount}`\n"
@@ -312,9 +312,9 @@ class Games(commands.Cog):
                         # Deletes the previous confirm message if there are multiple
                         await self.confirm_msg.delete()
                         self.confirm_msg = None
-                    self.confirm_msg = await ctx.send(f"Confirmed cases: {self.confirmed_cases}\nA mod or higher, press the <:checkmark:769279808244809798> to verify.")
-                    await self.confirm_msg.add_reaction("<:checkmark:776717335242211329>")
-                    await self.confirm_msg.add_reaction("<:xmark:776717315139698720>")
+                    self.confirm_msg = await ctx.send(f"Confirmed cases: {self.confirmed_cases}\nA mod or higher, press the <a:checkmark:944970382522351627> to verify.")
+                    await self.confirm_msg.add_reaction("<a:checkmark:944970382522351627>")
+                    await self.confirm_msg.add_reaction("<a:cross:944970382694314044>")
                 elif number.lower() in leaderboard_aliases:
                     await self.send_leaderboard(ctx)
                 elif number.lower() in average_aliases:

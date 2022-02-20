@@ -169,7 +169,7 @@ class Quote(commands.Cog):
         user = str(message.author.id)
         quoteAdder = payload.member
         emoji = payload.emoji
-        if str(emoji) == "<:addQuote:840982832654712863>":
+        if "addquote" in str(emoji).lower():
             # We first check if the channel is an announcement channel
             # To avoid unecessary queries
             if channel.type == discord.ChannelType.news:
@@ -415,7 +415,7 @@ class Quote(commands.Cog):
                 color=0xFF0000)
             if reactionQuote:
                 try:
-                    await message.add_reaction("<:tooLongQuote:852876951407820820>")
+                    await message.add_reaction("<:tooLongQuote:944975187034669076>")
                 except discord.errors.Forbidden:
                     pass
             else:
@@ -433,7 +433,7 @@ class Quote(commands.Cog):
                 color=0xFF0000)
             if reactionQuote:
                 try:
-                    await message.add_reaction("<:blockedFromQuoting:840988109578698782>")
+                    await message.add_reaction("<:blockedFromQuoting:944975250976833536>")
                 except discord.errors.Forbidden:
                     pass
             else:
@@ -460,7 +460,7 @@ class Quote(commands.Cog):
             embed.set_footer(text="(Or your username is the same as the person you're trying to quote.)")
             if reactionQuote:
                 try:
-                    await message.add_reaction("<:selfQuote:852877064515092520>")
+                    await message.add_reaction("<:selfQuote:944975293809049671>")
                 except discord.errors.Forbidden:
                     pass
             else:
@@ -494,7 +494,7 @@ class Quote(commands.Cog):
 
         if reactionQuote:
             try:
-                await message.add_reaction("<:addedQuote:840985556304265237>")
+                await message.add_reaction("<:addedQuote:944973430619529216>")
             except discord.errors.NotFound:
                 pass
 
@@ -769,7 +769,7 @@ class Quote(commands.Cog):
 
         # sends the initial message, then edits it to a mention message and deletes it afterwards
         for m in messages_to_send:
-            msg = await ctx.send("mentions go brrrrrrr <a:partypoop:412336219175780353>")
+            msg = await ctx.send("mentions go brrrrrrr <a:partypoop:944975859037650954>")
             await msg.edit(content=m)
             await msg.delete()
 
@@ -1212,7 +1212,7 @@ class QuotesToRemove(menus.Menu):
                 pass
         self.stop()
 
-    @menus.button("<:DeletThis:843908352999686234>")
+    @menus.button("<:deletThis:944978242144706700>")
     async def deleteQuote(self, payload):
         userID, quoteID, quote, reporterID, name, reason = self.pages[self.page_count]
         SQLFunctions.delete_quote(quoteID, self.conn)
@@ -1231,7 +1231,7 @@ class QuotesToRemove(menus.Menu):
         embed = self.create_embed(self.page_count)
         await self.message.edit(embed=embed)
 
-    @menus.button("<a:IgnoreReport:844678929751212083>")
+    @menus.button("<a:ignoreReport:944978242706743356>")
     async def ignoreQuote(self, payload):
         userID, quoteID, quote, reporterID, name, reason = self.pages[self.page_count]
         SQLFunctions.delete_quote_to_remove(quoteID, self.conn)

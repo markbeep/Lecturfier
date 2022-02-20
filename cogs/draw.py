@@ -20,7 +20,7 @@ def rgb2hex(r, g, b):
 
 def loading_bar_draw(a, b):
     prog = int(10 * a / b)
-    return "<:green_box:764901465948684289>" * prog + (10 - prog) * "<:grey_box:764901465592037388>"
+    return "<:green_box:944973724803817522>" * prog + (10 - prog) * "<:grey_box:944973724371779594>"
 
 
 def modifiers(img: im2q.PixPlace, mods: tuple) -> int:

@@ -143,13 +143,13 @@ class Voice(commands.Cog):
                     cont = ""
                     for user in rows:
                         if i == 1:
-                            cont += "<:gold:413030003639582731>"
+                            cont += "<:gold:944970589158920222>"
                         elif i == 2:
-                            cont += "<:silver:413030018881552384>"
+                            cont += "<:silver:944970589133766717>"
                         elif i == 3:
-                            cont += "<:bronze:413030030076149776>"
+                            cont += "<:bronze:944970589481869352>"
                         else:
-                            cont += "<:invisible:413030446327267328>"
+                            cont += "<:invisible:944970589196652564>"
 
                         # 1 xp / second
                         cont += f"**{i}.** <@!{user[0]}> | **Level {levefier(user[1])}** (*{number_split(user[1])} xp | {round(user[1] / 3600, 1)} hours*)\n\n"
@@ -161,7 +161,7 @@ class Voice(commands.Cog):
                 except AttributeError:
                     guild_name = "DM Channel"
                 embed = discord.Embed(
-                    title=f"Top Levels of: **{guild_name}** <a:upvoteparrot:412336233105326091>",
+                    title=f"Top Levels of: **{guild_name}** <a:partyparrot:944970381951897650>",
                     description=cont, color=0x00FF00)
                 await ctx.send(embed=embed)
             except Error as e:

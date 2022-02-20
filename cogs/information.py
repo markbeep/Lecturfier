@@ -670,7 +670,7 @@ class Information(commands.Cog):
         other people's events.
         """
         if event_id is None:
-            await ctx.send("ERROR! No Event ID given. Don't know what event I should delete <:NotLikeThis:852170634439032873>")
+            await ctx.send("ERROR! No Event ID given. Don't know what event I should delete <:NotLikeThis:821369098629808168>")
             raise discord.ext.commands.errors.BadArgument
         event_results = SQLFunctions.get_events(self.conn, guild_id=ctx.message.guild.id)
         for e in event_results:
@@ -752,7 +752,7 @@ class Information(commands.Cog):
         elif command == "join":
             await ctx.send("Whoops something went wrong. You probably already joined the event. Can't join twice.")
         elif command == "leave":
-            await ctx.send("Whoops something went wrong. You can't leave an event you haven't even joined <:BRUH:747783377159061545>")
+            await ctx.send("Whoops something went wrong. You can't leave an event you haven't even joined <:bruh_mike:937352413810151424>")
         else:
             await ctx.send("Whoops... if you see this message, don't even bother pinging Mark, cause this error shouldn't ever show up and"
                            "he doesn't have any logs to find the problem anyway.")
