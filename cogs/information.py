@@ -156,7 +156,7 @@ class Information(commands.Cog):
         self.conn = SQLFunctions.connect()
         self.background_events.start()
         # emote used for adding users to an event
-        self.emote = ":greenverify:829432586098049034"
+        self.emote = "<a:greenverify:949669955413114960>"
         
         
         # AoC specific things
