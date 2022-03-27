@@ -352,7 +352,7 @@ def delete_event(event: Event, conn=connect()):
         conn.commit()
 
 
-def get_event_joined_users(event: Event, conn=connect()) -> list:
+def get_event_joined_users(event: Event, conn=connect()) -> list[DiscordMember]:
     if type(event) is int:
         event_id = int(event)
     else:

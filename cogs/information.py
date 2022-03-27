@@ -3,13 +3,8 @@ import random
 import string
 import time
 from calendar import monthrange
-from datetime import date, datetime
-
-# AoC Imports
-import aiohttp
-import json
-from cogs.quote import Pages
-import os
+from datetime import datetime
+from typing import Union
 
 import discord
 import psutil
@@ -112,12 +107,11 @@ def is_valid_time(time_dict):
 
 
 def starting_in(dt: datetime):
-    delta = dt - datetime.now()
-    return get_formatted_time(delta.total_seconds())
+    return f"<t:{int(dt.timestamp())}:R>"
 
 
 def format_date_string(dt: datetime):
-    return dt.strftime("%H:%M on %d.%b %Y")
+    return f"<t:{int(dt.timestamp())}:d>"
 
 
 def create_event_embed(event: SQLFunctions.Event, joined_members: list):
@@ -156,7 +150,7 @@ class Information(commands.Cog):
         self.conn = SQLFunctions.connect()
         self.background_events.start()
         # emote used for adding users to an event
-        self.emote = "<a:greenverify:949669955413114960>"
+        self.emote = "949669955413114960"
 
     def heartbeat(self):
         return self.background_events.is_running()
@@ -167,24 +161,11 @@ class Information(commands.Cog):
     @tasks.loop(seconds=20)
     async def background_events(self):
         await self.bot.wait_until_ready()
-        # iterates through all events to update the event messages
+        # iterates through all events to check if an event is starting
         results = SQLFunctions.get_events(self.conn, is_done=False)
         current_time = datetime.now()
         for event in results:
             joined_members = SQLFunctions.get_event_joined_users(event, self.conn)
-            if event.UpdatedChannelID is not None and event.UpdatedMessageID is not None:
-                try:
-                    # fetches the event channel and event
-                    # in case of an error updating is simply skipped
-                    channel = self.bot.get_channel(event.UpdatedChannelID)
-                    if channel is None or channel.guild is None:  # channel is not visible to the bot or it's a private channel
-                        continue
-                    msg = await channel.fetch_message(event.UpdatedMessageID)
-                    embed = create_event_embed(event, joined_members)
-                    await msg.edit(embed=embed)
-                except (discord.NotFound, discord.errors.Forbidden):
-                    print(f"Have no access to the events update message for the event with ID {event.EventID}.")
-                    continue
             # ping users if event starts
             if event.EventStartingAt <= current_time:
                 # creates the embed for the starting event
@@ -212,7 +193,17 @@ class Information(commands.Cog):
     async def on_ready(self):
         self.script_start = time.time()
 
-    async def join_leave_event(self, member, guild_id, command, message_id=None, event_id=None) -> SQLFunctions.Event:
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        """
+        Simply checks if the bot's background task is still running,
+        and if not it starts it back up
+        """
+        if not self.background_events.is_running():
+            self.background_events.start()
+
+    async def join_leave_event(self, member, guild_id, command, message_id=None, event_id=None) -> Union[SQLFunctions.Event, bool]:
+        print(member)
         event_results = SQLFunctions.get_events(self.conn, guild_id=guild_id)
         for e in event_results:
             if e.UpdatedMessageID == message_id or e.EventID == event_id:
@@ -232,16 +223,29 @@ class Information(commands.Cog):
         if command == "join" and not joined:
             # Adds the user to the event
             sql_member = SQLFunctions.get_or_create_discord_member(member)
+            joined_members.append(sql_member)
             SQLFunctions.add_member_to_event(event, sql_member, self.conn)
         elif command == "leave" and joined:
             # Removes the user from the event
+            joined_members = [x for x in joined_members if x.DiscordUserID != member.id]
             SQLFunctions.remove_member_from_event(event, discord_member, self.conn)
         else:
             return False
-        try:
+        try:  # tries to add the user to the channel, if there is one and the bot has the perms
             await self.set_event_channel_perms(member, event.SpecificChannelID, command)
         except discord.Forbidden:
             pass
+
+        try:  # updates the event message with the newly joined/leaving user
+            channel = self.bot.get_channel(event.UpdatedChannelID)
+            if channel is None or channel.guild is None:  # channel is not visible to the bot or it's a private channel
+                return event
+            msg = await channel.fetch_message(event.UpdatedMessageID)
+            embed = create_event_embed(event, joined_members)
+            await msg.edit(embed=embed)
+        except (discord.NotFound, discord.errors.Forbidden):
+            print(f"Have no access to the events update message for the event with ID {event.EventID}.")
+
         return event
 
     @commands.Cog.listener()
@@ -725,7 +729,10 @@ class Information(commands.Cog):
 
         SQLFunctions.add_event_updated_message(msg.id, msg.channel.id, event.EventID, self.conn)
         await ctx.send("Successfully added updating event to DB.", delete_after=3)
-        await ctx.message.delete()
+        try:
+            await ctx.message.delete()
+        except discord.Forbidden:
+            pass
 
     @commands.guild_only()
     @event.command(usage="channel <event ID> <channel ID>")
