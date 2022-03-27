@@ -202,15 +202,17 @@ class Information(commands.Cog):
         if not self.background_events.is_running():
             self.background_events.start()
 
-    async def join_leave_event(self, member, guild_id, command, message_id=None, event_id=None) -> Union[SQLFunctions.Event, bool]:
-        print(member)
+    async def join_leave_event(self, member, guild_id, command, message_id=None, event_id=None) -> tuple[Union[SQLFunctions.Event, None], bool]:
         event_results = SQLFunctions.get_events(self.conn, guild_id=guild_id)
         for e in event_results:
-            if e.UpdatedMessageID == message_id or e.EventID == event_id:
+            if message_id is not None and e.UpdatedMessageID == message_id:
+                event = e
+                break
+            if event_id is not None and e.EventID == event_id:
                 event = e
                 break
         else:  # no matching event was found otherwise
-            return False
+            return None, False
         # check if the user already joined the event
         joined_members = SQLFunctions.get_event_joined_users(event=event, conn=self.conn)
         joined = True
@@ -230,7 +232,7 @@ class Information(commands.Cog):
             joined_members = [x for x in joined_members if x.DiscordUserID != member.id]
             SQLFunctions.remove_member_from_event(event, discord_member, self.conn)
         else:
-            return False
+            return None, False
         try:  # tries to add the user to the channel, if there is one and the bot has the perms
             await self.set_event_channel_perms(member, event.SpecificChannelID, command)
         except discord.Forbidden:
@@ -239,14 +241,14 @@ class Information(commands.Cog):
         try:  # updates the event message with the newly joined/leaving user
             channel = self.bot.get_channel(event.UpdatedChannelID)
             if channel is None or channel.guild is None:  # channel is not visible to the bot or it's a private channel
-                return event
+                return event, True
             msg = await channel.fetch_message(event.UpdatedMessageID)
             embed = create_event_embed(event, joined_members)
             await msg.edit(embed=embed)
         except (discord.NotFound, discord.errors.Forbidden):
             print(f"Have no access to the events update message for the event with ID {event.EventID}.")
 
-        return event
+        return event, True
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
@@ -256,7 +258,7 @@ class Information(commands.Cog):
         if payload.member.bot:
             return
         if self.emote in str(payload.emoji):
-            event = await self.join_leave_event(payload.member, payload.guild_id, "join", message_id=payload.message_id)
+            event, success = await self.join_leave_event(payload.member, payload.guild_id, "join", message_id=payload.message_id)
             SQLFunctions.logger.debug(f"Member {str(payload.member)} joining Event: {event}")
             if not event:
                 return
@@ -279,7 +281,7 @@ class Information(commands.Cog):
             member = guild.get_member(payload.user_id)
             if member is None:
                 return
-            event = await self.join_leave_event(member, payload.guild_id, "leave", message_id=payload.message_id)
+            event, success = await self.join_leave_event(member, payload.guild_id, "leave", message_id=payload.message_id)
             SQLFunctions.logger.debug(f"Member {str(member)} leaving Event: {event}")
             if not event:
                 return
@@ -631,7 +633,7 @@ class Information(commands.Cog):
             await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
             await ctx.message.delete(delay=10)
             raise discord.ext.commands.errors.BadArgument
-        success = await self.join_leave_event(ctx.message.author, ctx.message.guild.id, command, event_id=event.EventID)
+        event, success = await self.join_leave_event(ctx.message.author, ctx.message.guild.id, command, event_id=int(event_id))
         if success and command == "join":
             embed = discord.Embed(
                 title="Joined Event",
@@ -725,7 +727,7 @@ class Information(commands.Cog):
         joined_members = SQLFunctions.get_event_joined_users(event, self.conn)
         embed = create_event_embed(event, joined_members)
         msg = await ctx.send(embed=embed)
-        await msg.add_reaction(f"<a{self.emote}>")
+        await msg.add_reaction(f"<a:{self.emote}>")
 
         SQLFunctions.add_event_updated_message(msg.id, msg.channel.id, event.EventID, self.conn)
         await ctx.send("Successfully added updating event to DB.", delete_after=3)
