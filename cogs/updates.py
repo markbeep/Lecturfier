@@ -158,19 +158,6 @@ class Updates(commands.Cog):
             elif minute % 10 != 0:
                 self.sent_website_updates = False
 
-            # advent of code ping
-            if minute > 5:
-                self.sent_advent = False
-            if month == 12 and not self.sent_advent and 1 <= day <= 25 and dt.hour == 6 and minute <= 5:
-                channel = self.bot.get_channel(910450760234467328)
-                msg = f"Good Morning! It's time for **Advent of Code** day #{day}!\n[*Click here to get to the challenge*](https://adventofcode.com/2021/day/{day})"
-                msg += "\n||*Consider donating to AoC to have it continue next year again* <:Santawww:910435057607524352>||"
-                embed = discord.Embed(
-                    description=msg,
-                    color=discord.Color.red())
-                await channel.send("<@&910433615689699388>", embed=embed)
-                self.sent_advent = True
-
         except AttributeError as e:
             print(f"ERROR in Lecture Updates Loop! Probably wrong channel ID | {e}")
         except Exception:
