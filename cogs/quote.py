@@ -577,15 +577,18 @@ class Quote(commands.Cog):
         """
         if ctx.invoked_subcommand is not None:
             return
-        print(f"{reason=}")
         # input parsing
         if quoteID is None:
             embed = discord.Embed(title="Quotes Error", description=f"No quote ID given.", color=0xFF0000)
-            await ctx.send(embed=embed, delete_after=5)
+            await ctx.reply(embed=embed, delete_after=5)
+            raise discord.ext.commands.errors.BadArgument
+        if len(reason) == 0:
+            embed = discord.Embed(title="Quotes Error", description=f"You didn't give a reason. Not accepting quote reports without a reason anymore.", color=0xFF0000)
+            await ctx.reply(embed=embed)
             raise discord.ext.commands.errors.BadArgument
         if not quoteID.isnumeric():
             embed = discord.Embed(title="Quotes Error", description=f"Quote ID has to be an integer.", color=0xFF0000)
-            await ctx.send(embed=embed, delete_after=5)
+            await ctx.reply(embed=embed, delete_after=5)
             raise discord.ext.commands.errors.BadArgument
         quoteID = int(quoteID)
 
