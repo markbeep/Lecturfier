@@ -140,7 +140,7 @@ class Minesweeper(commands.Cog):
         corrected_mines = placed_bombs[2]
 
         mine_field = await self.bomb_counter(mine_field)
-        final_message = f"__Size: {corrected_size} | Mines: {corrected_mines}__"
+        final_message = f"__Size: {corrected_size} | Mines: {corrected_mines}__\nPlay some web minesweeper! https://markc.su/minesweeper/"
 
         mine_field = await self.uncover_field(mine_field)
         split_messages = []
@@ -151,7 +151,7 @@ class Minesweeper(commands.Cog):
                     row_string += i.replace('f', '')
                 else:
                     row_string += f"||{i}||"
-            if len(await self.minesweeper_text_format(final_message) + await self.minesweeper_text_format(row_string)) > 850:
+            if len(await self.minesweeper_text_format(final_message) + await self.minesweeper_text_format(row_string)) > 750:
                 msg = await self.minesweeper_text_format(final_message)
                 await ctx.send(msg)
                 final_message = row_string
