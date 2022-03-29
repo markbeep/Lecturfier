@@ -140,7 +140,7 @@ class Minesweeper(commands.Cog):
         corrected_mines = placed_bombs[2]
 
         mine_field = await self.bomb_counter(mine_field)
-        final_message = f"__Size: {corrected_size} | Mines: {corrected_mines}__\nPlay some web minesweeper! https://markc.su/minesweeper/"
+        final_message = f"__Size: {corrected_size} | Mines: {corrected_mines}__\nPlay some web minesweeper! <https://markc.su/minesweeper/>"
 
         mine_field = await self.uncover_field(mine_field)
         split_messages = []
