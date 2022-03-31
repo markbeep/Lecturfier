@@ -743,7 +743,7 @@ class Information(commands.Cog):
         """
         Link a channel to an event, so that when a user joins an event, they get access to the channel.
         Giving no channel ID as parameter clears the channel for that event. This should always be done \
-        to avoid any unecessary errors when joining/leaving an event.
+        to avoid any unnecessary errors when joining/leaving an event.
 
         Permissions: kick_members
         """

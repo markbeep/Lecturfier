@@ -50,7 +50,7 @@ def modifiers(img: im2q.PixPlace, mods: tuple) -> int:
             img.left_to_right()
 
     if start != -1 or end != -1:
-        print("Modfiers", start, end)
+        print("Modifiers", start, end)
         if start != -1 != end:
             drawn = img.perc_to_perc(start, end)
         elif start != -1:

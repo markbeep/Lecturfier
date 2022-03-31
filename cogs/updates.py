@@ -206,7 +206,7 @@ class Updates(commands.Cog):
     @commands.command(usage="addLecture", aliases=["addlecture"])
     async def addLecture(self, ctx):
         """
-        Allows the addition of new lecture times to the databse with a guided system.
+        Allows the addition of new lecture times to the database with a guided system.
         Permissions: Owner
         """
         await ctx.reply("What is the subject full name? Type `stop` anytime to cancel the adding of the lecture.")
@@ -348,7 +348,7 @@ class Updates(commands.Cog):
                     day=dayID,
                     conn=self.conn
                 )
-            await ctx.reply("Succesfully added the subject times!")
+            await ctx.reply("Successfully added the subject times!")
 
         except asyncio.TimeoutError:
             await ctx.reply("You took too long to respond. You have 30 seconds to respond.")

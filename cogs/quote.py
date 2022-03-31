@@ -171,7 +171,7 @@ class Quote(commands.Cog):
         emoji = payload.emoji
         if "addquote" in str(emoji).lower():
             # We first check if the channel is an announcement channel
-            # To avoid unecessary queries
+            # To avoid unnecessary queries
             if channel.type == discord.ChannelType.news:
                 print("Channel is an announcement channel. Ignoring Quote.")
                 return
@@ -619,7 +619,7 @@ class Quote(commands.Cog):
         SQLFunctions.insert_quote_to_remove(quoteID, reason, member, self.conn)
         embed = discord.Embed(
             title="Added Quote Report",
-            description=f"Succesfully requested quote {quoteID} to be deleted.",
+            description=f"Successfully requested quote {quoteID} to be deleted.",
             color=0x00FF00)
         await ctx.send(embed=embed, delete_after=5)
 
@@ -863,7 +863,7 @@ class Quote(commands.Cog):
         quotes = SQLFunctions.get_quotes(conn=self.conn, guild_id=channel.guild.id, rank_by_elo=True)
         random.seed()
 
-        PAUSE = time_for_battle == 0  # true if this battle doesnt start immediatly
+        PAUSE = time_for_battle == 0  # true if this battle doesnt start immediately
 
         if not PAUSE:
             embed = discord.Embed(

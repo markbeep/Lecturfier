@@ -10,7 +10,7 @@ def gitpush(directory):
     :return: commit and push message
     """
     commit_out = subprocess.run(["git", "-C", directory, "commit", "-a", "-m", "Update"])
-    log(f"Commited: {commit_out}", "GIT")
+    log(f"Committed: {commit_out}", "GIT")
     push_out = subprocess.run(["git", "-C", directory, "push", "-u"])
     # git -C ./data push -u origin main
     log(f"Pushed: {push_out}", "GIT")

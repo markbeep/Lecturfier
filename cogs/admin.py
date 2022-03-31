@@ -222,7 +222,7 @@ class Admin(commands.Cog):
             content = """**How to verify that you're an ETH student:**
 **1.** Click on the `Verify ETH Student` button underneath this message.
 **2.** Login with your ETH credentials
-**3.** If login was successfull, you are brought to a site with a token in the middle. Now you can do one of the following methods:
+**3.** If login was successful, you are brought to a site with a token in the middle. Now you can do one of the following methods:
 **-3a.** Click on the `CONFIRM ME PLS` button to login with Discord.
 **-3b.** Send `\\confirm INSERT_TOKEN_HERE` in this channel.
 **-3c.** Private message <@306523617188118528> and type `\\confirm INSERT_TOKEN_HERE`
