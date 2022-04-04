@@ -60,9 +60,9 @@ class Games(commands.Cog):
         try:
             await self.bot.wait_until_ready()
 
-            # TURN OFF OVER NEW YEAR
+            # only post on tuesdays
             dt = datetime.now(timezone("Europe/Zurich"))
-            if (dt.month == 12 and dt.day == 31) or (dt.month == 1 and dt.day in [1, 2]):
+            if dt.weekday() != 1:
                 return
 
             # Send the covid guesser notification
