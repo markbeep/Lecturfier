@@ -110,7 +110,6 @@ class MainBot(commands.Cog):
             "updates": self.bot.get_cog("Updates"),
             "statistics": self.bot.get_cog("Statistics"),
             "voice": self.bot.get_cog("Voice"),
-            "games": self.bot.get_cog("Games"),
             "information": self.bot.get_cog("Information"),
             "draw": self.bot.get_cog("Draw")
         }
