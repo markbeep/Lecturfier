@@ -341,15 +341,15 @@ class Quote(commands.Cog):
                             color=0xFF0000)
                         await ctx.send(embed=embed)
                         raise discord.ext.commands.errors.BadArgument
-                    if index < 0 or index >= len(quotes):
+                    if index < 1 or index > len(quotes):
                         embed = discord.Embed(
                             title="Quotes Error",
                             description=f"There does not exist a quote with that index for the user \"{name}\". "
-                                        f"Keep the index between `0 <= index < {len(quotes)}`.",
+                                        f"Keep the index between `0 < index <= {len(quotes)}`.",
                             color=0xFF0000)
                         await ctx.send(embed=embed)
                         raise discord.ext.commands.errors.BadArgument
-                    q = quotes[index]
+                    q = quotes[index+1]
                     await send_quote(ctx.channel, q)
 
                 else:  # its a new quote to add
