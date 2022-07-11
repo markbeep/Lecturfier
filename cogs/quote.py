@@ -349,7 +349,7 @@ class Quote(commands.Cog):
                             color=0xFF0000)
                         await ctx.send(embed=embed)
                         raise discord.ext.commands.errors.BadArgument
-                    q = quotes[index+1]
+                    q = quotes[index-1]
                     await send_quote(ctx.channel, q)
 
                 else:  # its a new quote to add
