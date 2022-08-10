@@ -222,13 +222,8 @@ class Admin(commands.Cog):
             content = """**How to verify that you're an ETH student:**
 **1.** Click on the `Verify ETH Student` button underneath this message.
 **2.** Login with your ETH credentials
-**3.** If login was successfull, you are brought to a site with a token in the middle. Now you can do one of the following methods:
-**-3a.** Click on the `CONFIRM ME PLS` button to login with Discord.
-**-3b.** Send `\\confirm INSERT_TOKEN_HERE` in this channel.
-**-3c.** Private message <@306523617188118528> and type `\\confirm INSERT_TOKEN_HERE`
-**4.** If you sent the correct token, you should be verified now. The gif underneath shows how it should look."""
+**3.** If login was successfull, you are brought to a site with a token in the middle. Click on the `CONFIRM ME PLS` button to login with Discord."""
             embed = discord.Embed(title="Help with verifying", description=content, color=discord.Color.green())
-            embed.set_image(url="https://cdn.discordapp.com/attachments/747768907992924192/856128802610741258/verify.gif")
             await res.respond(embed=embed,
                               components=[Button(label="Verify ETH Student", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=yes_emoji)])
         elif comp_id == "help_other":

@@ -400,7 +400,7 @@ class Quote(commands.Cog):
                 color=0xFF0000)
             if reactionQuote:
                 try:
-                    await message.add_reaction("<:tooLongQuote:852876951407820820>")
+                    await message.add_reaction("<:tooLongQuote:944975187034669076>")
                 except discord.errors.Forbidden:
                     pass
             else:
