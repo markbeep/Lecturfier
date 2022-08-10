@@ -221,8 +221,9 @@ class Admin(commands.Cog):
         elif comp_id == "help_verify":
             content = """**How to verify that you're an ETH student:**
 **1.** Click on the `Verify ETH Student` button underneath this message.
-**2.** Login with your ETH credentials
-**3.** If login was successfull, you are brought to a site with a token in the middle. Click on the `CONFIRM ME PLS` button to login with Discord."""
+**2.** Login with your ETH credentials.
+**3.** Click on the `CONFIRM ME PLS` button to login with Discord. This will verify your Discord account.
+**4.** You can now go back to Discord and enjoy the server."""
             embed = discord.Embed(title="Help with verifying", description=content, color=discord.Color.green())
             await res.respond(embed=embed,
                               components=[Button(label="Verify ETH Student", style=ButtonStyle.URL, url="https://dauth.spclr.ch/", emoji=yes_emoji)])
