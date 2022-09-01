@@ -105,7 +105,7 @@ def count_chars(words, wtg, letter_count, ignore):
         if len(w) == len(wtg):  # only consider words of the same length
             for c in w:
                 c = c.lower()
-                if c not in ignore:
+                if c not in ignore and c not in wtg:
                     try:
                         letter_count[c] += 1
                     except KeyError:
