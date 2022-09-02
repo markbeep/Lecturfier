@@ -88,12 +88,12 @@ def solve(wtg: str, ignore=None, language="english"):
     fitting = []
 
     get_fitting(words, wtg, fitting, ignore)
-    count_chars(fitting, wtg, letter_count)
+    count_chars(fitting, wtg, letter_count, ignore)
 
     return letter_count, fitting
 
 
-def count_chars(words, wtg, letter_count):
+def count_chars(words, wtg, letter_count, ignore):
     """
     Count the amount of words each letter is in.
     
@@ -103,10 +103,9 @@ def count_chars(words, wtg, letter_count):
 
     for w in words:
         if len(w) == len(wtg):  # only consider words of the same length
-            marked_letters = []
             for c in w:
                 c = c.lower()
-                if c not in marked_letters:
+                if c not in ignore and c not in wtg:
                     try:
                         letter_count[c] += 1
                     except KeyError:

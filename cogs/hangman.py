@@ -60,6 +60,8 @@ class Hangman(commands.Cog):
                     else:
                         select_options.append(SelectOption(label=letter, value=letter))
                     count += 1
+                if count == 0:
+                    return []
                 return [Select(options=select_options, placeholder="Guess a letter...")]
 
             msg = await ctx.reply(content="Make an initial guess for a letter", components=generate_select())
@@ -75,7 +77,6 @@ class Hangman(commands.Cog):
                 if res is None or res.component is None:
                     continue
                 guess = res.component[0].label
-                await res.respond(type=InteractionType.ChannelMessageWithSource, content=f"You guessed {guess}.")
                 ignored.append(guess)
                 guesses += 1
 
@@ -111,10 +112,8 @@ class Hangman(commands.Cog):
                                 f"Amount of guesses: {guesses}\n"
                                 f"**Guess a letter:**"
                 )
-                if msg is not None:
-                    await msg.delete()
                 embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
-                msg = await ctx.send(embed=embed, components=generate_select())
+                await res.respond(type=InteractionType.UpdateMessage, embed=embed, components=generate_select())
 
             # if no initial character was given
             if len(previous) == 0:
@@ -133,8 +132,9 @@ class Hangman(commands.Cog):
             )
             embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
             if msg is not None:
-                await msg.delete()
-            await ctx.send(embed=embed, components=[])
+                await msg.edit(embed=embed, components=[])
+            else:
+                await ctx.send(embed=embed, components=[])
 
     @commands.cooldown(1, 5, BucketType.user)
     @hangman.command(name="solve", usage="solve <word up till now> <wrong letters or 0> <language>")

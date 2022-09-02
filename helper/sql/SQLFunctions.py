@@ -606,7 +606,7 @@ def get_quotes(discord_user_id=None, unique_member_id=None, name=None, quote=Non
             )
         quote = Quote(
             QuoteID=row[0],
-            QuoteText=row[1],
+            QuoteText=str(row[1]),
             Name=row[2],
             UniqueMemberID=row[3],
             CreatedAt=row[4],
