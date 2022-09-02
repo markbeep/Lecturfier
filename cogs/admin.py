@@ -305,9 +305,11 @@ class Admin(commands.Cog):
             combined = online + offline
             n = len(combined)
             if n > 10: # make two fields next to each other
-                n += 1 # to make the left side bigger than the right
-                embed.add_field(name="\u200b", value="\n".join(combined[:n//2]), inline=True)
-                embed.add_field(name="\u200b", value="\n".join(combined[n//2:]), inline=True)
+                partition_size = (n+1)//4
+                embed.add_field(name="\u200b", value="\n".join(combined[:partition_size]), inline=False)
+                embed.add_field(name="\u200b", value="\n".join(combined[partition_size:2*partition_size]), inline=False)
+                embed.add_field(name="\u200b", value="\n".join(combined[2*partition_size:3*partition_size]), inline=False)
+                embed.add_field(name="\u200b", value="\n".join(combined[3*partition_size:]), inline=False)
             else:
                 embed.add_field(name="\u200b", value="\n".join(combined))
             await channel.send(embed=embed)
