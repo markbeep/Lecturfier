@@ -1,6 +1,7 @@
 import asyncio
 import json
 from datetime import datetime
+import re
 
 import discord
 import discord_components
@@ -103,7 +104,7 @@ class Admin(commands.Cog):
     async def on_message(self, message):
         if message.author.id == 755781649643470868 or message.author.id == 776713845238136843:
             return
-        if message.channel.id in [747776646551175217, 768600365602963496]:  # bot channels
+        if message.channel.id in [747776646551175217, 768600365602963496, 948506487716737034]:  # bot channels
             if message.content.lower().startswith("prefix") or message.content.lower().startswith("prefixes"):
                 args = message.content.split(" ")
                 desc = []
@@ -286,11 +287,34 @@ class Admin(commands.Cog):
     async def send_prefix(self, message, command=None, prefix=None, args=[]):
         channel = message.channel
         author = message.author
+        guild = message.guild
         if command is None:
-            msg = "**Already in use Bot Prefixes:**"
+            # first creates a list of all bot prefixes and checks if they're online or offline
+            online = []
+            offline = []
             for prefix in self.all_prefix.keys():
-                msg += f"\n`{prefix}`: {self.all_prefix[prefix]}"
-            await channel.send(msg)
+                prefix_line = self.all_prefix[prefix]
+                r = re.compile(r"<@!?(\d+)>")
+                res = r.findall(prefix_line)
+                # checks if the bot is online
+                if len(res) > 0 and res[0].isnumeric():
+                    user = guild.get_member(int(res[0]))
+                    if user and user.status != discord.Status.offline:
+                        online.append(f"<:online:1015269202338263140> `{prefix}`: {prefix_line}")
+                    else:
+                        offline.append(f"<:offline:1015269203684638720> `{prefix}`: {prefix_line}")        
+                else:
+                    offline.append(f"<:offline:1015269203684638720> `{prefix}`: {prefix_line}")
+            embed = discord.Embed(title="Bot Prefixes", color=0xcbd3d7)
+            combined = online + offline
+            n = len(combined)
+            if n > 10: # make two fields next to each other
+                n += 1 # to make the left side bigger than the right
+                embed.add_field(name="\u200b", value="\n".join(combined[:n//2]), inline=True)
+                embed.add_field(name="\u200b", value="\n".join(combined[n//2:]), inline=True)
+            else:
+                embed.add_field(name="\u200b", value="\n".join(combined))
+            await channel.send(embed=embed)
         elif command.lower() == "add" and author.guild_permissions.kick_members:
             if prefix is None:
                 await channel.send("Prefix and arguments missing.")
@@ -315,6 +339,7 @@ class Admin(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
 
     @commands.cooldown(10, 10, BucketType.user)
+    @commands.guild_only()
     @commands.command(aliases=["prefixes"], usage="prefix [<add/delete> <prefix> <info>]")
     async def prefix(self, ctx, command=None, prefix=None, *args):
         """
