@@ -77,26 +77,35 @@ def calculate_elo(elo1, elo2, winner: Winner) -> tuple[int, int]:
 
 
 def set_new_elo(score1, score2, quote1: SQLFunctions.Quote, quote2: SQLFunctions.Quote, conn) -> tuple[int, int]:
+    # if quotes have less battles than the threshold, their received/lost elo is multiplied
+    PLACEMENTS_MULTIPLIER = 3
+    PLACEMENTS_THRESHOLD = 5
+    
     if score1 == score2:  # draw
         current_elo1, current_elo2 = quote1.Elo, quote2.Elo
         for _ in range(score1 + score2):
             current_elo1, current_elo2 = calculate_elo(current_elo1, current_elo2, Winner.Draw)
+        # applies the placements multiplier if applicable
+        if quote1.AmountBattled < PLACEMENTS_THRESHOLD:
+            current_elo1 = quote1.Elo + (quote1.Elo - current_elo1) * PLACEMENTS_MULTIPLIER
+        if quote2.AmountBattled < PLACEMENTS_THRESHOLD:
+            current_elo2 = quote1.Elo + (quote2.Elo - current_elo2) * PLACEMENTS_MULTIPLIER
         SQLFunctions.update_quote_battle(quote1.QuoteID, quote1.AmountBattled + score1 + score2, quote1.AmountWon + score1, current_elo1, conn)
         SQLFunctions.update_quote_battle(quote2.QuoteID, quote2.AmountBattled + score1 + score2, quote2.AmountWon + score2, current_elo2, conn)
         return current_elo1, current_elo2
     if score1 > score2:  # first quote won
-        diff = score1 - score2
-        current_elo1, current_elo2 = quote1.Elo, quote2.Elo
-        for _ in range(diff):
-            current_elo1, current_elo2 = calculate_elo(current_elo1, current_elo2, Winner.First)
-        SQLFunctions.update_quote_battle(quote1.QuoteID, quote1.AmountBattled + score1 + score2, quote1.AmountWon + score1, current_elo1, conn)
-        SQLFunctions.update_quote_battle(quote2.QuoteID, quote2.AmountBattled + score1 + score2, quote2.AmountWon + score2, current_elo2, conn)
-        return current_elo1, current_elo2
-    # second quote won
-    diff = score2 - score1
+        winner = Winner.First
+    else: # second quote won
+        winner = Winner.Second
+    diff = abs(score1 - score2)
     current_elo1, current_elo2 = quote1.Elo, quote2.Elo
     for _ in range(diff):
-        current_elo1, current_elo2 = calculate_elo(current_elo1, current_elo2, Winner.Second)
+        current_elo1, current_elo2 = calculate_elo(current_elo1, current_elo2, winner)
+    # applies the placements multiplier if applicable
+    if quote1.AmountBattled < PLACEMENTS_THRESHOLD:
+        current_elo1 = quote1.Elo + (current_elo1 - quote1.Elo) * PLACEMENTS_MULTIPLIER
+    if quote2.AmountBattled < PLACEMENTS_THRESHOLD:
+        current_elo2 = quote2.Elo + (current_elo2 - quote2.Elo) * PLACEMENTS_MULTIPLIER
     SQLFunctions.update_quote_battle(quote1.QuoteID, quote1.AmountBattled + score1 + score2, quote1.AmountWon + score1, current_elo1, conn)
     SQLFunctions.update_quote_battle(quote2.QuoteID, quote2.AmountBattled + score1 + score2, quote2.AmountWon + score2, current_elo2, conn)
     return current_elo1, current_elo2
@@ -791,8 +800,8 @@ class Quote(commands.Cog):
         5% to pick some other quote
         """
         n = len(quotes)
-        chance_for_first = 0.85
-        chance_for_second = 0.10
+        chance_for_first = 0.85  # chance for a quote to be of the first category
+        chance_for_second = 0.10 # chance for a quote to be of the second category
         first_cat = 20  # amount in first category
         second_cat = 80  # amount in second category
         chance_for_rest = 1 - chance_for_first - chance_for_second
@@ -816,9 +825,10 @@ class Quote(commands.Cog):
         # Re-raffles until we have two unique quotes
         quotes_with_rank = [(i + 1, quotes[i]) for i in range(len(quotes))]
         while True:
-            two_random_quotes = random.choices(quotes_with_rank, weights=quote_weights, k=2)
-            (rank1, quote1) = two_random_quotes[0]
-            (rank2, quote2) = two_random_quotes[1]
+            (rank1, quote1) = random.choices(quotes_with_rank, weights=quote_weights, k=1)[0]
+            # adjust the weights to favor quotes that are similar in rank (max 20 rank difference)
+            new_weights = [1 if abs(rank1 - rank) <= 20 else 0 for [rank, _] in quotes_with_rank]
+            (rank2, quote2) = random.choices(quotes_with_rank, weights=new_weights, k=1)[0]
             if quote1.Name == "test" or quote2.Name == "test":
                 continue
             for b in self.active_battles:  # if one of the quotes is already in a battle, continue
@@ -876,7 +886,7 @@ class Quote(commands.Cog):
                 color=discord.Color.random()
             )
 
-        if random.random() <= 0.1:  # there's a 5% chance for a top battle to show up
+        if random.random() <= 0.03:  # there's a 3% chance for a top battle to show up
             embed.title = "TOP QUOTE BATTLE"
             (rank1, quote1), (rank2, quote2) = self.pick_top_quotes(quotes)
             embed.set_thumbnail(url="https://media4.giphy.com/media/LO8oXHPum0xworIyk4/giphy.gif")
