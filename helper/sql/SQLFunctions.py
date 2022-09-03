@@ -1007,19 +1007,3 @@ def store_covid_cases(cases, date=str(datetime.date(datetime.now())), weekday=da
         conn.execute("INSERT INTO CovidCases(Cases, Date, Weekday) VALUES (?,?,?)", (cases, date, weekday))
     finally:
         conn.commit()
-
-
-class ActivityType(Enum):
-    typing = 0
-    reaction = 1
-    message = 2
-    
-
-def add_activity(member: discord.Member, channel: discord.channel, timestamp: int, type: ActivityType, conn=connect()):
-    try:
-        sql = """INSERT INTO Activity(
-                    DiscordUserID, DiscordChannelID, DiscordGuildID, Timestamp, ActivityType
-                ) VALUES (?,?,?,?,?)"""
-        conn.execute(sql, (member.id, channel.id, channel.guild.id, timestamp, type.value))
-    finally:
-        conn.commit()
