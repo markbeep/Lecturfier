@@ -295,7 +295,9 @@ class Admin(commands.Cog):
                 # checks if the bot is online
                 if len(res) > 0 and res[0].isnumeric():
                     user = guild.get_member(int(res[0]))
-                    if user and user.status != discord.Status.offline:
+                    if not user:  # ignore bots not on the server
+                        continue
+                    if user.status != discord.Status.offline:
                         online.append(f"<:online:1015269202338263140> `{prefix}`: {prefix_line}")
                     else:
                         offline.append(f"<:offline:1015269203684638720> `{prefix}`: {prefix_line}")        
