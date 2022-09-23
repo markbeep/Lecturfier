@@ -111,7 +111,7 @@ def exe():
                         stream_link,
                         f"{r[3]} {r[4]} {r[5]}",
                         sem,
-                        r[2],
+                        r[1],
                         0,
                         dayids.index(r[0])
                     )
