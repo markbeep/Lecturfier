@@ -5,9 +5,6 @@ from discord.ext import commands
 from discord_components import DiscordComponents
 
 from helper.sql import SQLFunctions
-import db
-db.exe()
-print("DB DONE")
 
 with open("./data/settings.json", "r") as f:
     prefix = json.load(f)
