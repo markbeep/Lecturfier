@@ -7,7 +7,6 @@ import discord
 from discord.ext import commands, tasks
 from pytz import timezone
 
-from helper.lecture_scraper.scrape import scraper
 from helper.log import log
 from helper.sql import SQLFunctions
 
@@ -147,16 +146,6 @@ class Updates(commands.Cog):
                         self.sent_updates[sem] = True
             if minute > 5:
                 self.sent_updates = {1: False, 2: False, 3: False, 4: False, 5: False, 6: False}
-
-            if not self.sent_website_updates and minute % 10 == 0:
-                exercise_update_channel = self.bot.get_channel(756391202546384927)  # lecture updates channel
-                if exercise_update_channel is None:
-                    exercise_update_channel = self.bot.get_channel(402563165247766528)  # channel on bot testing server
-                if exercise_update_channel is not None:
-                    await self.check_updates(exercise_update_channel, self.lecture_updater_version)
-                self.sent_website_updates = True
-            elif minute % 10 != 0:
-                self.sent_website_updates = False
 
         except AttributeError as e:
             print(f"ERROR in Lecture Updates Loop! Probably wrong channel ID | {e}")
@@ -363,100 +352,6 @@ class Updates(commands.Cog):
         if role_id == 0:
             ping_msg = ""
         await channel.send(ping_msg, embed=embed)
-
-    async def check_updates(self, channel: discord.TextChannel, version):
-        start = time.time()
-        scraped_info = scraper()
-        changes = scraped_info[0]
-        lecture_urls = scraped_info[1]
-        send_ping = True
-        ping_msg = f"<@&{self.lecture_updates_role_ids['first']}>"
-        for lesson in changes.keys():
-            try:
-                for i in range(len(changes[lesson])):
-                    # EMBED COLOR
-                    color = discord.Color.lighter_grey()
-                    if lesson == "Introduction to Programming":
-                        color = discord.Color.blue()
-                    elif lesson == "Discrete Mathematics":
-                        color = discord.Color.purple()
-                    elif lesson == "Linear Algebra":
-                        color = discord.Color.gold()
-                    elif lesson == "Algorithms and Data Structures":
-                        color = discord.Color.magenta()
-
-                    try:
-                        correct_changes = changes[lesson][i]
-                    except KeyError:
-                        correct_changes = changes[lesson]
-                        user = self.bot.get_user(self.bot.owner_id)
-                        await user.send(f"Lesson: {lesson}\nError: KeyError\nChanges: `{changes}`")
-                    if correct_changes["event"] == "other":
-                        embed = discord.Embed(title=f"{lesson} has been changed!",
-                                              description=f"[Click here to get to {lesson}'s website]({lecture_urls[lesson]}).",
-                                              timestamp=datetime.utcfromtimestamp(time.time()), color=color)
-                        if self.send_message_to_finn:
-                            users = [self.bot.owner_id, 304014259975880704]  # 304014259975880704
-                        else:
-                            users = [self.bot.owner_id]
-                        for u_id in users:
-                            user = self.bot.get_user(u_id)
-                            await user.send(embed=embed)
-
-                    elif correct_changes["event"] == "edit":  # EDITS
-                        log(f"{lesson} was changed", "LESSON")
-                        title = f"There has been an edit on __{lesson}__"
-                        description = f"""**OLD**:
-{self.format_exercise(correct_changes["content"]["old"])}
-
-**NEW**:
-{self.format_exercise((correct_changes["content"]["new"]), correct_changes["content"]["keys"])}"""
-                        embed = discord.Embed(title=title, description=description,
-                                              timestamp=datetime.utcfromtimestamp(time.time()), color=color)
-                        embed.set_footer(
-                            text=f"{version} | This message took {round(time.time() - start, 2)} seconds to send")
-
-                        msg = await channel.send(embed=embed)
-                        await msg.edit(content=ping_msg)
-                        try:
-                            await msg.publish()
-                        except discord.Forbidden:
-                            pass
-                        send_ping = False
-
-                    elif correct_changes["event"] == "new":
-                        log(f"{lesson} got a new update", "LESSON")
-                        title = f"Something new was added on __{lesson}__"
-                        description = f"""**NEW**:\n{self.format_exercise(correct_changes["content"])}"""
-                        embed = discord.Embed(title=title, description=description,
-                                              timestamp=datetime.utcfromtimestamp(time.time()), color=color)
-                        embed.set_footer(
-                            text=f"{version} | This message took {round(time.time() - start, 2)} seconds to send")
-                        if send_ping:
-                            msg = await channel.send(ping_msg, embed=embed)
-                        else:
-                            msg = await channel.send(embed=embed)
-                            await msg.edit(content=ping_msg)
-                        try:
-                            await msg.publish()
-                        except discord.Forbidden:
-                            pass
-                        send_ping = False
-
-                        start = time.time()
-            except Exception:
-                user = self.bot.get_user(self.bot.owner_id)
-                await user.send(f"Lesson{lesson}\nError: {traceback.format_exc()}")
-
-    def format_exercise(self, version, edited_keys=None):
-        topics = {"name": "Name", "date": "Date", "abgabe_date": "Submission Date", "links": "Link"}
-        formatted_text = ""
-        for key in version:
-            if edited_keys is not None and key in edited_keys:
-                formatted_text += f"__{topics[key]}: {self.check_link(key, version[key])}__\n"
-            else:
-                formatted_text += f"{topics[key]}: {self.check_link(key, version[key])}\n"
-        return formatted_text
 
     def check_link(self, key, data):
         if key == "links":
