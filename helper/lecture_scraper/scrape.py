@@ -64,10 +64,10 @@ class Lecture:
 
 
 def scraper(dic="websites"):
-    dm_url = "https://crypto.ethz.ch/teaching/DM21/"
-    ad_url = "https://www.cadmo.ethz.ch/education/lectures/HS21/DA/index.html"
-    ep_url = "https://www.lst.inf.ethz.ch/education/einfuehrung-in-die-programmierung-i--252-0027-.html"
-    la_url = "https://igl.ethz.ch/teaching/linear-algebra/la2021/"
+    dm_url = "https://crypto.ethz.ch/teaching/DM22/"
+    ad_url = "https://cadmo.ethz.ch/education/lectures/HS22/DA/index.html"
+    ep_url = "https://www.lst.inf.ethz.ch/education/einfuehrung-in-die-programmierung-i--252-0027-1.html"
+    la_url = "https://igl.ethz.ch/teaching/linear-algebra/la2022/"
     changes = {}
     lesson_links = {}
     lectures = {
