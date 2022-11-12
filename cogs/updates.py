@@ -363,5 +363,5 @@ class Updates(commands.Cog):
             return data
 
 
-def setup(bot):
-    bot.add_cog(Updates(bot))
+async def setup(bot):
+    await bot.add_cog(Updates(bot))

@@ -169,5 +169,5 @@ class Minesweeper(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
 
 
-def setup(bot):
-    bot.add_cog(Minesweeper(bot))
+async def setup(bot):
+    await bot.add_cog(Minesweeper(bot))

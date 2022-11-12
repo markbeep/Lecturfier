@@ -11,8 +11,7 @@ def createFiles():
     :return: None
     """
     keyword = "FILE"
-    file_list = ["ignored_users", "ignored_channels", "bot_prefix", "versions"]
-    website_list = ["ad", "dm", "ep", "la"]
+    file_list = ["ignored_users", "bot_prefix", "versions"]
     stop = False
 
     settings_default = {
@@ -38,10 +37,10 @@ def createFiles():
         check_columns()
         print("----- DB Check Complete -----")
 
-    if not os.path.exists("./data/settings.json"):
+    if not os.path.exists("./config/settings.json"):
         log("Creating settings.json", keyword)
         stop = True
-        with open("./data/settings.json", "w") as f:
+        with open("./config/settings.json", "w") as f:
             json.dump(settings_default, f, indent=2)
 
     for file in file_list:
@@ -50,13 +49,6 @@ def createFiles():
             stop = True
             with open(f"./data/{file}.json", "w") as f:
                 f.write("{}")
-
-    for link in website_list:
-        if not os.path.exists(f"./websites/{link}.html"):
-            log(f"Creating {link}.html", keyword)
-            stop = True
-            with open(f"./websites/{link}.html", "w") as f:
-                pass
 
     if stop:
         log("All files created. Restart the bot.", keyword)

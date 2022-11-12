@@ -44,7 +44,7 @@ class Statistics(commands.Cog):
         # Backs up all files every 2 hours
         if not self.sent_file and datetime.now().hour % 2 == 0:
             # Backs the data files up to github
-            with open("./data/settings.json", "r") as f:
+            with open("./config/settings.json", "r") as f:
                 settings = json.load(f)
             if settings["upload to git"]:
                 self.sent_file = True
@@ -547,5 +547,5 @@ class Statistics(commands.Cog):
         await ctx.send(embed=embed)
 
 
-def setup(bot):
-    bot.add_cog(Statistics(bot))
+async def setup(bot):
+    await bot.add_cog(Statistics(bot))

@@ -372,5 +372,5 @@ class Owner(commands.Cog):
             await ctx.send(f"{count} {cont}")
 
 
-def setup(bot):
-    bot.add_cog(Owner(bot))
+async def setup(bot):
+    await bot.add_cog(Owner(bot))

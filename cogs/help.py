@@ -106,5 +106,5 @@ class Help(commands.HelpCommand):
         return embed
 
 
-def setup(bot):
+async def setup(bot):
     bot.help_command = Help(command_attrs=attributes)

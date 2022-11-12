@@ -8,7 +8,7 @@ from helper.log import log
 
 
 class MainBot(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         file_creator.createFiles()
         self.bot = bot
         self.startup_extensions = [
@@ -59,13 +59,13 @@ class MainBot(commands.Cog):
         count = 0
         for extension in extensions_to_load:
             try:
-                loaded_cog = self.bot.load_extension("cogs." + extension)
-                log("Loaded extension \"{}\".".format(extension))
+                await self.bot.load_extension("cogs." + extension)
+                log(f"Loaded extension \"{extension}\".")
                 count += 1
             except discord.ext.commands.errors.ExtensionAlreadyLoaded:
                 pass
             except Exception as e:
-                log("Failed loading extension \"{}\"\n-{}: {}".format(extension, e, type(e)), print_it=True, warning=True)
+                log(f"Failed loading extension \"{extension}\"\n-{e}: {type(e)}", print_it=True, warning=True)
         return count
 
     @commands.is_owner()
@@ -89,14 +89,14 @@ class MainBot(commands.Cog):
                 await ctx.send(await self.reload_cog(cog))
             await ctx.send("DONE - Reloaded all cogs")
         else:
-            await ctx.send(f"Cog does not exist.")
+            await ctx.send("Cog does not exist.")
 
     async def reload_cog(self, cog):
         if await self.stop_bg_task(cog):
             msg = "--Stopped background task--"
         else:
             msg = "--No background task to stop--"
-        self.bot.reload_extension("cogs." + cog)
+        await self.bot.reload_extension("cogs." + cog)
         return f"Reloaded `{cog}`\n{msg}"
 
     async def stop_bg_task(self, task):
@@ -119,5 +119,5 @@ class MainBot(commands.Cog):
         return False
 
 
-def setup(bot):
-    bot.add_cog(MainBot(bot))
+async def setup(bot):
+    await bot.add_cog(MainBot(bot))

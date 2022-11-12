@@ -44,8 +44,8 @@ class Admin(commands.Cog):
         await ctx.send(f"<@{AMAZON_ID}>|start|{enemy}")
 
 
-def setup(bot):
-    bot.add_cog(Admin(bot))
+async def setup(bot):
+    await bot.add_cog(Admin(bot))
 
 
 def run(channel: discord.TextChannel, game_object: dict, loop):

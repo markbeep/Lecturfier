@@ -198,5 +198,5 @@ class Hangman(commands.Cog):
             raise discord.ext.commands.errors.BadArgument
 
 
-def setup(bot):
-    bot.add_cog(Hangman(bot))
+async def setup(bot):
+    await bot.add_cog(Hangman(bot))

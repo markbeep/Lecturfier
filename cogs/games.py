@@ -39,5 +39,5 @@ class Games(commands.Cog):
                 self.clap_counter = 0
                 await message.channel.send("👏\n👏\n👏")
 
-def setup(bot):
-    bot.add_cog(Games(bot))
+async def setup(bot):
+    await bot.add_cog(Games(bot))

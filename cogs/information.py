@@ -405,7 +405,7 @@ class Information(commands.Cog):
         if "ding" in ctx.message.content.lower():
             title = "*slap!*"
         start = time.perf_counter()
-        await ctx.trigger_typing()
+        await ctx.typing()
         end = time.perf_counter()
         embed = discord.Embed(
             title=f"{title} 🏓",
@@ -922,8 +922,8 @@ class Information(commands.Cog):
             await channel.set_permissions(member, overwrite=None, reason="User left event")
 
 
-def setup(bot):
-    bot.add_cog(Information(bot))
+async def setup(bot):
+    await bot.add_cog(Information(bot))
 
 
 def time_up(t):
