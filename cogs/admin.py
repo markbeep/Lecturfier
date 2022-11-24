@@ -1,7 +1,7 @@
 import asyncio
 import json
-from datetime import datetime
 import re
+from datetime import datetime
 
 import discord
 from discord.ext import commands
@@ -9,7 +9,6 @@ from discord.ext.commands.cooldowns import BucketType
 from pytz import timezone
 
 from helper.sql import SQLFunctions
-
 
 YES_EMOJI_ID = "776717335242211329"
 NO_EMOJI_ID = "776717315139698720"
@@ -85,7 +84,7 @@ class Admin(commands.Cog):
 
         # find out who deleted it
         await asyncio.sleep(3)  # small delay as audit log sometimes takes a bit
-        audit: discord.AuditLogEntry = None
+        audit: discord.AuditLogEntry | None = None
         try:
             async for entry in message.guild.audit_logs(action=discord.AuditLogAction.message_delete, limit=10):
                 if entry.target.id == message.author.id and entry.created_at >= message.created_at:
@@ -194,7 +193,7 @@ class Admin(commands.Cog):
                     await channel.send("Invalid prefix")
         else:
             await channel.send("Unrecognized command.", delete_after=7)
-            raise discord.ext.commands.errors.BadArgument
+            raise commands.errors.BadArgument
 
     @commands.cooldown(10, 10, BucketType.user)
     @commands.guild_only()
@@ -261,45 +260,47 @@ class Admin(commands.Cog):
 
 
 class WelcomeViewPersistent(discord.ui.View):
-        def __init__(self):
-            super().__init__(timeout=None)
-            self.requested_ta = []
-            self.add_item(discord.ui.Button(label="Verify ETH Student", style=discord.ButtonStyle.url, emoji=YES_EMOJI_ID, url="https://dauth.spclr.ch/"))
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.requested_ta = []
+        self.add_item(discord.ui.Button(label="Verify ETH Student", style=discord.ButtonStyle.url, emoji=YES_EMOJI_ID, url="https://dauth.spclr.ch/"))
 
-        @discord.ui.button(label="Don't verify", custom_id="welcome_view_persistent:dont_verify", style=discord.ButtonStyle.red, emoji=NO_EMOJI_ID)
-        async def dont_verify(self, interaction: discord.Interaction, _: discord.ui.Button):
-            await interaction.response.send_message(view=WelcomeViewDecline(), ephemeral=True)
-            
-        @discord.ui.button(label="I'm a teaching assistant", custom_id="welcome_view_persistent:teaching_assistant", style=discord.ButtonStyle.blurple, emoji="🧑‍🏫")
-        async def teaching_assistant(self, interaction: discord.Interaction, _: discord.ui.Button):
-            member = interaction.user
-            if member.id in self.requested_ta:
-                await interaction.response.send_message("You already requested TA. Hold on", ephemeral=True)
-                return
-            
-            staff_channel = interaction.guild.get_channel(747768907992924192)
-            
-            if staff_channel is None:
-                print("TA role was accepted. Don't have access to staff channels.")
-                staff_channel = interaction.guild.get_channel(237673537429700609)
-            ta_embed = discord.Embed(
-                title=f"TA|{member.id}",
-                description=f"{member.mention} requests the TA role",
-                color=discord.Color.gold())
-            role_ping = f"||<@&844572520497020988>|| {member.mention}"
-            await staff_channel.send(role_ping, embed=ta_embed, view=WelcomeViewTA())
-            embed = discord.Embed(
-                title="Successfully requested the TA role",
-                description="Expect a direct message from a staff member to verify your TA status.",
-                color=discord.Color.blue()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            self.requested_ta.append(member.id)
-                
+    @discord.ui.button(label="Don't verify", custom_id="welcome_view_persistent:dont_verify", style=discord.ButtonStyle.red, emoji=NO_EMOJI_ID)
+    async def dont_verify(self, interaction: discord.Interaction, _: discord.ui.Button):
+        await interaction.response.send_message(view=WelcomeViewDecline(), ephemeral=True)
         
-        @discord.ui.button(label="I need help", custom_id="welcome_view_persistent:help", style=discord.ButtonStyle.green, emoji="🙋‍♀️")
-        async def need_help(self, interaction: discord.Interaction, _: discord.ui.Button):
-            await interaction.response.send_message(view=WelcomeViewHelp(), ephemeral=True)
+    @discord.ui.button(label="I'm a teaching assistant", custom_id="welcome_view_persistent:teaching_assistant", style=discord.ButtonStyle.blurple, emoji="🧑‍🏫")
+    async def teaching_assistant(self, interaction: discord.Interaction, _: discord.ui.Button):
+        member = interaction.user
+        if member.id in self.requested_ta:
+            await interaction.response.send_message("You already requested TA. Hold on", ephemeral=True)
+            return
+        if not interaction.guild or not isinstance(member, discord.Member):
+            raise ValueError("Not in a guild.")
+        staff_channel = interaction.guild.get_channel(747768907992924192)
+        if staff_channel is None:
+            print("TA role was accepted. Don't have access to staff channels.")
+            staff_channel = interaction.guild.get_channel(237673537429700609)
+        if not isinstance(staff_channel, discord.TextChannel):
+            raise ValueError("Staff channel isn't a text channel")
+        ta_embed = discord.Embed(
+            title=f"TA|{member.id}",
+            description=f"{member.mention} requests the TA role",
+            color=discord.Color.gold())
+        role_ping = f"||<@&844572520497020988>|| {member.mention}"
+        await staff_channel.send(role_ping, embed=ta_embed, view=WelcomeViewTA())
+        embed = discord.Embed(
+            title="Successfully requested the TA role",
+            description="Expect a direct message from a staff member to verify your TA status.",
+            color=discord.Color.blue()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        self.requested_ta.append(member.id)
+            
+    
+    @discord.ui.button(label="I need help", custom_id="welcome_view_persistent:help", style=discord.ButtonStyle.green, emoji="🙋‍♀️")
+    async def need_help(self, interaction: discord.Interaction, _: discord.ui.Button):
+        await interaction.response.send_message(view=WelcomeViewHelp(), ephemeral=True)
 
         
 class WelcomeViewDecline(discord.ui.View):
@@ -310,13 +311,18 @@ class WelcomeViewDecline(discord.ui.View):
     @discord.ui.button(label="Yes, skip verification", custom_id="give_external", style=discord.ButtonStyle.red, emoji=NO_EMOJI_ID)
     async def verify_button(self, interaction: discord.Interaction, _: discord.ui.Button):
         role = discord.Object(767315361443741717)
-        member: discord.Member = interaction.user
+        member = interaction.user
+        if not interaction.guild or not isinstance(interaction.guild, discord.TextChannel) or not isinstance(member, discord.Member):
+            raise ValueError("Not a member")
         await member.add_roles(role, reason="Not verified role")
         # for testing purposes
         embed = discord.Embed(description=f"Added **External** role to {member.mention}\n"
                                             f"ID: `{member.id}`", color=0xa52222)
-        embed.set_author(name=str(member), icon_url=member.avatar_url)
-        await self.bot.get_channel(774322031688679454).send(embed=embed)
+        embed.set_author(name=str(member), icon_url=member.avatar.url if member.avatar else None)
+        log_channel = interaction.guild.get_channel(774322031688679454)
+        if not log_channel or not isinstance(log_channel, discord.TextChannel):
+            raise ValueError("Did not find log channel")
+        await log_channel.send(embed=embed)
         await interaction.response.defer()
         
 
@@ -326,11 +332,15 @@ class WelcomeViewTA(discord.ui.View):
     
     @discord.ui.button(label="I need help", custom_id="welcome_view_ta_admin_persistent:decline", style=discord.ButtonStyle.green, emoji=YES_EMOJI_ID)
     async def accept(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if interaction.guild is None:
+            raise ValueError("Interaction not in a guild")
+        if not interaction.message or not type(interaction.message.embeds) == list or len(interaction.message.embeds) == 0 or not interaction.message.embeds[0].title:
+            raise ValueError("Invalid message object")
         ta_user_id = int(interaction.message.embeds[0].title.split("|")[1])
         ta_user = interaction.guild.get_member(ta_user_id)
         if ta_user is None:
             await interaction.response.send_message("lol, the user left before receiving the TA role")
-            embed = discord.Embed(description=f"User left before receiving TA role", color=discord.Color.red())
+            embed = discord.Embed(description="User left before receiving TA role", color=discord.Color.red())
             await interaction.response.edit_message(embed=embed, view=None)
         else:
             embed = discord.Embed(description=f"Added **TA** role to {ta_user.mention}\n"
@@ -345,28 +355,35 @@ class WelcomeViewTA(discord.ui.View):
             
     @discord.ui.button(label="I need help", custom_id="welcome_view_ta_admin_persistent:decline", style=discord.ButtonStyle.red, emoji=NO_EMOJI_ID)
     async def decline(self, interaction: discord.Interaction, _: discord.ui.Button):
+        if interaction.guild is None:
+            raise ValueError("Interaction not in a guild")
+        if not interaction.message or not type(interaction.message.embeds) == list or len(interaction.message.embeds) == 0 or not interaction.message.embeds[0].title:
+            raise ValueError("Invalid message object")
         ta_user_id = int(interaction.message.embeds[0].title.split("|")[1])
-        ta_user = interaction.message.guild.get_member(ta_user_id)
+        ta_user = interaction.guild.get_member(ta_user_id)
+        if interaction.channel is None or not isinstance(interaction.channel, discord.TextChannel):
+            raise ValueError("Channel is not a text channel")
         if ta_user is None:
             await interaction.channel.send("lol, the user left anyway...")
-            embed = discord.Embed(description=f"User left already and didn't get TA role anyway", color=discord.Color.red())
+            embed = discord.Embed(description="User left already and didn't get TA role anyway", color=discord.Color.red())
             await interaction.response.edit_message(embed=embed, view=None)
         else:
             embed = discord.Embed(description=f"Did **not** add TA role to {ta_user.mention}\n"
                                                 f"Declined by: {interaction.user}", color=discord.Color.red())
             await interaction.channel.send(embed=embed)
-            embed = discord.Embed(title=f"TA|{ta_user.id}",
-                                    description=f"{ta_user.mention} requested the TA role\n**DECLINED**",
-                                    color=discord.Color.red())
+            embed = discord.Embed(
+                title=f"TA|{ta_user.id}",
+                description=f"{ta_user.mention} requested the TA role\n**DECLINED**",
+                color=discord.Color.red())
             await interaction.response.edit_message(embed=embed, view=None)
-        
+
 
 class WelcomeViewHelp(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.requested_help = []
         self.add_item(discord.ui.Button(label="What is Discord?", style=discord.ButtonStyle.url, url="https://discord.com/safety/360044149331-What-is-Discord"))
-    
+
     @discord.ui.button(label="Verifying my ETH account", custom_id="welcome_view_help:verify", style=discord.ButtonStyle.grey, emoji=YES_EMOJI_ID)
     async def verify(self, interaction: discord.Interaction, _: discord.ui.Button):
         content = """**How to verify that you're an ETH student:**
@@ -376,13 +393,20 @@ class WelcomeViewHelp(discord.ui.View):
 **4.** You should now have access to tons of channels."""
         embed = discord.Embed(title="Help with verifying", description=content, color=discord.Color.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
-    
+
     @discord.ui.button(label="I need help", custom_id="welcome_view_help:other", style=discord.ButtonStyle.grey, emoji=YES_EMOJI_ID)
     async def other(self, interaction: discord.Interaction, _: discord.ui.Button):
         member = interaction.user
+        if interaction.guild is None or not isinstance(member, discord.Member):
+            raise ValueError("Interaction not in a guild")
+        staff_channel = interaction.guild.get_channel(747768907992924192)
         if staff_channel is None:
             print("Help was requested. Don't have access to staff channels.")
-            staff_channel = self.bot.get_channel(237673537429700609)
+            staff_channel = interaction.guild.get_channel(237673537429700609)
+            if staff_channel is None:
+                raise ValueError("No staff channel found")
+        if not isinstance(staff_channel, discord.TextChannel):
+           raise ValueError("Staff channel isn't a text channel")
         if member.id in self.requested_help:
             await interaction.response.send_message("You already requested help. Please wait.", ephemeral=True)
             return
@@ -392,12 +416,15 @@ class WelcomeViewHelp(discord.ui.View):
             color=discord.Color.gold()
         )
         await staff_channel.send(f"||<@&844572520497020988>|| {member.mention}", embed=embed)
-        await interaction.response.send_message("The staff team was notified and will help you shortly. You additionally should now have access to the <#881611441105416263> channel.", ephemeral=True)
+        await interaction.response.send_message("The staff team was notified and will help you shortly. \
+            You additionally should now have access to the <#881611441105416263> channel.", ephemeral=True)
         self.requested_help.append(member.id)
         # gives the user permissions to see the support channel
-        support_channel = self.bot.get_channel(881611441105416263)
+        support_channel = interaction.guild.get_channel(881611441105416263)
         if support_channel is None:
-            support_channel = self.bot.get_channel(402551175272202252)
+            support_channel = interaction.guild.get_channel(402551175272202252)
+        if not isinstance(support_channel, discord.TextChannel):
+           raise ValueError("Support channel isn't a text channel")
         await support_channel.set_permissions(member, read_messages=True, reason="User requested help")
         await support_channel.send(f"{member.mention}, what do you need help with?")
 

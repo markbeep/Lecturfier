@@ -155,8 +155,8 @@ class Information(commands.Cog):
     def heartbeat(self):
         return self.background_events.is_running()
 
-    def get_task(self):
-        return self.background_events
+    def cog_unload(self) -> None:
+        self.background_events.cancel()
 
     @tasks.loop(seconds=20)
     async def background_events(self):

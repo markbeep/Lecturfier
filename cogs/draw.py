@@ -5,7 +5,6 @@ import random
 
 import aiohttp
 import discord
-import PIL
 from discord.ext import commands, tasks
 from discord.ext.commands.cooldowns import BucketType
 from PIL import Image, ImageDraw, ImageFont
@@ -71,7 +70,7 @@ async def create_buffer(ctx, x1, x2, y1, y2):
     y2 = int(y2)
     width, height = im.size
     if x2 - x1 != width or y2 - y1 != height:
-        im = im.resize((x2 - x1, y2 - y1), PIL.Image.NEAREST)
+        im = im.resize((x2 - x1, y2 - y1), Image.NEAREST)
         buff = io.BytesIO()
         im.save(buff, format="PNG")
         buff.seek(0)
@@ -99,10 +98,10 @@ class Draw(commands.Cog):
         self.cancel_all = False
         self.cancel_draws = []
         self.pause_draws = False
-        self.progress = {}
-        self.image = None
+        self.progress: dict = {}
+        self.image: Image.Image | None = None
         self.queue = []
-        self.background_draw.start()
+        self.background_draw.start() # pylint: disable=no-member
         self.db_path = "./data/discord.db"
         self.place_path = "./place/"
         self.conn = SQLFunctions.connect()
@@ -121,10 +120,9 @@ class Draw(commands.Cog):
             self.last_char = 0
         else:
             self.last_char = self.last_char[0]
-
-    def get_task(self):
-        self.pause_draws = True
-        return self.background_draw
+    
+    def cog_unload(self) -> None:
+        self.background_draw.cancel() # pylint: disable=no-member
 
     @tasks.loop(seconds=5)
     async def background_draw(self):
@@ -187,7 +185,7 @@ class Draw(commands.Cog):
             self.cancel_draws.remove(ID)
         os.remove(f"{self.place_path}{ID}.npy")
 
-    def get_all_queues(self, dir="./"):
+    def get_all_queues(self, dir="./") -> list[im2q.PixPlace]:
         q = []
         for filename in os.listdir(dir):
             if filename.endswith(".npy"):
@@ -285,7 +283,7 @@ class Draw(commands.Cog):
         if ctx.invoked_subcommand is None:
             if command is None:
                 await ctx.send("No command given")
-                raise discord.ext.commands.errors.BadArgument
+                raise commands.errors.BadArgument
             elif command == "pause":
                 self.pause_draws = not self.pause_draws
                 await ctx.send(f"Pause draws: {self.pause_draws}")
@@ -300,7 +298,7 @@ class Draw(commands.Cog):
             else:
                 await ctx.send("Command not found. Right now only `cancel`, `image` and `square` exist.")
 
-    def handle_image(self, img: im2q, drawn: int, ID: str):
+    def handle_image(self, img: im2q.PixPlace, drawn: int, ID: str):
         self.progress[ID] = {
             "count": drawn,
             "img": img,
@@ -320,8 +318,8 @@ class Draw(commands.Cog):
         img.save_array(f"{self.place_path}{ID}")
 
     @commands.is_owner()
-    @draw.command(aliases=["i"], usage="image <x1> <x2> <y1> <y2> {mods}")
-    async def image(self, ctx, x1=None, x2=None, y1=None, y2=None, *mods):
+    @draw.command(aliases=["i"], usage="image <x1> <x2> <y1> <y2> {mods}", name="image")
+    async def image_cmd(self, ctx, x1=None, x2=None, y1=None, y2=None, *mods):
         """
         `x1`: x to start
         `x2`: x to stop
@@ -338,12 +336,12 @@ class Draw(commands.Cog):
         """
         if len(ctx.message.attachments) == 0:
             await ctx.send("No image given")
-            raise discord.ext.commands.errors.BadArgument
+            raise commands.errors.BadArgument
         try:
             buffer = await create_buffer(ctx, x1, x2, y1, y2)
         except ValueError:
             await ctx.send("Not all coordinates given.")
-            raise discord.ext.commands.errors.BadArgument
+            raise commands.errors.BadArgument
 
         self.cancel_all = False
 
@@ -366,7 +364,7 @@ class Draw(commands.Cog):
         """
         if len(ctx.message.attachments) == 0:
             await ctx.send("No text file given")
-            raise discord.ext.commands.errors.BadArgument
+            raise commands.errors.BadArgument
         async with aiohttp.ClientSession() as cs:
             async with cs.get(ctx.message.attachments[0].url) as r:
                 setpixels_file = await r.text()
@@ -402,11 +400,12 @@ class Draw(commands.Cog):
         """
         if len(ctx.message.attachments) == 0:
             await ctx.send("No image given")
-            raise discord.ext.commands.errors.BadArgument
+            raise commands.errors.BadArgument
         try:
             buffer = await create_buffer(ctx, x1, x2, y1, y2)
         except ValueError:
             await ctx.send("Not all coordinates given.")
+            raise commands.errors.BadArgument
 
         img = im2q.PixPlace(buffer, "multi")
         modifiers(img, mods)
@@ -442,8 +441,8 @@ class Draw(commands.Cog):
         await ctx.author.send("Done")
         return
 
-    @draw.command(usage="progress <ID>", aliases=["prog"])
-    async def progress(self, ctx, ID=""):
+    @draw.command(usage="progress <ID>", aliases=["prog"], name="progress")
+    async def progress_cmd(self, ctx, ID=""):
         if "comp" not in ID and (ID == "" or ID not in self.progress):
             keys = ""
             rank = 1
@@ -522,13 +521,13 @@ class Draw(commands.Cog):
     async def mismatch(self, ctx, color_to_check=""):
         if len(ctx.message.attachments) == 0:
             await ctx.send("No image given")
-            raise discord.ext.commands.errors.BadArgument
+            raise commands.errors.BadArgument
         fp = "place.png"
         if not os.path.isfile(fp):
             fp = "placeOFF.png"
             if not os.path.isfile(fp):
                 await ctx.send("No image to compare to")
-                raise discord.ext.commands.errors.BadArgument
+                raise commands.errors.BadArgument
         save_pixels = Image.open(fp).convert("RGBA").load()
         async with aiohttp.ClientSession() as cs:
             async with cs.get(ctx.message.attachments[0].url) as r:
@@ -543,7 +542,6 @@ class Draw(commands.Cog):
 
     def find_mismatches(self, save_pixels, place_pixels, color_to_check=""):
         im = Image.new(mode="RGBA", size=(1000, 1000), color=(0, 0, 0, 0))
-        pixels = im.load()
         count = 0
         for x in range(1000):
             for y in range(1000):
@@ -553,7 +551,7 @@ class Draw(commands.Cog):
                     if color_to_check.replace("#", "") == rgb2hex(rp, gp, bp).replace("#", "") or color_to_check == "" and (r, g, b, a) != (
                             rp, gp, bp, ap):
                         count += 1
-                        pixels[x, y] = (r, g, b, a)
+                        im.putpixel((x, y), (r, g, b, a))
         return im, count
 
     def draw_text(self, text, last_line, last_char) -> tuple[Image.Image, int, int]:

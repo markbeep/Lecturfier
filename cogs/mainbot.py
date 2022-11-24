@@ -46,8 +46,8 @@ class MainBot(commands.Cog):
         print("\n----------------------------")
         log("Starting up bot")
         log("Logged in as:")
-        log(f"Name: {self.bot.user.name}")
-        log(f"ID: {self.bot.user.id}")
+        log(f"Name: {self.bot.user.name if self.bot.user else '<no name>'}")
+        log(f"ID: {self.bot.user.id if self.bot.user else '<no id>'}")
         log(f"Version: {discord.__version__}")
         await self.bot.change_presence(activity=discord.Activity(name=random.choice(self.watching_messages), type=discord.ActivityType.watching))
         print("-------------")
@@ -62,7 +62,7 @@ class MainBot(commands.Cog):
                 await self.bot.load_extension("cogs." + extension)
                 log(f"Loaded extension \"{extension}\".")
                 count += 1
-            except discord.ext.commands.errors.ExtensionAlreadyLoaded:
+            except commands.errors.ExtensionAlreadyLoaded:
                 pass
             except Exception as e:
                 log(f"Failed loading extension \"{extension}\"\n-{e}: {type(e)}", print_it=True, warning=True)
@@ -84,7 +84,7 @@ class MainBot(commands.Cog):
             await ctx.send(f"DONE - Reloaded `{cog}`")
         elif cog == "all":
             await ctx.send("Reloading all cogs")
-            log("Reloading all cogs", "COGS")
+            log("Reloading all cogs", True)
             for cog in self.startup_extensions:
                 await ctx.send(await self.reload_cog(cog))
             await ctx.send("DONE - Reloaded all cogs")
@@ -92,31 +92,8 @@ class MainBot(commands.Cog):
             await ctx.send("Cog does not exist.")
 
     async def reload_cog(self, cog):
-        if await self.stop_bg_task(cog):
-            msg = "--Stopped background task--"
-        else:
-            msg = "--No background task to stop--"
         await self.bot.reload_extension("cogs." + cog)
-        return f"Reloaded `{cog}`\n{msg}"
-
-    async def stop_bg_task(self, task):
-        """
-        Stops the given background task
-        :param task: The task to stop
-        :return: True if the task was stopped, False if no task was stopped
-        """
-        task = task.lower()
-        all_loops = {
-            "updates": self.bot.get_cog("Updates"),
-            "statistics": self.bot.get_cog("Statistics"),
-            "voice": self.bot.get_cog("Voice"),
-            "information": self.bot.get_cog("Information"),
-            "draw": self.bot.get_cog("Draw")
-        }
-        if task in all_loops:
-            all_loops[task].get_task().cancel()
-            return True
-        return False
+        return f"Reloaded `{cog}`"
 
 
 async def setup(bot):

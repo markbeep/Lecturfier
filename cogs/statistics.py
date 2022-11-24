@@ -34,8 +34,8 @@ class Statistics(commands.Cog):
     def heartbeat(self):
         return self.background_git_backup.is_running()
 
-    def get_task(self):
-        return self.background_git_backup
+    def cog_unload(self) -> None:
+        self.background_git_backup.cancel()
 
     @tasks.loop(seconds=10)
     async def background_git_backup(self):

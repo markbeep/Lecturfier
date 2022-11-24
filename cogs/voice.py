@@ -37,8 +37,8 @@ class Voice(commands.Cog):
     def heartbeat(self):
         return self.background_save_levels.is_running()
 
-    def get_task(self):
-        return self.background_save_levels
+    def cog_unload(self) -> None:
+        self.background_save_levels.cancel()
 
     @commands.Cog.listener()
     async def on_message(self, message):

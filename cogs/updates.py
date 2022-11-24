@@ -65,8 +65,8 @@ class Updates(commands.Cog):
     def heartbeat(self):
         return self.background_loop.is_running()
 
-    def get_task(self):
-        return self.background_loop
+    def cog_unload(self) -> None:
+        self.background_loop.cancel()
 
     def get_time_till_next_lesson(self):
         dt = datetime.now()
