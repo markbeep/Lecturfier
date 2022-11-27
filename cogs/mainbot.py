@@ -1,8 +1,7 @@
 import random
-
+from datetime import datetime
 import discord
 from discord.ext import commands
-
 from helper.log import log
 
 
@@ -51,6 +50,11 @@ class MainBot(commands.Cog):
         count = await self.load_all_extensions(self.startup_extensions)
         log(f"Started up bot with {count}/{len(self.startup_extensions)-2} extensions loaded successfully.")
         print("-------------")
+        
+        channel = self.bot.get_channel(1004090600934617238)
+        if isinstance(channel, discord.abc.Messageable):
+            embed = discord.Embed(title="Bot started up", timestamp=datetime.now(), color=0xcbd3d7)
+            channel.send("<@205704051856244736>", embed=embed)
 
     async def load_all_extensions(self, extensions_to_load) -> int:
         count = 0
