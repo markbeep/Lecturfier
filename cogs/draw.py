@@ -283,7 +283,7 @@ class Draw(commands.Cog):
         if ctx.invoked_subcommand is None:
             if command is None:
                 await ctx.send("No command given")
-                raise commands.errors.BadArgument
+                raise commands.errors.BadArgument()
             elif command == "pause":
                 self.pause_draws = not self.pause_draws
                 await ctx.send(f"Pause draws: {self.pause_draws}")
@@ -336,12 +336,12 @@ class Draw(commands.Cog):
         """
         if len(ctx.message.attachments) == 0:
             await ctx.send("No image given")
-            raise commands.errors.BadArgument
+            raise commands.errors.BadArgument()
         try:
             buffer = await create_buffer(ctx, x1, x2, y1, y2)
         except ValueError:
             await ctx.send("Not all coordinates given.")
-            raise commands.errors.BadArgument
+            raise commands.errors.BadArgument()
 
         self.cancel_all = False
 
@@ -364,7 +364,7 @@ class Draw(commands.Cog):
         """
         if len(ctx.message.attachments) == 0:
             await ctx.send("No text file given")
-            raise commands.errors.BadArgument
+            raise commands.errors.BadArgument()
         async with aiohttp.ClientSession() as cs:
             async with cs.get(ctx.message.attachments[0].url) as r:
                 setpixels_file = await r.text()
@@ -400,12 +400,12 @@ class Draw(commands.Cog):
         """
         if len(ctx.message.attachments) == 0:
             await ctx.send("No image given")
-            raise commands.errors.BadArgument
+            raise commands.errors.BadArgument()
         try:
             buffer = await create_buffer(ctx, x1, x2, y1, y2)
         except ValueError:
             await ctx.send("Not all coordinates given.")
-            raise commands.errors.BadArgument
+            raise commands.errors.BadArgument()
 
         img = im2q.PixPlace(buffer, "multi")
         modifiers(img, mods)
@@ -521,13 +521,13 @@ class Draw(commands.Cog):
     async def mismatch(self, ctx, color_to_check=""):
         if len(ctx.message.attachments) == 0:
             await ctx.send("No image given")
-            raise commands.errors.BadArgument
+            raise commands.errors.BadArgument()
         fp = "place.png"
         if not os.path.isfile(fp):
             fp = "placeOFF.png"
             if not os.path.isfile(fp):
                 await ctx.send("No image to compare to")
-                raise commands.errors.BadArgument
+                raise commands.errors.BadArgument()
         save_pixels = Image.open(fp).convert("RGBA").load()
         async with aiohttp.ClientSession() as cs:
             async with cs.get(ctx.message.attachments[0].url) as r:

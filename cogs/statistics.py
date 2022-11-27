@@ -291,9 +291,9 @@ class Statistics(commands.Cog):
                 try:
                     memberconverter = discord.ext.commands.MemberConverter()
                     member = await memberconverter.convert(ctx, user)
-                except discord.ext.commands.errors.BadArgument:
+                except commands.errors.BadArgument():
                     await ctx.send("Invalid user. Mention the user for this to work.")
-                    raise discord.ext.commands.errors.BadArgument
+                    raise commands.errors.BadArgument()
                 embed = await self.create_embed(member, statistic_columns)
                 await ctx.send(embed=embed)
 

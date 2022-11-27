@@ -1,7 +1,5 @@
-import asyncio
 import random
 import string
-import time
 
 import discord
 from discord.ext import commands
@@ -37,7 +35,7 @@ class Hangman(commands.Cog):
         The game ends after **100** seconds.
         """
         if ctx.invoked_subcommand is None:
-            await ctx.send(view=HangmanGuesserView())
+            await ctx.send(view=HangmanGuesserView(ctx.author, ctx.message))
 
     @commands.cooldown(1, 5, BucketType.user)
     @hangman.command(name="solve", usage="solve <word up till now> <wrong letters or 0> <language>")
@@ -95,123 +93,140 @@ class Hangman(commands.Cog):
             await ctx.send(message)
         elif self.sending:
             await ctx.send("❗❗ Already working on a hangman. Hold on ❗❗", delete_after=7)
-            raise commands.errors.BadArgument
+            raise commands.errors.BadArgument()
         else:
             await ctx.send("No input given. Check `$help hangman` to see how this command is used.")
-            raise commands.errors.BadArgument
+            raise commands.errors.BadArgument()
+
+class LetterSelect(discord.ui.Select):
+    def __init__(self, ignored: list[str], current_word: list[str], edit_callback):
+        # defines the options
+        emoji_letters = ["🇦", "🇧", "🇨", "🇩", "🇪", "🇫", "🇬", "🇭", "🇮", "🇯", "🇰", "🇱", "🇲", "🇳", "🇴", "🇵", "🇶", "🇷", "🇸",
+                                "🇹", "🇺", "🇻", "🇼", "🇽", "🇾", "🇿"]
+        select_options = []
+        count = 0
+        for letter in string.ascii_lowercase:
+            if letter in ignored or letter in current_word:
+                continue
+            if count == 25:  # we only put the first 25 letters into the dropdown
+                break
+            if 0 <= ord(letter)-97 < len(emoji_letters):
+                select_options.append(
+                    discord.SelectOption(
+                        label=letter, 
+                        description=f"Guesses the letter {letter}", 
+                        value=letter, 
+                        emoji=emoji_letters[ord(letter)-97]
+                    )
+                )
+            else:
+                select_options.append(
+                    discord.SelectOption(
+                        label=letter, 
+                        description=f"Guesses the letter {letter}", 
+                        value=letter, 
+                    )
+                )
+            count += 1
+            
+        super().__init__(placeholder="Make an initial guess for a letter", min_values=1, max_values=1, options=select_options)
+        self.edit_callback = edit_callback
+
+    async def callback(self, interaction: discord.Interaction):
+        await self.edit_callback(interaction, self.values[0])
 
 # TODO finish implementing hangman down here
 class HangmanGuesserView(discord.ui.View):
-    def __init__(self, already_exists: bool, word_length: int, previous: list[str], ignored: list[str], current_word: str, guesses: int):
+    def __init__(self, user: discord.Member | discord.User, message: discord.Message):
         super().__init__()
-        if already_exists:
-            self.word_length = word_length
-            self.previous = previous
-            self.ignored = ignored
-            self.current_word = current_word
-            self.guesses = guesses
-        else:
-            self.word_length = random.randint(4, 15)
-            self.previous = []
-            self.ignored = []
-            self.current_word = ["_"] * self.word_length
-            self.guesses = 0
+        self.word_length = random.randint(5, 15)
+        self.previous = []
+        self.ignored = []
+        self.current_word = ["_"] * self.word_length
+        self.guesses = 0
+        self.user = user
+        self.message = message
+        self.sent_message: discord.Message | None = None
+        
+        self.add_item(LetterSelect(self.ignored, self.current_word, self.callback))
     
-    # TODO find out how to make a select with custom options
-    @discord.ui.select(cls=discord.ui.Select)
-    async def letter(self, interaction: discord.Interaction, select: discord.ui.Select):
-
-        def generate_select() -> list[Select]:
-            emoji_letters = ["🇦", "🇧", "🇨", "🇩", "🇪", "🇫", "🇬", "🇭", "🇮", "🇯", "🇰", "🇱", "🇲", "🇳", "🇴", "🇵", "🇶", "🇷", "🇸",
-                                "🇹", "🇺", "🇻", "🇼", "🇽", "🇾", "🇿"]
-            select_options = []
-            count = 0
-            for letter in string.ascii_lowercase:
-                if letter in ignored or letter in current_word:
-                    continue
-                if count == 25:  # we only put the first 25 letters into the dropdown
-                    break
-                if 0 <= ord(letter)-97 < len(emoji_letters):
-                    select_options.append(SelectOption(label=letter, value=letter, emoji=emoji_letters[ord(letter)-97]))
-                else:
-                    select_options.append(SelectOption(label=letter, value=letter))
-                count += 1
-            if count == 0:
-                return []
-            return [Select(options=select_options, placeholder="Guess a letter...")]
-
-        msg = await ctx.reply(content="Make an initial guess for a letter", components=generate_select())
-
-        while True:
-            try:
-                res: Interaction = await self.bot.wait_for("select_option", timeout=60)
-            except asyncio.TimeoutError:
-                break
-            if res.user.id != ctx.message.author.id:
-                await res.respond(type=InteractionType.ChannelMessageWithSource, content="This isn't your hangman game.")
-                continue
-            if res is None or res.component is None:
-                continue
-            guess = res.component[0].label
-            ignored.append(guess)
-            guesses += 1
-
-            letter_count, fitting = hangman.solve("".join(current_word), ignore=ignored)
-
-            if len(fitting) == 0:  # no fitting letters
-                if len(previous) == 0:  # this is called in the first iteration if previous hasn't been filled in yet
-                    word_length -= 1
-                    if word_length < 0:
-                        break
-                    else:
-                        current_word = ["_"] * word_length  # we create a new underscore word
-                else:  # we found no fitting words, so pick one of the previous words randomly
-                    rand_word = random.choice(previous)  # pick a random word of the previous list
-                    if guess in rand_word:  # if the guess is in the word, we have to change all _ to the guess
-                        for i in range(len(rand_word)):
-                            if rand_word[i] == guess:
-                                current_word[i] = guess
-                        ignored.pop(ignored.index(guess))  # additionally remove the letter from the ignored chars
-                    else:  # we keep the guess as a wrong guess
-                        pass
-            else:
-                previous = fitting.copy()
-                
-            if current_word.count("_") == 0:
-                await ctx.send(f"{ctx.message.author.mention}! You guessed the word!\n`{''.join(current_word)}`")
-                break
-
-            embed = discord.Embed(
-                title="Hangman Game",
-                description=f"Current Word: `{''.join(current_word)}`\n"
-                            f"Wrong Letters: {', '.join(ignored)}\n"
-                            f"Amount of guesses: {guesses}\n"
-                            f"**Guess a letter:**"
-            )
-            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
-            await res.respond(type=InteractionType.UpdateMessage, embed=embed, components=generate_select())
-
-        # if no initial character was given
-        if len(previous) == 0:
-            await msg.delete()
+    async def callback(self, interaction: discord.Interaction, guess: str):
+        """
+        Updates the message view upon receiving an input
+        """
+        self.sent_message = interaction.message
+        
+        if self.user != interaction.user:
+            await interaction.response.send_message("You are not the initiater of this game.", ephemeral=True)
             return
 
-        if "_" in current_word:
-            final_word = random.choice(previous)
+        self.ignored.append(guess)
+        letter_count, fitting = hangman.solve("".join(self.current_word), ignore=self.ignored)
+        
+        # now we try to figure out if the new guess resulted in 0 matches
+        if len(fitting) == 0: # no words with these ignored letters
+            if self.guesses == 0: # first guess. No words of this length with this letter
+                self.word_length -= 1
+                if self.word_length <= 0:
+                    await interaction.response.send_message("Can't find any words right now. Quitting.", ephemeral=True)
+                    self.stop()
+                    return
+                self.current_word = ["_"] * self.word_length # regenerate empty word
+            
+            else: # randomly pick one of the previous words and fill in the letters there
+                assert len(self.previous) > 0
+                random_word = random.choice(self.previous)
+                if guess in random_word:
+                    # update current_word to include the new guess at the correct spots
+                    for i, c in enumerate(random_word):
+                        if guess == c:
+                            self.current_word[i] = guess
+                    # remove the guessed letter from the ignored list again
+                    self.ignored.pop(self.ignored.index(guess))
         else:
-            final_word = "".join(current_word)
+            self.previous = fitting.copy()
+        self.guesses += 1
+        self.clear_items()
+        
+        # check if game is over
+        if self.current_word.count("_") == 0:
+            await self.message.channel.send(f"{self.user.mention}! You guessed the word!\n`{''.join(self.current_word)}`")
+            embed = discord.Embed(
+                title="Hangman Game",
+                description=f"Correct Word: `{''.join(self.current_word)}`\n"
+                            f"Wrong Letters: {', '.join(self.ignored)}\n"
+                            f"Amount of guesses: {self.guesses}"
+            )
+            embed.set_author(name=str(self.user), icon_url=self.user.avatar.url if self.user.avatar else None)
+            await interaction.response.edit_message(embed=embed, view=None)
+            
+        else: # add select options back
+            self.add_item(LetterSelect(self.ignored, self.current_word, self.callback))
+            embed = discord.Embed(
+                title="Hangman Game",
+                description=f"Current Word: `{''.join(self.current_word)}`\n"
+                            f"Wrong Letters: {', '.join(self.ignored)}\n"
+                            f"Amount of guesses: {self.guesses}\n"
+                            f"**Guess a letter:**"
+            )
+            embed.set_author(name=str(self.user), icon_url=self.user.avatar.url if self.user.avatar else None)
+            await interaction.response.edit_message(embed=embed, view=self)
+        
+        
+    async def on_timeout(self):
+        if self.guesses == 0 or not self.sent_message: # we won't have any fitting words
+            return
+        
+        random_word = random.choice(self.previous)
+        await self.message.channel.send(f"{self.user.mention}! You guessed the word!\n`{random_word}`")
         embed = discord.Embed(
             title="Hangman Game",
-            description=f"Correct Word: `{final_word}`\n"
-                        f"Wrong Letters: {', '.join(ignored)}\n"
-                        f"Amount of guesses: {guesses}"
+            description=f"Correct Word: `{random_word}`\n"
+                        f"Wrong Letters: {', '.join(self.ignored)}\n"
+                        f"Amount of guesses: {self.guesses}"
         )
-        embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
-        if msg is not None:
-            await msg.edit(embed=embed, components=[])
-        else:
-            await ctx.send(embed=embed, components=[])
-
+        embed.set_author(name=str(self.user), icon_url=self.user.avatar.url if self.user.avatar else None)
+        await self.sent_message.edit(embed=embed, view=None)
 
 async def setup(bot):
     await bot.add_cog(Hangman(bot))

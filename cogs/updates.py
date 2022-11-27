@@ -165,14 +165,14 @@ class Updates(commands.Cog):
         # Input/Error catching
         if day is None or hour is None:
             await ctx.reply("ERROR! Not enough parameters. You need `<semester> <day> <hour> [role ID to ping]`.")
-            raise discord.ext.commands.CommandError
+            raise commands.CommandError
         try:
             semester = int(semester)
             day = int(day)
             hour = int(hour)
         except ValueError:
             await ctx.reply("ERROR! Semester, day and hour need to be integers.")
-            raise discord.ext.commands.BadArgument
+            raise commands.errors.BadArgument()
 
         subject: SQLFunctions.Subject = SQLFunctions.get_starting_subject(semester, self.conn, day, hour)
         if subject is None:
@@ -341,7 +341,7 @@ class Updates(commands.Cog):
 
         except asyncio.TimeoutError:
             await ctx.reply("You took too long to respond. You have 30 seconds to respond.")
-            raise discord.ext.commands.BadArgument
+            raise commands.errors.BadArgument()
 
     async def send_lecture_start(self, subject_name, website_url, stream_url, channel_id, role_id, zoom_url=None, subject_room=None):
         channel = self.bot.get_channel(channel_id)

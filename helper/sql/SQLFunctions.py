@@ -36,7 +36,7 @@ class DiscordUser:
         self.CreatedAt = get_datetime(CreatedAt)
 
 
-def get_or_create_discord_user(user: discord.User, conn=connect()) -> DiscordUser:
+def get_or_create_discord_user(user: discord.User | discord.Member, conn=connect()) -> DiscordUser:
     result = conn.execute("SELECT * FROM DiscordUsers WHERE DiscordUserID = ?", (user.id,)).fetchone()
     if result is None:
         # The user doesn't exist in the db
@@ -44,7 +44,7 @@ def get_or_create_discord_user(user: discord.User, conn=connect()) -> DiscordUse
             conn.execute(
                 """INSERT INTO DiscordUsers(DiscordUserID, DisplayName, Discriminator, IsBot, AvatarURL, CreatedAt)
                     VALUES (?,?,?,?,?,?)""",
-                (user.id, user.display_name, str(user.discriminator), int(user.bot), str(user.avatar_url), str(user.created_at))
+                (user.id, user.display_name, str(user.discriminator), int(user.bot), str(user.avatar.url if user.avatar else ""), str(user.created_at))
             )
         finally:
             conn.commit()
@@ -76,7 +76,7 @@ def get_or_create_discord_guild(guild: discord.Guild, conn=connect()) -> Discord
         try:
             conn.execute(
                 """INSERT INTO DiscordGuilds(DiscordGuildID, GuildName, GuildRegion, GuildChannelCount, GuildMemberCount, GuildRoleCount) VALUES (?,?,?,?,?,?)""",
-                (guild.id, guild.name, str(guild.region), len(guild.channels), guild.member_count, len(guild.roles))
+                (guild.id, guild.name, "", len(guild.channels), guild.member_count, len(guild.roles))
             )
         finally:
             conn.commit()
@@ -86,7 +86,7 @@ def get_or_create_discord_guild(guild: discord.Guild, conn=connect()) -> Discord
 
 
 class DiscordMember:
-    def __init__(self, UniqueMemberID, DiscordUserID, DiscordGuildID, JoinedAt, Nickname, Semester, User: DiscordUser = None):
+    def __init__(self, UniqueMemberID, DiscordUserID, DiscordGuildID, JoinedAt, Nickname, Semester, User: DiscordUser | None = None):
         self.UniqueMemberID = UniqueMemberID
         self.DiscordUserID = DiscordUserID
         self.DiscordGuildID = DiscordGuildID
@@ -251,14 +251,14 @@ class Event:
         self.EventStartingAt = get_datetime(event_starting_at)
         self.EventDescription = event_description
         self.UniqueMemberID = unique_member_id
-        self.DiscordMember: DiscordMember = discord_member
+        self.DiscordMember: DiscordMember | None = discord_member
         self.UpdatedMessageID = updated_message_id
         self.UpdatedChannelID = updated_channel_id
         self.SpecificChannelID = specific_channel_id
         self.IsDone = bool(is_done)
 
 
-def get_events(conn=connect(), is_done=None, limit=None, guild_id: int = None, order=False, by_user_id=None, row_id=None, event_id=None) -> list:
+def get_events(conn=connect(), is_done=None, limit=None, guild_id: int | None = None, order=False, by_user_id=None, row_id=None, event_id=None) -> list:
     """
     Returns a list of Event objects
     :param event_id:
@@ -328,7 +328,7 @@ def get_events(conn=connect(), is_done=None, limit=None, guild_id: int = None, o
     return events
 
 
-def get_event_by_id(event_id, conn=connect()) -> Event:
+def get_event_by_id(event_id, conn=connect()) -> Event | None:
     event_results = get_events(conn, event_id=int(event_id))
     if len(event_results) == 0:
         return None
@@ -517,7 +517,7 @@ def insert_or_update_covid_guess(member: DiscordMember, guess: int, conn=connect
 
 class Quote:
     def __init__(self, QuoteID, QuoteText, Name, UniqueMemberID, CreatedAt, AddedByUniqueMemberID, DiscordGuildID,
-                 AmountBattled, AmountWon, Elo, Member: DiscordMember = None):
+                 AmountBattled, AmountWon, Elo, Member: DiscordMember | None = None):
         self.QuoteID = QuoteID
         self.QuoteText = QuoteText
         self.Name = Name
@@ -558,9 +558,12 @@ def get_quote(quote_ID, guild_id, conn=connect(), row_id=None, random=False) -> 
     )
 
 
-def get_quotes(discord_user_id=None, unique_member_id=None, name=None, quote=None, guild_id=None, conn=connect(), random=False, limit=None,
+def get_quotes(discord_user_id=None, unique_member_id=None, name=None, quote=None, guild_id=None,
+               conn: sqlite3.Connection | None=connect(), random=False, limit=None,
                rank_by_elo=False) -> list[
     Quote]:
+    if not conn:
+        conn = connect()
     sql = """   SELECT  Q.QuoteID, Q.Quote, Q.Name, Q.UniqueMemberID, Q.CreatedAt, Q.AddedByUniqueMemberID, Q.DiscordGuildID,
                         DM.UniqueMemberID, DM.DiscordUserID, DM.DiscordGuildID, DM.JoinedAt, DM.Nickname, DM.Semester,
                         Q.AmountBattled, Q.AmountWon, Q.Elo
@@ -646,7 +649,7 @@ def get_members_by_name(name, guild_id, discord_user_id=None, conn=connect()) ->
     return members
 
 
-def add_quote(quote, name, member: DiscordMember, added_by: DiscordMember, guild_id, conn=connect()) -> Quote:
+def add_quote(quote, name, member: DiscordMember | None, added_by: DiscordMember, guild_id, conn=connect()) -> Quote | None:
     unique_member_id = None
     if member is not None:
         unique_member_id = member.UniqueMemberID
@@ -691,7 +694,9 @@ def get_quote_stats(guild_id: int, conn=connect()) -> tuple[int, int, int]:
     return total_quotes[0], total_names[0], total_voted_on[0]
 
 
-def update_quote_battle(quote_id, battles_amount, battles_won, elo, conn=connect()):
+def update_quote_battle(quote_id, battles_amount, battles_won, elo, conn: sqlite3.Connection | None = connect()):
+    if not conn:
+        conn = connect()
     sql = "UPDATE Quotes SET AmountBattled=?, AmountWon=?, Elo=? WHERE QuoteID=?"
     try:
         conn.execute(sql, (battles_amount, battles_won, elo, quote_id))
@@ -728,7 +733,7 @@ def remove_favorite_quote(member: discord.Member, quote_id: int, conn=connect())
 
 
 class Name:
-    def __init__(self, total_quotes: int, quote: Quote, member: DiscordMember = None):
+    def __init__(self, total_quotes: int, quote: Quote, member: DiscordMember | None = None):
         self.total_quotes = total_quotes
         self.quote = quote
         self.member = member
@@ -749,7 +754,7 @@ def get_quoted_names(guild: discord.Guild, conn=connect()) -> list[Name]:
         member = None
         if row[1] is not None:
             member = DiscordMember(*row[1:7])
-        quote = Quote(*row[7:], member)
+        quote = Quote(*row[7:], Member=member)
         all_names.append(Name(row[0], quote, member))
     return all_names
 
@@ -807,7 +812,7 @@ def insert_quote_to_remove(quote_id, reason: str, member: DiscordMember, conn=co
         conn.commit()
 
 
-def get_reputations(member: discord.Member, conn=connect()) -> list[(bool, str)]:
+def get_reputations(member: discord.Member, conn=connect()) -> list[tuple[bool, str]]:
     sql = """   SELECT R.IsPositive, R.ReputationMessage
                 FROM Reputations R
                 INNER JOIN DiscordMembers DM on R.UniqueMemberID = DM.UniqueMemberID
@@ -852,8 +857,8 @@ def get_voice_level(member: discord.Member, conn=connect()) -> VoiceLevel:
     if result is None:
         insert_or_update_voice_level(member, conn=connect())
         return get_voice_level(member, conn)
-    member = DiscordMember(*result[1:])
-    return VoiceLevel(member, result[0])
+    ret_member = DiscordMember(*result[1:])
+    return VoiceLevel(ret_member, result[0])
 
 
 def insert_or_update_voice_level(member: discord.Member, experience_amount=0, conn=connect()):

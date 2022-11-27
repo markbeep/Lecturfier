@@ -71,7 +71,7 @@ class Reputation(commands.Cog):
                                   description="You can't rep yourself.",
                                   color=discord.Color.red())
             await ctx.send(embed=embed, delete_after=10)
-            raise discord.ext.commands.BadArgument
+            raise commands.errors.BadArgument()
 
         # checks if the message chars are valid
         if not await valid_chars_checker(ctx.message.content):
@@ -79,7 +79,7 @@ class Reputation(commands.Cog):
                                   description="You can only use printable ascii characters in reputation messages.",
                                   color=discord.Color.red())
             await ctx.send(embed=embed, delete_after=10)
-            raise discord.ext.commands.BadArgument
+            raise commands.errors.BadArgument()
 
         # Add reputation to user
         time_valid = await self.add_rep(ctx.message, member, ctx.message.author)

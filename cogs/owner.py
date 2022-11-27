@@ -50,11 +50,11 @@ class Owner(commands.Cog):
         self.conn = SQLFunctions.connect()
 
         # gets the button value to watch
-        self.watch_button_value = SQLFunctions.get_config("ButtonValue", self.conn)
-        if len(self.watch_button_value) == 0:
-            self.watch_button_value = 1e6
+        temp_button_value = SQLFunctions.get_config("ButtonValue", self.conn)
+        if len(temp_button_value) == 0:
+            self.watch_button_value: int = int(1e6)
         else:
-            self.watch_button_value = self.watch_button_value[0]
+            self.watch_button_value: int = temp_button_value[0]
         self.sent_message = False
         self.old_value = 1e6  # to ignore fake buttons we store the last value
 
@@ -114,7 +114,7 @@ class Owner(commands.Cog):
         else:
             if not val.isnumeric():
                 await ctx.send("not int", delete_after=5)
-                raise discord.ext.commands.errors.BadArgument
+                raise commands.errors.BadArgument()
             # saves the value to watch into config
             SQLFunctions.insert_or_update_config("ButtonValue", int(val), self.conn)
             self.watch_button_value = int(val)
@@ -133,10 +133,10 @@ class Owner(commands.Cog):
         if ctx.invoked_subcommand is None:
             if command is None:
                 await ctx.reply("ERROR! No command to view given.")
-                raise discord.ext.commands.BadArgument
+                raise commands.errors.BadArgument()
             if command.lower() not in [com.name.lower() for com in self.bot.commands]:
                 await ctx.reply("ERROR! Command not found. Did you maybe mistype a subcommand?")
-                raise discord.ext.commands.BadArgument
+                raise commands.errors.BadArgument()
             command_level = SQLFunctions.get_all_command_levels(command.lower(), self.conn)
             embed = discord.Embed(
                 description=f"Dynamic permissions for `{command.lower()}`:",
@@ -169,10 +169,10 @@ class Owner(commands.Cog):
         """
         if command_name is None:
             await ctx.reply("ERROR! No command name given.")
-            raise discord.ext.commands.BadArgument
+            raise commands.errors.BadArgument()
         if object_id is None:
             await ctx.reply("ERROR! No ID given.")
-            raise discord.ext.commands.BadArgument
+            raise commands.errors.BadArgument()
 
         # to handle what type of object ID we are given
         try:
@@ -194,7 +194,7 @@ class Owner(commands.Cog):
                         discord_object = self.bot.get_user(object_id)
                         if discord_object is None:
                             await ctx.reply("ERROR! No object was found with the given ID.")
-                            raise discord.ext.commands.BadArgument
+                            raise commands.errors.BadArgument()
                         else:
                             object_type = IDType.USER
                     else:
@@ -204,18 +204,18 @@ class Owner(commands.Cog):
 
         except ValueError:
             await ctx.reply("ERROR! Incorrect ID given. Either mention or simply write the ID.")
-            raise discord.ext.commands.BadArgument
+            raise commands.errors.BadArgument()
         if permission_level is None:
             await ctx.reply("ERROR! No permission level given.")
-            raise discord.ext.commands.BadArgument
+            raise commands.errors.BadArgument()
         try:
             permission_level = int(permission_level)
         except ValueError:
             await ctx.reply("ERROR! The given permission level is not an int.")
-            raise discord.ext.commands.BadArgument
+            raise commands.errors.BadArgument()
         if command_name.lower() not in [com.name.lower() for com in self.bot.commands]:
             await ctx.reply("ERROR! No command with that name found.")
-            raise discord.ext.commands.BadArgument
+            raise commands.errors.BadArgument()
 
         SQLFunctions.insert_or_update_command_level(command_name.lower(), object_id, permission_level, object_type.name, self.conn)
 
@@ -279,7 +279,7 @@ class Owner(commands.Cog):
         await ctx.message.delete()
         if user is None:
             await ctx.send("No user")
-            raise discord.ext.commands.errors.NotOwner
+            raise commands.errors.NotOwner
         for i in range(10):
             await asyncio.sleep(random.randint(10, 100))
             msg = await ctx.send(user)
@@ -359,16 +359,16 @@ class Owner(commands.Cog):
 
     @commands.is_owner()
     @commands.command(aliases=["send", "repeatme", "echo"], usage="say [count] <msg>")
-    async def say(self, ctx, count=None, *, cont):
+    async def say(self, ctx, count="", *, cont):
         """
         Repeats a message. If given, repeats a specific amount of times
         Permissions: Owner
         """
-        try:
+        if count.isnumeric():
             amt = int(count)
-            for i in range(amt):
+            for _ in range(amt):
                 await ctx.send(cont)
-        except ValueError:
+        else:
             await ctx.send(f"{count} {cont}")
 
 

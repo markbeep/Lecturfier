@@ -1,34 +1,38 @@
-import json
 import discord
 from discord.ext import commands
 from helper.sql import SQLFunctions
 import os
 import asyncio
+from cogs.quote import quote_setup_hook
 
-with open("./config/settings.json", "r", encoding="utf8") as f:
-    prefix = json.load(f)
+prefix = os.getenv("BOT_PREFIX")
 
+
+class Bot(commands.Bot):
+    def __init__(self):
+        intents = discord.Intents()
+        assert prefix
+        super().__init__(command_prefix=prefix, intents=intents.all(), description="Lecture Notifier", owner_id=205704051856244736)
+
+    async def setup_hook(self):
+        await quote_setup_hook(self)
+
+    
 async def main():
     # Load the token
     token = os.getenv("BOT_TOKEN")
     if not token:
-        print("NO TOKEN IN LECTURFIER.json! Stopping bot.")
+        print("BOT_TOKEN environment variable doesn't exist")
         exit()
         
     # connects to the db
     conn = SQLFunctions.connect()
-    intents = discord.Intents()
-    async with commands.Bot(command_prefix=prefix["prefix"], description='Lecture Notifier', intents=intents.all(), owner_id=205704051856244736) as bot:
+    async with Bot() as bot:
         # Loads the sub_bot cog, which can then easily be reloaded
         await bot.load_extension("cogs.mainbot")
         
         # Loads the help page, as it has an on_ready event that needs to be called
         await bot.load_extension("cogs.help")
-        
-        @bot.event
-        async def on_message(message):
-            await bot.process_commands(message)
-
 
         @bot.check
         async def globally_handle_permissions(ctx):

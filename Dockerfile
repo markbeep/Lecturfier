@@ -1,6 +1,6 @@
 FROM python:3.10-alpine
 
-RUN apk --no-cache add gcc musl-dev libpq-dev linux-headers zlib-dev jpeg-dev g++
+RUN apk --no-cache add gcc musl-dev libpq-dev linux-headers zlib-dev jpeg-dev g++ freetype-dev
 
 ENV PYTHONUNBUFFERED=1
 

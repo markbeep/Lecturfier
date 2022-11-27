@@ -12,7 +12,6 @@ class MainBot(commands.Cog):
         file_creator.createFiles()
         self.bot = bot
         self.startup_extensions = [
-            "games",
             "statistics",
             "minesweeper",
             "hangman",

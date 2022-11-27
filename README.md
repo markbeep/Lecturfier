@@ -34,13 +34,14 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
 ## Rework
 - [x] admin.py
 - [x] draw.py
-- [ ] hangman.py
-- [ ] help.py
-- [ ] information.py
+- [x] hangman.py
+- [x] help.py
+- [x] information.py
+- [x] aoc.py
 - [x] mainbot.py
-- [ ] minesweeper.py
-- [ ] owner.py
-- [ ] quote.py
+- [x] minesweeper.py
+- [x] owner.py
+- [x] quote.py
 - [ ] reputation.py
 - [ ] statistics.py
 - [ ] updates.py
@@ -49,8 +50,8 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
 ## Tested
 - [ ] admin.py
 - [ ] draw.py
-- [ ] hangman.py
-- [ ] help.py
+- [x] hangman.py
+- [x] help.py
 - [ ] information.py
 - [ ] mainbot.py
 - [ ] minesweeper.py
