@@ -339,8 +339,8 @@ class Information(commands.Cog):
             embed = discord.Embed(title="Bot Information:", description=cont, color=0xD7D7D7,
                                   timestamp=datetime.now(timezone("Europe/Zurich")))
             embed.set_footer(text=f"Called by {ctx.author.display_name}")
-            embed.set_thumbnail(url=self.bot.user.avatar_url)
-            embed.set_author(name=self.bot.user.display_name, icon_url=self.bot.user.avatar_url)
+            embed.set_thumbnail(url=self.bot.user.avatar.url if self.bot.user.avatar else None)
+            embed.set_author(name=self.bot.user.display_name, icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None)
         await ctx.send(embed=embed)
 
     @commands.cooldown(4, 10, BucketType.user)
@@ -557,7 +557,7 @@ class Information(commands.Cog):
         else:
             await ctx.send(f"ERROR! No event found with the given ID `{event_id}`.")
             raise commands.errors.BadArgument()
-        if event.DiscordMember.DiscordUserID != ctx.message.author.id:
+        if not event.DiscordMember or event.DiscordMember.DiscordUserID != ctx.message.author.id:
             await ctx.send(f"ERROR! You are not the host of the given event ID. You can't delete other people's events.")
             raise commands.errors.BadArgument()
         SQLFunctions.delete_event(event, self.conn)
@@ -832,6 +832,7 @@ class Information(commands.Cog):
             if user is None:
                 user = await ctx.message.guild.fetch_member(member.DiscordUserID)
             if user is None:
+                assert member.User
                 username = member.User.DisplayName
             else:
                 username = user.display_name

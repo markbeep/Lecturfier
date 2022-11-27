@@ -626,7 +626,7 @@ class Quote(commands.Cog):
                 title="Quotes Error",
                 description=f"You don't have any favorite quotes yet.\nCheck out the subcommand `add` to add your first favorite command!",
                 color=discord.Color.red())
-            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar.url if ctx.message.author.avatar else None)
             await ctx.send(embed=embed)
             raise commands.errors.BadArgument()
 
@@ -644,12 +644,12 @@ class Quote(commands.Cog):
         # Input parsing
         if quote_id is None:
             embed = discord.Embed(description=f"No Quote ID given as parameter.", color=discord.Color.red())
-            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar.url if ctx.message.author.avatar else None)
             await ctx.reply(embed=embed)
             raise commands.errors.BadArgument()
         if not quote_id.isnumeric():
             embed = discord.Embed(description=f"The given Quote ID is not an int!", color=discord.Color.red())
-            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar.url if ctx.message.author.avatar else None)
             await ctx.reply(embed=embed)
             raise commands.errors.BadArgument()
         quote_id = int(quote_id)
@@ -658,7 +658,7 @@ class Quote(commands.Cog):
         quote = SQLFunctions.get_quote(quote_id, ctx.message.guild.id, self.conn)
         if quote is None:
             embed = discord.Embed(description=f"Quote ID `{quote_id}` does not exist!", color=discord.Color.red())
-            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar.url if ctx.message.author.avatar else None)
             await ctx.reply(embed=embed)
             raise commands.errors.BadArgument()
 
@@ -667,14 +667,14 @@ class Quote(commands.Cog):
         for q in quotes:
             if q.QuoteID == quote_id:
                 embed = discord.Embed(description=f"You already favorited the quote with ID `{quote_id}`!", color=discord.Color.red())
-                embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+                embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar.url if ctx.message.author.avatar else None)
                 await ctx.reply(embed=embed)
                 raise commands.errors.BadArgument()
 
         # add favorite
         SQLFunctions.add_favorite_quote(ctx.author, quote_id, self.conn)
         embed = discord.Embed(description=f"Successfully favorited quote ID `{quote_id}` by {quote.Name}!", color=discord.Color.green())
-        embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+        embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar.url if ctx.message.author.avatar else None)
         await ctx.reply(embed=embed)
 
     @commands.guild_only()
@@ -687,12 +687,12 @@ class Quote(commands.Cog):
         # Input parsing
         if quote_id is None:
             embed = discord.Embed(description=f"No Quote ID given as parameter.", color=discord.Color.red())
-            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar.url if ctx.message.author.avatar else None)
             await ctx.reply(embed=embed)
             raise commands.errors.BadArgument()
         if not quote_id.isnumeric():
             embed = discord.Embed(description=f"The given Quote ID is not an int!", color=discord.Color.red())
-            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar.url if ctx.message.author.avatar else None)
             await ctx.reply(embed=embed)
             raise commands.errors.BadArgument()
         quote_id = int(quote_id)
@@ -701,7 +701,7 @@ class Quote(commands.Cog):
         quote = SQLFunctions.get_quote(quote_id, ctx.message.guild.id, self.conn)
         if quote is None:
             embed = discord.Embed(description=f"Quote ID `{quote_id}` does not exist!", color=discord.Color.red())
-            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar.url if ctx.message.author.avatar else None)
             await ctx.reply(embed=embed)
             raise commands.errors.BadArgument()
 
@@ -713,14 +713,14 @@ class Quote(commands.Cog):
         else:
             # Quote wasn't favorited
             embed = discord.Embed(description=f"Quote with ID `{quote_id}` was never favorited!", color=discord.Color.red())
-            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+            embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar.url if ctx.message.author.avatar else None)
             await ctx.reply(embed=embed)
             raise commands.errors.BadArgument()
 
         # remove favorite
         SQLFunctions.remove_favorite_quote(ctx.author, quote_id, self.conn)
         embed = discord.Embed(description=f"Successfully unfavorited quote ID `{quote_id}`!", color=discord.Color.blurple())
-        embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar_url)
+        embed.set_author(name=str(ctx.message.author), icon_url=ctx.message.author.avatar.url if ctx.message.author.avatar else None)
         await ctx.reply(embed=embed)
 
 

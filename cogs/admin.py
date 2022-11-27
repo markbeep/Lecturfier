@@ -80,7 +80,7 @@ class Admin(commands.Cog):
                 value=attach_txt
             )
 
-        embed.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
+        embed.set_author(name=message.author.display_name, icon_url=message.author.avatar.url if message.author.avatar else None)
 
         # find out who deleted it
         await asyncio.sleep(3)  # small delay as audit log sometimes takes a bit
@@ -225,7 +225,7 @@ class Admin(commands.Cog):
         embed = discord.Embed(description=f"{user.mention} joined the server. **Welcome!**", color=0xadd8e6)
         memb_amt = len(guild.members)
         embed.set_footer(text=f"There are now {memb_amt} members")
-        embed.set_author(name=str(user), icon_url=user.avatar_url)
+        embed.set_author(name=str(user), icon_url=user.avatar.url if user.avatar else None)
         message = await channel.send(embed=embed)
         await message.edit(content=user.mention, embed=embed)
         await message.add_reaction("<a:blobjoin:944973432007839765>")
@@ -234,7 +234,7 @@ class Admin(commands.Cog):
         embed = discord.Embed(description=f"{user.mention} left the server.", color=0x84001B)
         memb_amt = len(guild.members)
         embed.set_footer(text=f"There are now {memb_amt} members")
-        embed.set_author(name=str(user), icon_url=user.avatar_url)
+        embed.set_author(name=str(user), icon_url=user.avatar.url if user.avatar else None)
         message = await channel.send(embed=embed)
         await message.add_reaction("<a:blobleave:944973431307399199>")
 
