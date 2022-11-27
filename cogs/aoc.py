@@ -68,7 +68,7 @@ class AdventOfCode(commands.Cog):
             embed = discord.Embed(
                 description=msg,
                 color=discord.Color.red())
-            await self.aoc_channel.send("<@&910433615689699388>", embed=embed)
+            await self.aoc_channel.send("<@&1046388087837704293>", embed=embed)
             self.sent_advent = True
         
         # fetches the stats
@@ -105,8 +105,7 @@ class AdventOfCode(commands.Cog):
         desc = f"Last Updated: `{get_formatted_time(int(time.time() - self.last_updated))}` ago"
         if day == -1 and star == -1:  # send the general lb
             pages = []
-            members = [d["members"][key] for key in d["members"] 
-                       if len(d["members"][key]["completion_day_level"])>0]
+            members = [d["members"][key] for key in d["members"]]
 
             points_fn = lambda k: k["local_score"]
             members.sort(key=points_fn, reverse=True)
@@ -117,7 +116,7 @@ class AdventOfCode(commands.Cog):
             pages = create_pages("\n".join(msg), 500)
 
             view = PagesView(self.bot, ctx, pages, ctx.author.id, "Total AoC Leaderboard", description=desc)
-            await ctx.message.send(embed=view.embed, view=view)
+            await ctx.send(embed=view.embed, view=view)
         elif star == -1 and 1 <= day <= 25:  # send the lb for that day
 
             pages = []

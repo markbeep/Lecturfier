@@ -323,14 +323,14 @@ class Owner(commands.Cog):
         await msg.edit(content=("Loading: DONE\n" + "100% | " + loading_bar(10, 10, False)))
 
     @commands.is_owner()
-    @commands.command(usage="reboot")
-    async def reboot(self, ctx):
+    @commands.command(usage="restart")
+    async def restart(self, ctx):
         """
-        Uses `reboot now` in the command line. Restarts the current device if it runs on linux.
+        Exits the current process and hopes it will be restarted automatically.
         Permissions: Owner
         """
-        await ctx.send("Rebooting...")
-        os.system('reboot now')  # Only works on linux (saved me a few times)
+        await ctx.send("Restarting...")
+        exit()
 
     @commands.is_owner()
     @commands.command(usage="react <message_id> <reaction>")

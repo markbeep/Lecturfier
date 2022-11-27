@@ -10,7 +10,9 @@ from pytz import timezone
 
 from helper.sql import SQLFunctions
 
-active_battles = []  # list of quote ids currently in a battle
+active_battles = []  # list of quote ids currently in a battle (not in use right now)
+
+BATTLE_CHANNEL_ID = 901231394141921351
 
 class Quote(commands.Cog):
     def __init__(self, bot):
@@ -857,10 +859,15 @@ def create_pages(quotes: list[SQLFunctions.Quote]) -> list[str]:
 
 class PagesButton(discord.ui.Button["PagesView"]):
     def __init__(self, label: str, disabled: bool):
+        color = discord.ButtonStyle.blurple
+        if disabled:
+            color = discord.ButtonStyle.grey
+        if label == "X":
+            color = discord.ButtonStyle.red
         super().__init__(
             label=label, 
             disabled=disabled, 
-            style=discord.ButtonStyle.grey if disabled else discord.ButtonStyle.blurple)
+            style=color)
         
     async def callback(self, interaction: discord.Interaction):
         assert self.view and self.label
@@ -906,6 +913,7 @@ class PagesView(discord.ui.View):
         elif label == "X":  # break resulting in deleting the page and user message
             if interaction.message:
                 await interaction.message.delete()
+            await self.ctx.message.delete()
             self.stop()
             return
         elif label == "<<":  # first page
@@ -1078,6 +1086,7 @@ class BattleView(discord.ui.View):
         self.message: discord.Message | None = None
         self.voted_users = []
         self.battle_scores = [0, 0]
+        self.in_play = False
         self.init_battle()
         self.initialized = True
         channel_id = SQLFunctions.get_config("QuoteBattleChannel")
@@ -1093,16 +1102,10 @@ class BattleView(discord.ui.View):
         quotes = SQLFunctions.get_quotes(conn=self.conn, guild_id=self.channel.guild.id, rank_by_elo=True)
         random.seed()
 
-        if not self.paused:
-            embed = discord.Embed(
-                description=f"Choose the better quote using the buttons. Battle ends after {self.time_for_battle} seconds.\nVotes: 0",
-                color=discord.Color.gold()
-            )
-        else:
-            embed = discord.Embed(
-                description=f"Choose the better quote using the buttons. Battle countdown starts once somebody votes.\nVotes: 0",
-                color=discord.Color.random()
-            )
+        embed = discord.Embed(
+            description=f"Choose the better quote using the buttons. Battle countdown starts once somebody votes.\nVotes: 0",
+            color=discord.Color.random()
+        )
 
         if random.random() <= 0.03:  # there's a 3% chance for a top battle to show up
             embed.title = "TOP QUOTE BATTLE"
@@ -1207,6 +1210,9 @@ class BattleView(discord.ui.View):
         Handles the whole quote battle including picking the quotes, sending the message,
         editing it and deleting the messages afterwards.
         """
+        if self.in_play: # don't replay if already playing
+            return
+        self.in_play = True
         if self.message is None:
             raise Exception("Message or Channel is unassigned for battle")
 
@@ -1293,7 +1299,12 @@ class BattleView(discord.ui.View):
     @discord.ui.button(custom_id="battle_view:1", style=discord.ButtonStyle.blurple, emoji="1️⃣")
     async def select_one(self, interaction: discord.Interaction, _: discord.ui.Button):
         if not self.initialized:
-            await self.reroll_battle(interaction)
+            if interaction.channel and interaction.channel.id == self.battle_channel_id:
+                await self.reroll_battle(interaction)
+            else:
+                await interaction.response.send_message("This battle is not in cache anymore. Start a new one.", ephemeral=True)
+                if interaction.message:
+                    await interaction.message.delete()
             return
 
         if interaction.user.id in self.voted_users:
@@ -1307,7 +1318,12 @@ class BattleView(discord.ui.View):
     @discord.ui.button(custom_id="battle_view:2", style=discord.ButtonStyle.blurple, emoji="2️⃣")
     async def select_two(self, interaction: discord.Interaction, _: discord.ui.Button):
         if not self.initialized:
-            await self.reroll_battle(interaction)
+            if interaction.channel and interaction.channel.id == self.battle_channel_id:
+                await self.reroll_battle(interaction)
+            else:
+                await interaction.response.send_message("This battle is not in cache anymore. Start a new one.", ephemeral=True)
+                if interaction.message:
+                    await interaction.message.delete()
             return
         
         if interaction.user.id in self.voted_users:
@@ -1321,7 +1337,12 @@ class BattleView(discord.ui.View):
     @discord.ui.button(custom_id="battle_view:skip", style=discord.ButtonStyle.grey, emoji="🗑️")
     async def select_skip(self, interaction: discord.Interaction, _: discord.ui.Button):
         if not self.initialized:
-            await self.reroll_battle(interaction)
+            if interaction.channel and interaction.channel.id == self.battle_channel_id:
+                await self.reroll_battle(interaction)
+            else:
+                await interaction.response.send_message("This battle is not in cache anymore. Start a new one.", ephemeral=True)
+                if interaction.message:
+                    await interaction.message.delete()
             return
         
         await interaction.response.send_message(f"Skipping this battle...", ephemeral=True)

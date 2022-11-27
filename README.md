@@ -56,17 +56,17 @@ To run it simply run `docker compose up --build`
 
 ## Tested
 
-- [ ] admin.py
-- [ ] draw.py
+- [x] admin.py
+- [ ] draw.py  (ignored until needed again)
 - [x] hangman.py
 - [x] help.py
-- [ ] aoc.py
-- [ ] information.py
-- [ ] mainbot.py
-- [ ] minesweeper.py
-- [ ] owner.py
-- [ ] quote.py
-- [ ] reputation.py
-- [ ] statistics.py
-- [ ] updates.py
-- [ ] voice.py
+- [x] aoc.py
+- [x] information.py
+- [x] mainbot.py
+- [x] minesweeper.py
+- [x] owner.py
+- [x] quote.py
+- [x] reputation.py
+- [x] statistics.py
+- [x] updates.py
+- [x] voice.py

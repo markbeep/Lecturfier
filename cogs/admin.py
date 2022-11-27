@@ -10,8 +10,8 @@ from pytz import timezone
 
 from helper.sql import SQLFunctions
 
-YES_EMOJI_ID = "776717335242211329"
-NO_EMOJI_ID = "776717315139698720"
+YES_EMOJI_ID = "<a:checkmark:944970382522351627>"
+NO_EMOJI_ID = "<a:cross:944970382694314044>"
 
 class Admin(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -27,6 +27,7 @@ class Admin(commands.Cog):
         self.requested_help = []  # list of DiscordUserIDs of who requested help
         self.requested_ta = []  # list of DiscordUserIDs which requested TA role to avoid spam
         self.bot.add_view(WelcomeViewPersistent())
+        self.bot.add_view(WelcomeViewTA())
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -263,13 +264,13 @@ class WelcomeViewPersistent(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.requested_ta = []
-        self.add_item(discord.ui.Button(label="Verify ETH Student", style=discord.ButtonStyle.url, emoji=YES_EMOJI_ID, url="https://dauth.spclr.ch/"))
+        self.add_item(discord.ui.Button(label="Verify ETH Student", style=discord.ButtonStyle.url, emoji=YES_EMOJI_ID, url="https://dauth.spclr.ch/", row=0))
 
-    @discord.ui.button(label="Don't verify", custom_id="welcome_view_persistent:dont_verify", style=discord.ButtonStyle.red, emoji=NO_EMOJI_ID)
+    @discord.ui.button(label="Don't verify", custom_id="welcome_view_persistent:dont_verify", style=discord.ButtonStyle.red, emoji=NO_EMOJI_ID, row=0)
     async def dont_verify(self, interaction: discord.Interaction, _: discord.ui.Button):
         await interaction.response.send_message(view=WelcomeViewDecline(), ephemeral=True)
         
-    @discord.ui.button(label="I'm a teaching assistant", custom_id="welcome_view_persistent:teaching_assistant", style=discord.ButtonStyle.blurple, emoji="🧑‍🏫")
+    @discord.ui.button(label="I'm a teaching assistant", custom_id="welcome_view_persistent:teaching_assistant", style=discord.ButtonStyle.blurple, emoji="🧑‍🏫", row=1)
     async def teaching_assistant(self, interaction: discord.Interaction, _: discord.ui.Button):
         member = interaction.user
         if member.id in self.requested_ta:
@@ -281,6 +282,8 @@ class WelcomeViewPersistent(discord.ui.View):
         if staff_channel is None:
             print("TA role was accepted. Don't have access to staff channels.")
             staff_channel = interaction.guild.get_channel(237673537429700609)
+            if not staff_channel:
+                staff_channel = interaction.guild.get_channel(1046508939254186065)
         if not isinstance(staff_channel, discord.abc.Messageable):
             raise ValueError("Staff channel isn't a text channel")
         ta_embed = discord.Embed(
@@ -298,7 +301,7 @@ class WelcomeViewPersistent(discord.ui.View):
         self.requested_ta.append(member.id)
             
     
-    @discord.ui.button(label="I need help", custom_id="welcome_view_persistent:help", style=discord.ButtonStyle.green, emoji="🙋‍♀️")
+    @discord.ui.button(label="I need help", custom_id="welcome_view_persistent:help", style=discord.ButtonStyle.green, emoji="🙋‍♀️", row=1)
     async def need_help(self, interaction: discord.Interaction, _: discord.ui.Button):
         await interaction.response.send_message(view=WelcomeViewHelp(), ephemeral=True)
 
@@ -308,8 +311,8 @@ class WelcomeViewDecline(discord.ui.View):
         super().__init__(timeout=None)
         self.add_item(discord.ui.Button(label="No, I'll verify", style=discord.ButtonStyle.url, emoji=YES_EMOJI_ID, url="https://dauth.spclr.ch/"))
         
-    @discord.ui.button(label="Yes, skip verification", custom_id="give_external", style=discord.ButtonStyle.red, emoji=NO_EMOJI_ID)
-    async def verify_button(self, interaction: discord.Interaction, _: discord.ui.Button):
+    @discord.ui.button(label="Yes, skip verification", custom_id="welcome_view_decline:skip_verify", style=discord.ButtonStyle.red, emoji=NO_EMOJI_ID)
+    async def skip_verify(self, interaction: discord.Interaction, _: discord.ui.Button):
         role = discord.Object(767315361443741717)
         member = interaction.user
         if not interaction.guild or not isinstance(interaction.guild, discord.abc.Messageable) or not isinstance(member, discord.Member):
@@ -330,7 +333,7 @@ class WelcomeViewTA(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
     
-    @discord.ui.button(label="I need help", custom_id="welcome_view_ta_admin_persistent:decline", style=discord.ButtonStyle.green, emoji=YES_EMOJI_ID)
+    @discord.ui.button(label="Accept", custom_id="welcome_view_ta_admin_persistent:accept", style=discord.ButtonStyle.green, emoji=YES_EMOJI_ID)
     async def accept(self, interaction: discord.Interaction, _: discord.ui.Button):
         if interaction.guild is None:
             raise ValueError("Interaction not in a guild")
@@ -353,7 +356,7 @@ class WelcomeViewTA(discord.ui.View):
                                     color=discord.Color.green())
             await interaction.response.edit_message(embed=embed, view=None)
             
-    @discord.ui.button(label="I need help", custom_id="welcome_view_ta_admin_persistent:decline", style=discord.ButtonStyle.red, emoji=NO_EMOJI_ID)
+    @discord.ui.button(label="Decline", custom_id="welcome_view_ta_admin_persistent:decline", style=discord.ButtonStyle.red, emoji=NO_EMOJI_ID)
     async def decline(self, interaction: discord.Interaction, _: discord.ui.Button):
         if interaction.guild is None:
             raise ValueError("Interaction not in a guild")
@@ -384,7 +387,7 @@ class WelcomeViewHelp(discord.ui.View):
         self.requested_help = []
         self.add_item(discord.ui.Button(label="What is Discord?", style=discord.ButtonStyle.url, url="https://discord.com/safety/360044149331-What-is-Discord"))
 
-    @discord.ui.button(label="Verifying my ETH account", custom_id="welcome_view_help:verify", style=discord.ButtonStyle.grey, emoji=YES_EMOJI_ID)
+    @discord.ui.button(label="Verifying my ETH account", custom_id="welcome_view_help:verify", style=discord.ButtonStyle.grey)
     async def verify(self, interaction: discord.Interaction, _: discord.ui.Button):
         content = """**How to verify that you're an ETH student:**
 **1.** Click on the `Verify ETH Student` button above.
@@ -394,7 +397,7 @@ class WelcomeViewHelp(discord.ui.View):
         embed = discord.Embed(title="Help with verifying", description=content, color=discord.Color.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @discord.ui.button(label="I need help", custom_id="welcome_view_help:other", style=discord.ButtonStyle.grey, emoji=YES_EMOJI_ID)
+    @discord.ui.button(label="Other", custom_id="welcome_view_help:other", style=discord.ButtonStyle.grey)
     async def other(self, interaction: discord.Interaction, _: discord.ui.Button):
         member = interaction.user
         if interaction.guild is None or not isinstance(member, discord.Member):
@@ -404,7 +407,7 @@ class WelcomeViewHelp(discord.ui.View):
             print("Help was requested. Don't have access to staff channels.")
             staff_channel = interaction.guild.get_channel(237673537429700609)
             if staff_channel is None:
-                raise ValueError("No staff channel found")
+                staff_channel = interaction.guild.get_channel(1046508939254186065)
         if not isinstance(staff_channel, discord.abc.Messageable):
            raise ValueError("Staff channel isn't a text channel")
         if member.id in self.requested_help:

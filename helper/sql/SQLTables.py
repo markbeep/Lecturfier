@@ -61,7 +61,6 @@ Lectures = """       CREATE TABLE IF NOT EXISTS Lectures (
                         UNIQUE (CourseId, DayId, HourFrom, MinuteFrom)
                         );"""
 UserStatistics = """CREATE TABLE IF NOT EXISTS UserStatistics (
-                        UserStatisticID integer PRIMARY KEY,
                         UniqueMemberID integer NOT NULL,
                         MessagesSent integer DEFAULT 0,
                         MessagesDeleted integer DEFAULT 0,
