@@ -13,6 +13,7 @@ from cogs.quote import quote_setup_hook
 
 prefix = os.getenv("BOT_PREFIX")
 guild_id = os.getenv("TEST_GUILD_ID")
+TEST_GUILD = None
 if guild_id:
     TEST_GUILD = discord.Object(int(guild_id))
 assert prefix
