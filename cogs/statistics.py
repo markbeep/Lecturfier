@@ -45,7 +45,7 @@ class Statistics(commands.Cog):
         # Backs up all files every 2 hours
         if not self.sent_file and datetime.now().hour % 2 == 0:
             # Backs the data files up to github
-            if os.getenv("BACKUP_TO_GIT"):
+            if os.getenv("BACKUP_TO_GIT") in ["true", "t", "1"]:
                 self.sent_file = True
                 commit, push = gitpush("./data")
                 user = self.bot.get_user(self.bot.owner_id)
