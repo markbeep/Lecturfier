@@ -18,7 +18,7 @@ DiscordGuilds = """ CREATE TABLE IF NOT EXISTS DiscordGuilds (
                         GuildMemberCount integer default 1,
                         GuildRoleCount integer default 0
                         );"""
-DiscordChannels = """ CREATE TABLE IF NOT EXISTS DiscordChannels (
+DiscordChannels ="""CREATE TABLE IF NOT EXISTS DiscordChannels (
                         DiscordChannelID integer NOT NULL PRIMARY KEY,
                         DiscordGuildID integer NOT NULL,
                         ChannelName text NOT NULL,
@@ -26,7 +26,7 @@ DiscordChannels = """ CREATE TABLE IF NOT EXISTS DiscordChannels (
                         ChannelPosition integer NOT NULL,
                         FOREIGN KEY (DiscordGuildID) REFERENCES DiscordGuilds(DiscordGuildID)
                         );"""
-DiscordMembers = """ CREATE TABLE IF NOT EXISTS DiscordMembers (
+DiscordMembers = """CREATE TABLE IF NOT EXISTS DiscordMembers (
                         UniqueMemberID integer PRIMARY KEY,
                         DiscordUserID integer NOT NULL,
                         DiscordGuildID integer NOT NULL,
@@ -36,29 +36,33 @@ DiscordMembers = """ CREATE TABLE IF NOT EXISTS DiscordMembers (
                         FOREIGN KEY (DiscordUserID) REFERENCES DiscordUsers(DiscordUserID),
                         FOREIGN KEY (DiscordGuildID) REFERENCES DiscordGuilds(DiscordGuildID)
                         );"""
-Subjects = """ CREATE TABLE IF NOT EXISTS Subjects (
-                        SubjectID integer PRIMARY KEY,
-                        SubjectName text,
-                        SubjectAbbreviation text,
-                        SubjectSemester integer default 0,
-                        SubjectLink text
+Courses = """        CREATE TABLE IF NOT EXISTS Courses (
+                        CourseId INTEGER PRIMARY KEY AUTOINCREMENT,
+                        Abbreviation TEXT NOT NULL,
+                        GuildId INTEGER NOT NULL,
+                        Name TEXT NOT NULL,
+                        DiscordRoleId INTEGER NOT NULL,
+                        DiscordChannelId INTEGER NOT NULL,
+                        Link TEXT,
+                        UNIQUE (Abbreviation, GuildId)
                         );"""
-WeekDayTimes = """ CREATE TABLE IF NOT EXISTS WeekDayTimes (
-                        UniqueDayTimesID integer PRIMARY KEY,
-                        SubjectID integer NOT NULL,
-                        DayID integer NOT NULL,
-                        TimeFrom text NOT NULL,
-                        TimeTo text NOT NULL,
-                        StreamLink text,
-                        ZoomLink text,
-                        OnSiteLocation text,
-                        FOREIGN KEY (SubjectID) REFERENCES Subjects(SubjectID)
+
+Lectures = """       CREATE TABLE IF NOT EXISTS Lectures (
+                        LectureId INTEGER PRIMARY KEY AUTOINCREMENT,
+                        CourseId INTEGER NOT NULL,
+                        DayId INTEGER NOT NULL,
+                        HourFrom INTEGER NOT NULL,
+                        MinuteFrom INTEGER NOT NULL,
+                        StreamLink TEXT,
+                        SecondaryLink TEXT,
+                        OnSiteLocation TEXT,
+                        FOREIGN KEY (CourseId) REFERENCES Courses(CourseId)
+                        ON DELETE CASCADE ON UPDATE CASCADE,
+                        UNIQUE (CourseId, DayId, HourFrom, MinuteFrom)
                         );"""
-UserStatistics = """ CREATE TABLE IF NOT EXISTS UserStatistics (
+UserStatistics = """CREATE TABLE IF NOT EXISTS UserStatistics (
                         UserStatisticID integer PRIMARY KEY,
                         UniqueMemberID integer NOT NULL,
-                        -- stats for each subject, where subjectID 0 is no current subject
-                        SubjectID integer NOT NULL,
                         MessagesSent integer DEFAULT 0,
                         MessagesDeleted integer DEFAULT 0,
                         MessagesEdited integer DEFAULT 0,
@@ -74,9 +78,8 @@ UserStatistics = """ CREATE TABLE IF NOT EXISTS UserStatistics (
                         ReactionsReceived integer DEFAULT 0,
                         ReactionsTakenAway integer DEFAULT 0,
                         VoteCount integer DEFAULT 0,
-                        FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID),
-                        FOREIGN KEY (SubjectID) REFERENCES Subjects(SubjectID)
-                                    );"""
+                        FOREIGN KEY (UniqueMemberID) REFERENCES DiscordMembers(UniqueMemberID)
+                        );"""
 VoiceLevels = """ CREATE TABLE IF NOT EXISTS VoiceLevels (
                     UniqueMemberID integer NOT NULL PRIMARY KEY,
                     ExperienceAmount integer DEFAULT 0,
@@ -175,7 +178,7 @@ favorite_quotes = """   CREATE TABLE IF NOT EXISTS "FavoriteQuotes" (
                             FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID") ON DELETE CASCADE 
                         );"""
 
-all_tables = [DiscordUsers, DiscordGuilds, DiscordChannels, DiscordMembers, Subjects, WeekDayTimes,
+all_tables = [DiscordUsers, DiscordGuilds, DiscordChannels, DiscordMembers, Courses, Lectures,
               UserStatistics, VoiceLevels, CovidGuessing, Reputations, Events, EventJoinedUsers,
               Quotes, QuoteAliases, QuotesToRemove, Config, CommandPermissions, covid_cases,
               favorite_quotes]
@@ -185,11 +188,6 @@ def create_tables(conn=connect()):
     try:
         for table in all_tables:
             conn.execute(table)
-            name = get_table_name(table)
-            if name == "Subjects":
-                rows = conn.execute("SELECT * FROM Subjects LIMIT 1").fetchall()
-                if len(rows) == 0:
-                    conn.execute("INSERT INTO Subjects(SubjectID, SubjectName) VALUES (0, 'No Lecture')")
     except Exception as e:
         print(e)
     finally:
@@ -216,6 +214,8 @@ def compare_headers(table: str, header: list[str]):
         if col not in ex_headers:
             print(f"WARNING! {name}: {col} exists in table, but is not defined in SQLTables.py!")
     for col in ex_headers:  # check if headers are the same both way
+        if "UNIQUE" in col or "ON" in col:
+            continue
         if col not in header:
             print(f"WARNING! {name}: {col} is defined in SQLTables.py, but is not in the actual DB! (This can cause problems!)")
 

@@ -1,17 +1,22 @@
 import discord
 from discord.ext import commands
+import os
 
 attributes = {
     "aliases": ["h", "halp", "hell", "hepl", "helps", "guide", "manual"],
-    "usage": "help [command | group | cog]"
+    "usage": "help [command | group]"
 }
 
+# makes sure prefix is of type string and exists
+temp_prefix = os.getenv("BOT_PREFIX")
+assert temp_prefix
+bot_prefix = temp_prefix
 
 class Help(commands.HelpCommand):
     # help
     async def send_bot_help(self, mapping):
+        
         embed = discord.Embed(color=0xcbd3d7)
-        bot_prefix = self.clean_prefix
         # sorts by the amount of commands in the cog (after filtering)
         for cog, cmds in sorted(mapping.items(), key=lambda e: len(e[1]), reverse=True):
             if len(cmds) > 0:
@@ -31,7 +36,9 @@ class Help(commands.HelpCommand):
                 embed.add_field(name=f"{cog_name}", value=msg)
 
         embed.set_footer(text=f"Use {bot_prefix}help <command / category> to get more information.")
-        embed.set_author(name=self.context.message.author.name, icon_url=self.context.message.author.avatar_url)
+        embed.set_author(
+            name=self.context.message.author.name,
+            icon_url=self.context.message.author.avatar.url if self.context.message.author.avatar else None)
         file = discord.File("./images/help_page.gif")
         channel = self.get_destination()
         await channel.send(embed=embed, file=file)
@@ -49,7 +56,7 @@ class Help(commands.HelpCommand):
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Subcommands =\n{', '.join(sub_commands)}```")
         if len(command_chain := group.full_parent_name) > 0:
             command_chain = group.full_parent_name + " "
-        embed.set_footer(text=f"This command has subcommands. Check their help page with {self.clean_prefix}help {command_chain}{group.name} <subcommand>")
+        embed.set_footer(text=f"This command has subcommands. Check their help page with {bot_prefix}help {command_chain}{group.name} <subcommand>")
         await self.context.send(embed=embed)
 
     # help <cog>
@@ -94,17 +101,19 @@ class Help(commands.HelpCommand):
             usage = command.usage
             if len(command.full_parent_name) > 0:
                 usage = command.full_parent_name + " " + usage
-            usage = self.clean_prefix + usage
-        embed.add_field(name="Info", value=help_msg.replace("{prefix}", self.clean_prefix), inline=False)
+            usage = bot_prefix + usage
+        embed.add_field(name="Info", value=help_msg.replace("{prefix}", bot_prefix), inline=False)
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Aliases =\n{aliases_msg}```")
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Permissions =\n{permissions}```")
         """checks = [c.__name__ for c in command.checks]
         if len(checks) > 0:
             embed.add_field(name="\u200b", value=f"```asciidoc\n= Checks =\n{', '.join(checks)}```")"""
         embed.add_field(name="\u200b", value=f"```asciidoc\n= Usage =\n{usage}```", inline=False)
-        embed.set_author(name=self.context.message.author.name, icon_url=self.context.message.author.avatar_url)
+        embed.set_author(
+            name=self.context.message.author.name,
+            icon_url=self.context.message.author.avatar.url if self.context.message.author.avatar else None)
         return embed
 
 
-def setup(bot):
+async def setup(bot: commands.Bot):
     bot.help_command = Help(command_attrs=attributes)

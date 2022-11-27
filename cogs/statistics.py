@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from datetime import datetime
 
@@ -26,16 +27,16 @@ class Statistics(commands.Cog):
         self.waiting = False
         self.time_counter = 0  # So statistics dont get saved every few seconds, and instead only every 2 mins
         self.bot_changed_to_yesterday = {}
-        self.background_git_backup.start()
+        self.background_git_backup.start()  # pylint: disable=no-member
         self.sent_file = False
         self.current_subject = [-1, 0]
         self.conn = SQLFunctions.connect()
 
     def heartbeat(self):
-        return self.background_git_backup.is_running()
+        return self.background_git_backup.is_running()  # pylint: disable=no-member
 
-    def get_task(self):
-        return self.background_git_backup
+    def cog_unload(self) -> None:
+        self.background_git_backup.cancel()  # pylint: disable=no-member
 
     @tasks.loop(seconds=10)
     async def background_git_backup(self):
@@ -44,9 +45,7 @@ class Statistics(commands.Cog):
         # Backs up all files every 2 hours
         if not self.sent_file and datetime.now().hour % 2 == 0:
             # Backs the data files up to github
-            with open("./data/settings.json", "r") as f:
-                settings = json.load(f)
-            if settings["upload to git"]:
+            if os.getenv("BACKUP_TO_GIT") in ["true", "t", "1"]:
                 self.sent_file = True
                 commit, push = gitpush("./data")
                 user = self.bot.get_user(self.bot.owner_id)
@@ -109,7 +108,6 @@ class Statistics(commands.Cog):
                 SQLFunctions.insert_or_update_config("deleted_messages", deleted_messages+1, self.conn)
             except discord.NotFound:  # message was already deleted
                 pass
-        SUBJECT_ID = self.get_current_subject()
         # Makes it better to work with the message
         msg = demojize(message.content)
 
@@ -128,7 +126,6 @@ class Statistics(commands.Cog):
                 images_amt += 1
 
         SQLFunctions.update_statistics(message.author,
-                                       SUBJECT_ID,
                                        conn=self.conn,
                                        messages_sent=1,
                                        characters_sent=char_count,
@@ -139,23 +136,11 @@ class Statistics(commands.Cog):
                                        file_size_sent=file_sizes,
                                        images_sent=images_amt)
 
-    def get_current_subject(self, semester=2) -> int:
-        """
-        Minor cache system to only make a subject query if it's a new minute
-        Returns the current subject ID
-        """
-        minute = datetime.now().minute
-        if self.current_subject[0] != minute:
-            subject_id = SQLFunctions.get_current_subject_id(semester, conn=self.conn)
-            self.current_subject = [minute, subject_id]
-        return self.current_subject[1]
-
     @commands.Cog.listener()
     async def on_message_delete(self, message):
         if message.guild is None:
             return
-        SUBJECT_ID = self.get_current_subject()
-        SQLFunctions.update_statistics(message.author, SUBJECT_ID, messages_deleted=1)
+        SQLFunctions.update_statistics(message.author, messages_deleted=1)
 
     @commands.Cog.listener()
     async def on_message_edit(self, before, message):
@@ -175,9 +160,7 @@ class Statistics(commands.Cog):
         after_emoji_count = a_cont.count(":") // 2
         after_spoiler_count = a_cont.count("||") // 2
 
-        SUBJECT_ID = self.get_current_subject()
         SQLFunctions.update_statistics(message.author,
-                                       SUBJECT_ID,
                                        messages_edited=1,
                                        characters_sent=after_char_count - before_char_count,
                                        words_sent=after_word_count - before_word_count,
@@ -190,9 +173,8 @@ class Statistics(commands.Cog):
             return
         if member.id == reaction.message.author.id:
             return
-        SUBJECT_ID = self.get_current_subject()
-        SQLFunctions.update_statistics(member, SUBJECT_ID, reactions_added=1)  # reactions added by the user
-        SQLFunctions.update_statistics(reaction.message.author, SUBJECT_ID, reactions_received=1)  # reactions received by the user
+        SQLFunctions.update_statistics(member, reactions_added=1)  # reactions added by the user
+        SQLFunctions.update_statistics(reaction.message.author, reactions_received=1)  # reactions received by the user
 
     @commands.Cog.listener()
     async def on_reaction_remove(self, reaction, member):
@@ -200,9 +182,8 @@ class Statistics(commands.Cog):
             return
         if member.id == reaction.message.author.id:
             return
-        SUBJECT_ID = self.get_current_subject()
-        SQLFunctions.update_statistics(member, SUBJECT_ID, reactions_removed=1)
-        SQLFunctions.update_statistics(reaction.message.author, SUBJECT_ID, reactions_taken_away=1)
+        SQLFunctions.update_statistics(member, reactions_removed=1)
+        SQLFunctions.update_statistics(reaction.message.author, reactions_taken_away=1)
 
     async def create_embed(self, member: discord.Member, statistic_columns) -> discord.Embed:
         """
@@ -289,11 +270,11 @@ class Statistics(commands.Cog):
                 await ctx.send(embed=embed)
             else:
                 try:
-                    memberconverter = discord.ext.commands.MemberConverter()
+                    memberconverter = commands.MemberConverter()
                     member = await memberconverter.convert(ctx, user)
-                except discord.ext.commands.errors.BadArgument:
+                except commands.errors.BadArgument:
                     await ctx.send("Invalid user. Mention the user for this to work.")
-                    raise discord.ext.commands.errors.BadArgument
+                    raise commands.errors.BadArgument()
                 embed = await self.create_embed(member, statistic_columns)
                 await ctx.send(embed=embed)
 
@@ -547,5 +528,5 @@ class Statistics(commands.Cog):
         await ctx.send(embed=embed)
 
 
-def setup(bot):
-    bot.add_cog(Statistics(bot))
+async def setup(bot):
+    await bot.add_cog(Statistics(bot))

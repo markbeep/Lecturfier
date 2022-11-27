@@ -1,7 +1,13 @@
-import logging
+import logging, os
 
 logger = logging.getLogger("discord")
 logger.setLevel(logging.WARNING)
+
+if not os.path.exists("./logs"):
+    os.mkdir("logs")
+    if not os.path.exists("./logs/discord.log"):
+        open("./logs/discord.log", "w").close()
+
 handler = logging.FileHandler(filename="./logs/discord.log", encoding="utf-8", mode="w")
 handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s"))
 logger.addHandler(handler)

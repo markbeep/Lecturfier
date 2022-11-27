@@ -56,7 +56,7 @@ English word list: https://github.com/dwyl/english-words
 import os
 
 
-def solve(wtg: str, ignore=None, language="english"):
+def solve(wtg: str, ignore=None, language="english") -> tuple[dict[str, int], list[str]]:
     """Returns a type dict with all letters and the amount of words
     that contain that letter and a type list with the list of fitting
     words.
@@ -85,7 +85,7 @@ def solve(wtg: str, ignore=None, language="english"):
     letter_count = {'a': 0, 'b': 0, 'c': 0, 'd': 0, 'e': 0, 'f': 0, 'g': 0, 'h': 0, 'i': 0, 'j': 0, 'k': 0, 'l': 0,
                     'm': 0, 'n': 0, 'o': 0, 'p': 0, 'q': 0, 'r': 0, 's': 0, 't': 0, 'u': 0, 'v': 0, 'w': 0, 'x': 0,
                     'y': 0, 'z': 0, 'ä': 0, 'ö': 0, 'ü': 0}
-    fitting = []
+    fitting: list[str] = []
 
     get_fitting(words, wtg, fitting, ignore)
     count_chars(fitting, wtg, letter_count, ignore)
