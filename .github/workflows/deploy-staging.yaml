@@ -2,7 +2,7 @@ name: Build Release Staging
 
 on:
   push:
-    branches: ["Dpy-v2"]
+    branches: ["staging"]
 
 jobs:
   build:
