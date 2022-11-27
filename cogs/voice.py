@@ -32,13 +32,13 @@ class Voice(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.conn = SQLFunctions.connect()
-        self.background_save_levels.start()
+        self.background_save_levels.start()  # pylint: disable=no-member
 
     def heartbeat(self):
-        return self.background_save_levels.is_running()
+        return self.background_save_levels.is_running()  # pylint: disable=no-member
 
     def cog_unload(self) -> None:
-        self.background_save_levels.cancel()
+        self.background_save_levels.cancel()  # pylint: disable=no-member
 
     @commands.Cog.listener()
     async def on_message(self, message):

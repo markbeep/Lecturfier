@@ -320,15 +320,14 @@ class Quote(commands.Cog):
                 break
         await self.get_all_quotes(ctx, user)
 
-    async def get_all_quotes(self, ctx, user):
-
+    async def get_all_quotes(self, ctx: commands.Context, user: str):
+        assert ctx.message.guild
         member = None
         user = user.replace("<@", "").replace(">", "").replace("!", "")
         if user.isnumeric():
             discord_member = ctx.message.guild.get_member(int(user))
-            member = SQLFunctions.get_or_create_discord_member(discord_member, 0, self.conn)
-
-        quote_list = ""
+            if discord_member:
+                member = SQLFunctions.get_or_create_discord_member(discord_member, 0, self.conn)
 
         # executes query to get all quotes
         if member is not None:
@@ -338,7 +337,7 @@ class Quote(commands.Cog):
 
         # If there are no quotes for the given person;
         if len(all_quotes) == 0:
-            embed = discord.Embed(title="Quotes Error", description=f"{user} doesn't have any quotes yet.", color=0xFF0000)
+            embed = discord.Embed(title="Quotes Error", description=f"{user} doesn't have any quotes.", color=0xFF0000)
             await ctx.send(embed=embed)
             raise commands.errors.BadArgument()
 
@@ -511,11 +510,12 @@ class Quote(commands.Cog):
 
     @commands.guild_only()
     @quote.command(name="names", aliases=["name"], usage="names")
-    async def quote_names(self, ctx):
+    async def quote_names(self, ctx: commands.Context):
         """
         Lists all names/discord id's that have at least one quote.
         It's sorted by amount of quotes each user has in descending order.
         """
+        assert ctx.message.guild
         quoted_names = SQLFunctions.get_quoted_names(ctx.message.guild, self.conn)
 
         # If there are no quotes on the server
@@ -556,8 +556,7 @@ class Quote(commands.Cog):
         # sends the initial message, then edits it to a mention message and deletes it afterwards
         for m in messages_to_send:
             msg = await ctx.send("mentions go brrrrrrr <a:partypoop:944975859037650954>")
-            await msg.edit(content=m)
-            await msg.delete()
+            await msg.edit(content=m, delete_after=1)
 
         view = PagesView(self.bot, ctx, pages, ctx.message.author.id, "All Quote Names")
         if len(pages) > 1:

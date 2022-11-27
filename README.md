@@ -29,9 +29,16 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
 
 <img src="https://i.imgur.com/RiUvcML.jpg" width="460"/>
 
+## Running Lecturfier
+
+Lecturfier is setup to run using Docker so it can easily be deployed on a Kubernetes cluster. Because of that the latest Docker image is always available at https://hub.docker.com/repository/docker/markbeep/lecturfier and can be pulled via `docker pull markbeep/lecturfier:latest` or `docker pull markbeep/lecturfier:staging`.
+
+To run it simply run `docker compose up --build`
+
 ---
 
 ## Rework
+
 - [x] admin.py
 - [x] draw.py
 - [x] hangman.py
@@ -42,16 +49,18 @@ Lecturfier is a Discord Bot that helps out in tons of ways for the ETH D-INFK 20
 - [x] minesweeper.py
 - [x] owner.py
 - [x] quote.py
-- [ ] reputation.py
-- [ ] statistics.py
-- [ ] updates.py
-- [ ] voice.py
+- [x] reputation.py
+- [x] statistics.py
+- [x] updates.py
+- [x] voice.py
 
 ## Tested
+
 - [ ] admin.py
 - [ ] draw.py
 - [x] hangman.py
 - [x] help.py
+- [ ] aoc.py
 - [ ] information.py
 - [ ] mainbot.py
 - [ ] minesweeper.py

@@ -5,7 +5,6 @@ services:
     restart: on-failure
     volumes:
       - ./data:/app/data
-      - ./logs:/app/logs
       - ./place:/app/place
     env_file:
       - .env

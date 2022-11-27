@@ -293,10 +293,11 @@ class Owner(commands.Cog):
         Permissions: Owner
         """
         all_loops = {
-            "Lecture Updates Loop": self.bot.get_cog("Updates").heartbeat(),
+            "Lecture Updates Loop": self.bot.get_cog("Task").heartbeat(),
             "Git Backup Loop": self.bot.get_cog("Statistics").heartbeat(),
             "Voice XP track Loop": self.bot.get_cog("Voice").heartbeat(),
-            "Events Updates": self.bot.get_cog("Information").heartbeat()
+            "Events Updates": self.bot.get_cog("Information").heartbeat(),
+            "AoC Tracker": self.bot.get_cog("AdventOfCode").heartbeat(),
         }
 
         msg = ""

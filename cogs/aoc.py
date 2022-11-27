@@ -10,7 +10,7 @@ from pytz import timezone
 from cogs.quote import PagesView
 from helper.log import log
 from helper.sql import SQLFunctions
-from information import get_formatted_time
+from .information import get_formatted_time
 
 def create_pages(msg: str, CHAR_LIMIT: int) -> list[str]:
     pages = []
@@ -46,8 +46,15 @@ class AdventOfCode(commands.Cog):
         temp_channel = self.bot.get_channel(910450760234467328)
         if not temp_channel:
             temp_channel = self.bot.get_channel(1046168961189941369)
-        assert isinstance(temp_channel, discord.abc.MessageableChannel)
+        assert isinstance(temp_channel, discord.abc.Messageable)
         self.aoc_channel = temp_channel
+        self.aoc_loop.start()  # pylint: disable=no-member
+
+    def heartbeat(self):
+        return self.aoc_loop.is_running()  # pylint: disable=no-member
+
+    def cog_unload(self) -> None:
+        self.aoc_loop.cancel()  # pylint: disable=no-member
 
     @tasks.loop(minutes=15)
     async def aoc_loop(self):
@@ -66,19 +73,24 @@ class AdventOfCode(commands.Cog):
         
         # fetches the stats
         await self.bot.wait_until_ready()
-        session_key = SQLFunctions.get_config("AoCSession", self.conn)[0]
+        session_key = os.getenv("AOC_SESSION_KEY")
+        if not session_key:
+            print("Session key not available. Skipping AoC request.")
+            return
+        
+        return 
         cookie = {"session": session_key}
         async with aiohttp.ClientSession(cookies=cookie) as session:
             async with session.get("https://adventofcode.com/2022/leaderboard/private/view/951576.json") as response:
                 if response.status == 200:
                     temp_data = await response.read()
                     self.data = json.loads(temp_data)
-                    log("Got advent of code data", True)
+                    log("Got new advent of code data", True)
                     self.last_updated = time.time()
                     # saves the file to the data folder
                     with open(self.aoc_path, "w") as f:
                         json.dump(self.data, f)
-                    print("Successfully updated the AoC data.")
+                    log("Successfully updated the AoC data.", True)
         
 
     @commands.guild_only()

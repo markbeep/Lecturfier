@@ -1,9 +1,7 @@
 import logging
 import sqlite3
 from datetime import datetime
-from typing import Union
-from enum import Enum
-
+import os
 import discord
 
 logger = logging.getLogger()
@@ -12,6 +10,8 @@ logger.setLevel(logging.WARNING)
 
 
 def connect(fp="./data/discord.db") -> sqlite3.Connection:
+    if not os.path.exists("./data"):
+        os.mkdir("data")
     conn = sqlite3.connect(fp)
     conn.execute("PRAGMA foreign_keys=ON")
     conn.commit()
@@ -127,7 +127,6 @@ class UserStatistics:
     def __init__(self, args):
         self.UserStatisticsID = args[0]
         self.UniqueMemberID = args[1]
-        self.SubjectID = args[2]
         self.MessagesSent = args[3]
         self.MessageDeleted = args[4]
         self.MessageEdited = args[5]
@@ -144,21 +143,21 @@ class UserStatistics:
         self.ReactionTakenAway = args[16]
 
 
-def get_or_create_user_statistics(member: discord.Member, subject_id, conn=connect()) -> UserStatistics:
+def get_or_create_user_statistics(member: discord.Member, conn=connect()) -> UserStatistics:
     result = conn.execute("""SELECT * FROM UserStatistics US
                  INNER JOIN DiscordMembers DM on DM.UniqueMemberID = US.UniqueMemberID
                  WHERE DM.DiscordUserID = ? AND DM.DiscordGuildID = ?""", (member.id, member.guild.id)).fetchone()
     if result is None:
         dm = get_or_create_discord_member(member, conn=conn)
         try:
-            conn.execute("""INSERT INTO UserStatistics(UniqueMemberID, SubjectID) VALUES (?,?)""", (dm.UniqueMemberID, subject_id))
+            conn.execute("""INSERT INTO UserStatistics(UniqueMemberID) VALUES (?)""", (dm.UniqueMemberID,))
         finally:
             conn.commit()
-        return get_or_create_user_statistics(member, subject_id, conn)
+        return get_or_create_user_statistics(member, conn)
     return UserStatistics(result)
 
 
-def update_statistics(member: discord.Member, subject_id: int, conn=connect(), messages_sent=0, messages_deleted=0, messages_edited=0,
+def update_statistics(member: discord.Member, conn=connect(), messages_sent=0, messages_deleted=0, messages_edited=0,
                       characters_sent=0,
                       words_sent=0, spoilers_sent=0, emojis_sent=0, files_sent=0, file_size_sent=0, images_sent=0, reactions_added=0,
                       reactions_removed=0, reactions_received=0, reactions_taken_away=0, vote_count=0) -> bool:
@@ -183,39 +182,24 @@ def update_statistics(member: discord.Member, subject_id: int, conn=connect(), m
                     ReactionsReceived = ReactionsReceived + ?,
                     ReactionsTakenAway = ReactionsTakenAway + ?,
                     VoteCount = VoteCount + ?
-                WHERE UniqueMemberID = ? AND SubjectID = ?"""
+                WHERE UniqueMemberID = ?"""
     value = False
     try:
         rows = conn.execute(sql,
                             (messages_sent, messages_deleted, messages_edited, characters_sent, words_sent, spoilers_sent, emojis_sent, files_sent,
                              file_size_sent, images_sent, reactions_added, reactions_removed, reactions_received, reactions_taken_away, vote_count,
-                             dm.UniqueMemberID, subject_id)).rowcount
+                             dm.UniqueMemberID)).rowcount
         conn.commit()
         if rows == 0:
-            get_or_create_user_statistics(member, subject_id, conn)
+            get_or_create_user_statistics(member, conn)
             conn.execute(sql, (messages_sent, messages_deleted, messages_edited, characters_sent, words_sent, spoilers_sent, emojis_sent, files_sent,
                                file_size_sent, images_sent, reactions_added, reactions_removed, reactions_received, reactions_taken_away, vote_count,
-                               dm.UniqueMemberID, subject_id))
+                               dm.UniqueMemberID))
             conn.commit()
             value = True
     finally:
         conn.commit()
     return value
-
-
-def get_current_subject_id(semester: int, conn=connect()) -> int:
-    logger.debug(msg="Getting current subject ID")
-    dt = datetime.now()
-    hour = dt.hour
-    minute = dt.minute
-    formatted_time = f"{hour}:{minute}:00"
-    sql = """   SELECT W.SubjectID FROM WeekDayTimes W
-                INNER JOIN Subjects S on W.SubjectID = S.SubjectID
-                WHERE W.TimeFrom <= ? AND ? < W.TimeTo AND S.SubjectSemester = ?"""
-    subject = conn.execute(sql, (formatted_time, formatted_time, semester)).fetchone()
-    if subject is None:
-        return 0
-    return subject[0]
 
 
 def get_statistic_rows(column, limit, conn=connect()):
@@ -534,7 +518,7 @@ class Quote:
         return str(self.QuoteID)
 
 
-def get_quote(quote_ID, guild_id, conn=connect(), row_id=None, random=False) -> Union[Quote, None]:
+def get_quote(quote_ID, guild_id, conn=connect(), row_id=None, random=False) -> Quote | None:
     values = "QuoteID, Quote, Name, UniqueMemberID, CreatedAt, AddedByUniqueMemberID, DiscordGuildID, AmountBattled, AmountWon, Elo"
     if random:
         row = conn.execute(f"SELECT {values} FROM Quotes WHERE DiscordGuildID=? ORDER BY RANDOM() LIMIT 1", (guild_id,)).fetchone()
@@ -745,7 +729,7 @@ def get_quoted_names(guild: discord.Guild, conn=connect()) -> list[Name]:
                         Q.AmountBattled, Q.AmountWon, Q.Elo
                 FROM Quotes Q
                 LEFT JOIN DiscordMembers DM on Q.UniqueMemberID = DM.UniqueMemberID
-                WHERE Q.DiscordGuildID=?
+                WHERE DM.DiscordGuildID=?
                 GROUP BY Q.Name
                 ORDER BY COUNT(*) DESC"""
     results = conn.execute(sql, (guild.id,)).fetchall()
@@ -959,56 +943,149 @@ def insert_or_update_command_level(command_name: str, ID: int, permission_level:
             conn.commit()
 
 
-class Subject:
-    def __init__(self, subjectID, subjectName, subjectLink, streamLink, zoomLink, onSiteLocation, subjectSemester):
-        self.id = subjectID
-        self.name = subjectName
-        self.website_link = subjectLink
-        self.stream_link = streamLink
-        self.zoom_link = zoomLink
-        self.on_site_location = onSiteLocation
-        self.semester = subjectSemester
+##########################
 
+# Lecture Updates
 
-def get_starting_subject(semester: int, conn=connect(), day=datetime.now().weekday(), hour=datetime.now().hour) -> Union[None, Subject]:
-    sql = """   SELECT WD.SubjectID, S.SubjectName, S.SubjectLink, WD.StreamLink, WD.ZoomLink, WD.OnSiteLocation, S.SubjectSemester
-                FROM WeekDayTimes WD
-                INNER JOIN Subjects S on WD.SubjectID=S.SubjectID
-                WHERE WD.DayID=? AND WD.TimeFROM=? AND S.SubjectSemester=?"""
-    row = conn.execute(sql, (day, hour, semester)).fetchone()
-    if row is None:
-        return None
-    return Subject(*row)
+##########################
 
-
-def find_matching_subject_id(subject_name, conn=connect()) -> Union[None, int]:
-    res = conn.execute("SELECT SubjectID FROM Subjects WHERE SubjectName LIKE ?", (subject_name,)).fetchone()
-    if res is None:
-        return None
-    return res[0]
-
-
-def update_or_insert_weekdaytime(name, abbreviation, link, zoom_link, stream_link, on_site_location, semester, starting_hour, ending_hour, day,
-                                 conn=connect()):
-    subject_id = find_matching_subject_id(name, conn)
-    if subject_id is None:  # then we have a new subject
-        try:
-            conn.execute("INSERT INTO Subjects(SubjectName, SubjectAbbreviation, SubjectLink, SubjectSemester) VALUES (?,?,?,?)",
-                         (name, abbreviation, link, semester))
-        finally:
-            conn.commit()
-        subject_id = find_matching_subject_id(name, conn)
-
-    # Insert weekdaytime
+def add_course(abbreviation: str, name: str, guild_id: int, channel_id: int, role_id: int, link:str|None=None):
+    conn = connect()
+    sql = "INSERT INTO Courses(Abbreviation, Name, GuildId, DiscordChannelId, DiscordRoleId, Link) VALUES (?,?,?,?,?,?)"
     try:
-        conn.execute("INSERT INTO WeekDayTimes(SubjectID, DayID, TimeFrom, TimeTo, StreamLink, ZoomLink, OnSiteLocation) VALUES (?,?,?,?,?,?,?)",
-                     (subject_id, day, starting_hour, ending_hour, stream_link, zoom_link, on_site_location))
+        conn.execute(sql, (abbreviation, name, guild_id, channel_id, role_id, link))
     finally:
         conn.commit()
 
-
-def store_covid_cases(cases, date=str(datetime.date(datetime.now())), weekday=datetime.now().weekday(), conn=connect()):
+def update_course(course_id: int, abbreviation: str, name: str, channel_id: int, role_id: int, link:str|None=None):
+    conn = connect()
+    sql = "UPDATE Courses SET Name=?, Link=?, Abbreviation=?, channel_id=?, role_id=? WHERE CourseId=?"
     try:
-        conn.execute("INSERT INTO CovidCases(Cases, Date, Weekday) VALUES (?,?,?)", (cases, date, weekday))
+        conn.execute(sql, (name, link, abbreviation, channel_id, role_id, course_id))
     finally:
         conn.commit()
+
+def delete_course(course_id: int):
+    conn = connect()
+    sql = "DELETE FROM Courses WHERE CourseId=?"
+    try:
+        conn.execute(sql, (course_id,))
+    finally:
+        conn.commit()
+
+def weekday_to_id(day: str):
+    weekday = day.lower()
+    return ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "none"].index(weekday)
+    
+def add_lecture(abbreviation: str | None, guild_id: int, weekday: str, hour_from: int, minute_from: int, stream_link:str|None=None, secondary_link:str|None=None, on_site_location:str|None=None):
+    conn = connect()
+    sql = "SELECT CourseId FROM Courses WHERE GuildId = ? AND Abbreviation = ?"
+    res = conn.execute(sql, (guild_id, abbreviation)).fetchone()
+    if not res:
+        print("There's no course for this abbreviation!")
+        return False
+    else:
+        res = res[0]
+    sql = "INSERT INTO Lectures (CourseId, DayId, HourFrom, MinuteFrom, StreamLink, SecondaryLink, OnSiteLocation) VALUES (?,?,?,?,?,?,?)"
+    try:
+        conn.execute(sql, (res, weekday_to_id(weekday), int(hour_from), int(minute_from), stream_link, secondary_link, on_site_location))
+    finally:
+        conn.commit()
+    return True
+
+def update_lecture(abbreviation: str | None, guild_id: int, weekday: str, hour_from: int, minute_from: int, stream_link:str|None=None, secondary_link:str|None=None, on_site_location:str|None=None):
+    conn = connect()
+    sql = "SELECT CourseId FROM Courses WHERE GuildId = ? AND Abbreviation = ?"
+    res = conn.execute(sql, (guild_id, abbreviation)).fetchone()
+    if not res:
+        print("There's no course for this abbreviation!")
+        return False
+    else:
+        res = res[0]
+    sql = f"UPDATE Lectures SET StreamLink=?, SecondaryLink=?, OnSiteLocation=? WHERE CourseId=? AND DayId=? AND HourFrom=? AND MinuteFrom=?"
+    try:
+        conn.execute(sql, [stream_link, secondary_link, on_site_location, res, weekday_to_id(weekday), hour_from, minute_from])
+    finally:
+        conn.commit()
+
+def get_abbreviations(guild_id: int, cur=""):
+    conn = connect()
+    sql = "SELECT Abbreviation FROM Courses WHERE GuildId = ? AND Abbreviation LIKE ?"
+    res = conn.execute(sql, (guild_id, cur + "%")).fetchall()
+    res = [x[0] for x in res]
+    return res
+
+def get_course_ids(guild_id: int, cur=""):
+    conn = connect()
+    sql = "SELECT CourseId, Abbreviation FROM Courses WHERE GuildId = ? AND CourseId+'' LIKE ?"
+    res = conn.execute(sql, (guild_id, cur + "%")).fetchall()
+    return res
+
+def get_courses(guild_id: int):
+    conn = connect()
+    sql = "SELECT CourseId, Abbreviation, GuildId, Name, Link, DiscordChannelId, DiscordRoleId FROM Courses WHERE GuildId=?"
+    res = conn.execute(sql, (guild_id,))
+    return res.fetchall()
+
+def get_single_course(course_id: int, guild_id=-1):
+    conn = connect()
+    sql = "SELECT CourseId, Abbreviation, GuildId, Name, Link FROM Courses WHERE CourseId=?"
+    values = [course_id]
+    if guild_id != -1:
+        sql += " AND GuildId=?"
+        values.append(guild_id)
+    res = conn.execute(sql, values).fetchone()
+    return res
+
+def get_single_lecture(lecture_id: int, guild_id=-1):
+    conn = connect()
+    sql = """SELECT Abbreviation, DayId, HourFrom, MinuteFrom, StreamLink, SecondaryLink, OnSiteLocation
+    FROM Lectures l
+    INNER JOIN Courses c USING (CourseId)
+    WHERE LectureId = ?"""
+    values = [lecture_id]
+    if guild_id != -1:
+        sql += " AND GuildId=?"
+        values.append(guild_id)
+    return conn.execute(sql, values).fetchone()
+
+def get_lectures(abbreviation: str, guild_id: int):
+    conn = connect()
+    sql = """SELECT LectureId, DayId, HourFrom, MinuteFrom, StreamLink, SecondaryLink, OnSiteLocation, Name
+    FROM Lectures l
+    INNER JOIN Courses c USING (CourseId)
+    WHERE Abbreviation = ? AND GuildId = ?"""
+    return conn.execute(sql, (abbreviation, guild_id)).fetchall()
+
+def get_lecture_id(abbreviation: str, guild_id: int) -> int | None:
+    conn = connect()
+    sql = """SELECT LectureId
+    FROM Lectures l
+    INNER JOIN Courses c USING (CourseId)
+    WHERE Abbreviation = ? AND GuildId = ?
+    LIMIT 1"""
+    return conn.execute(sql, (abbreviation, guild_id)).fetchone()
+
+def delete_lecture(lecture_id: int):
+    conn = connect()
+    sql = "DELETE FROM Lectures WHERE LectureId=?"
+    try:
+        conn.execute(sql, (lecture_id,))
+    finally:
+        conn.commit()
+
+def get_lecture_ids(guild_id: int, cur=""):
+    conn = connect()
+    sql = "SELECT LectureId, Abbreviation FROM Lectures INNER JOIN Courses USING (CourseId) WHERE GuildId = ? AND LectureId+'' LIKE ?"
+    res = conn.execute(sql, (guild_id, cur + "%")).fetchall()
+    return res
+
+def get_lectures_by_time(day: str, hour: int, minute: int):
+    conn = connect()
+    sql = """SELECT c.Name, c.DiscordRoleId, c.DiscordChannelId, c.Link, l.StreamLink, l.SecondaryLink, l.OnSiteLocation, l.CourseId
+        FROM Courses c
+        INNER JOIN Lectures l USING (CourseId)
+        WHERE l.HourFrom=? AND l.MinuteFrom=? AND l.DayId=?
+        """
+    users = conn.execute(sql, (hour, minute, weekday_to_id(day))).fetchall()
+    return users

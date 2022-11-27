@@ -3,13 +3,11 @@ import random
 import discord
 from discord.ext import commands
 
-from helper import file_creator
 from helper.log import log
 
 
 class MainBot(commands.Cog):
     def __init__(self, bot: commands.Bot):
-        file_creator.createFiles()
         self.bot = bot
         self.startup_extensions = [
             "statistics",
@@ -21,9 +19,9 @@ class MainBot(commands.Cog):
             "admin",
             "owner",
             "voice",
-            "updates",
             "information",
             "draw",
+            "aoc",
             "mainbot"
         ]
         self.watching_messages = [

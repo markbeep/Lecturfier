@@ -10,10 +10,10 @@ RUN pip install --no-cache --upgrade pip
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY images .
-COPY config .
-COPY helper .
-COPY cogs .
+COPY images images
+COPY config config
+COPY helper helper
+COPY cogs cogs
 COPY bot.py .
 
 CMD ["python", "bot.py"]

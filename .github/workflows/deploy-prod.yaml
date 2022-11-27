@@ -2,7 +2,7 @@ name: Build Release Staging
 
 on:
   push:
-    branches: ["Dpy-v2"]
+    branches: ["master"]
 
 jobs:
   build:
@@ -32,4 +32,4 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/lecturfier:staging
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/lecturfier:latest

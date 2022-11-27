@@ -281,7 +281,7 @@ class WelcomeViewPersistent(discord.ui.View):
         if staff_channel is None:
             print("TA role was accepted. Don't have access to staff channels.")
             staff_channel = interaction.guild.get_channel(237673537429700609)
-        if not isinstance(staff_channel, discord.abc.MessageableChannel):
+        if not isinstance(staff_channel, discord.abc.Messageable):
             raise ValueError("Staff channel isn't a text channel")
         ta_embed = discord.Embed(
             title=f"TA|{member.id}",
@@ -312,7 +312,7 @@ class WelcomeViewDecline(discord.ui.View):
     async def verify_button(self, interaction: discord.Interaction, _: discord.ui.Button):
         role = discord.Object(767315361443741717)
         member = interaction.user
-        if not interaction.guild or not isinstance(interaction.guild, discord.abc.MessageableChannel) or not isinstance(member, discord.Member):
+        if not interaction.guild or not isinstance(interaction.guild, discord.abc.Messageable) or not isinstance(member, discord.Member):
             raise ValueError("Not a member")
         await member.add_roles(role, reason="Not verified role")
         # for testing purposes
@@ -320,7 +320,7 @@ class WelcomeViewDecline(discord.ui.View):
                                             f"ID: `{member.id}`", color=0xa52222)
         embed.set_author(name=str(member), icon_url=member.avatar.url if member.avatar else None)
         log_channel = interaction.guild.get_channel(774322031688679454)
-        if not log_channel or not isinstance(log_channel, discord.abc.MessageableChannel):
+        if not log_channel or not isinstance(log_channel, discord.abc.Messageable):
             raise ValueError("Did not find log channel")
         await log_channel.send(embed=embed)
         await interaction.response.defer()
@@ -361,7 +361,7 @@ class WelcomeViewTA(discord.ui.View):
             raise ValueError("Invalid message object")
         ta_user_id = int(interaction.message.embeds[0].title.split("|")[1])
         ta_user = interaction.guild.get_member(ta_user_id)
-        if interaction.channel is None or not isinstance(interaction.channel, discord.abc.MessageableChannel):
+        if interaction.channel is None or not isinstance(interaction.channel, discord.abc.Messageable):
             raise ValueError("Channel is not a text channel")
         if ta_user is None:
             await interaction.channel.send("lol, the user left anyway...")
@@ -405,7 +405,7 @@ class WelcomeViewHelp(discord.ui.View):
             staff_channel = interaction.guild.get_channel(237673537429700609)
             if staff_channel is None:
                 raise ValueError("No staff channel found")
-        if not isinstance(staff_channel, discord.abc.MessageableChannel):
+        if not isinstance(staff_channel, discord.abc.Messageable):
            raise ValueError("Staff channel isn't a text channel")
         if member.id in self.requested_help:
             await interaction.response.send_message("You already requested help. Please wait.", ephemeral=True)
@@ -423,7 +423,7 @@ class WelcomeViewHelp(discord.ui.View):
         support_channel = interaction.guild.get_channel(881611441105416263)
         if support_channel is None:
             support_channel = interaction.guild.get_channel(402551175272202252)
-        if not isinstance(support_channel, discord.abc.MessageableChannel):
+        if not isinstance(support_channel, discord.abc.Messageable):
            raise ValueError("Support channel isn't a text channel")
         await support_channel.set_permissions(member, read_messages=True, reason="User requested help")
         await support_channel.send(f"{member.mention}, what do you need help with?")
