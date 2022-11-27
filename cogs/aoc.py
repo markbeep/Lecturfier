@@ -78,7 +78,6 @@ class AdventOfCode(commands.Cog):
             print("Session key not available. Skipping AoC request.")
             return
         
-        return 
         cookie = {"session": session_key}
         async with aiohttp.ClientSession(cookies=cookie) as session:
             async with session.get("https://adventofcode.com/2022/leaderboard/private/view/951576.json") as response:
