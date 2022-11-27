@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import json
 import time
 
@@ -71,7 +71,7 @@ class Reputation(commands.Cog):
                                   description="You can't rep yourself.",
                                   color=discord.Color.red())
             await ctx.send(embed=embed, delete_after=10)
-            raise discord.ext.commands.BadArgument
+            raise commands.errors.BadArgument()
 
         # checks if the message chars are valid
         if not await valid_chars_checker(ctx.message.content):
@@ -79,7 +79,7 @@ class Reputation(commands.Cog):
                                   description="You can only use printable ascii characters in reputation messages.",
                                   color=discord.Color.red())
             await ctx.send(embed=embed, delete_after=10)
-            raise discord.ext.commands.BadArgument
+            raise commands.errors.BadArgument()
 
         # Add reputation to user
         time_valid = await self.add_rep(ctx.message, member, ctx.message.author)
@@ -99,8 +99,8 @@ class Reputation(commands.Cog):
             discord_member = SQLFunctions.get_or_create_discord_member(ctx.message.author, conn=self.conn)
             last_sent_time = SQLFunctions.get_most_recent_time(discord_member, self.conn)
             if last_sent_time is not None:
-                seconds = datetime.datetime.fromisoformat(last_sent_time).timestamp() + self.time_to_wait
-                next_time = datetime.datetime.fromtimestamp(seconds).strftime("%A at %H:%M")
+                seconds = datetime.fromisoformat(last_sent_time).timestamp() + self.time_to_wait
+                next_time = datetime.fromtimestamp(seconds).strftime("%A at %H:%M")
                 embed = discord.Embed(
                     title="Error",
                     description=f"You've repped too recently. You can rep again on {next_time}.",
@@ -130,14 +130,14 @@ class Reputation(commands.Cog):
         display_name = member.display_name.replace("*", "").replace("_", "").replace("~", "").replace("\\", "").replace("`", "").replace("||", "").replace("@", "")
         msg = f"```diff\nReputations: {display_name}\n__________________________\n{reputation_msg}```"
         embed = discord.Embed(description=msg)
-        embed.set_footer(icon_url=member.avatar_url, text=str(member))
+        embed.set_footer(icon_url=member.avatar.url if member.avatar else None, text=str(member))
         await message.channel.send(embed=embed)
 
     def check_valid_time(self, member: SQLFunctions.DiscordMember):
         result = SQLFunctions.get_most_recent_time(member, self.conn)
         if result is None:
             return True
-        time_sent = datetime.datetime.fromisoformat(result)
+        time_sent = datetime.fromisoformat(result)
         if time.time() - time_sent.timestamp() > self.time_to_wait:
             return True
         return False
@@ -172,5 +172,5 @@ class Reputation(commands.Cog):
         return True
 
 
-def setup(bot):
-    bot.add_cog(Reputation(bot))
+async def setup(bot):
+    await bot.add_cog(Reputation(bot))

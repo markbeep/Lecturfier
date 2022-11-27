@@ -15,7 +15,7 @@ def hex_to_rgb(value):
 
 
 class PixPlace:
-    def __init__(self, fp, name, setup=True, setpixels=None, pil_img: Image = None):
+    def __init__(self, fp, name, setup=True, setpixels=None, pil_img: Image.Image | None = None):
         self.fp = fp
         self.name = name
         self.pixel_array = None

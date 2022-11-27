@@ -9,8 +9,7 @@ cogs/__pycache__/*
 helper/__pycache__/*
 *.json
 *.db
-*.txt
 helper/lecture_scraper/__pycache__/*
-images
 venv
 *.exe
+.env*
