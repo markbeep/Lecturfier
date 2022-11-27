@@ -54,7 +54,7 @@ class MainBot(commands.Cog):
         channel = self.bot.get_channel(1004090600934617238)
         if isinstance(channel, discord.abc.Messageable):
             embed = discord.Embed(title="Bot started up", timestamp=datetime.now(), color=0xcbd3d7)
-            channel.send("<@205704051856244736>", embed=embed)
+            await channel.send("<@205704051856244736>", embed=embed)
 
     async def load_all_extensions(self, extensions_to_load) -> int:
         count = 0
