@@ -44,7 +44,7 @@ class IDType(Enum):
 
 
 class Owner(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
@@ -57,6 +57,11 @@ class Owner(commands.Cog):
             self.watch_button_value: int = temp_button_value[0]
         self.sent_message = False
         self.old_value = 1e6  # to ignore fake buttons we store the last value
+        
+        temp_count_channel_id = SQLFunctions.get_config("CountChannelID", self.conn)
+        self.count_channel_id = temp_count_channel_id[0] if len(temp_count_channel_id) > 0 else 996746797236105236
+        temp_follow = SQLFunctions.get_config("FollowID", self.conn)
+        self.follow_id = temp_follow[0] if len(temp_follow) > 0 else None
 
     @commands.Cog.listener()
     async def on_message_edit(self, before, message):
@@ -100,6 +105,37 @@ class Owner(commands.Cog):
                         await user.send(embed=embed)
 
                     self.old_value = button_value
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.channel.id == self.count_channel_id and message.author.id in [self.bot.owner_id, self.follow_id]:
+            try:
+                count = int(message.content)
+                await message.channel.send(f"{count+1}")
+            except ValueError:
+                pass
+
+    @commands.is_owner()
+    @commands.guild_only()
+    @commands.command(usage="follow [member | channel]")
+    async def follow(self, ctx: commands.Context, user: discord.Member | discord.TextChannel | discord.Thread | None):
+        if user and isinstance(user, discord.Member):
+            SQLFunctions.insert_or_update_config("FollowID", user.id, self.conn)
+            self.follow_id = user.id
+            await ctx.send(f"Following {user.mention}")
+            return
+        
+        if user and isinstance(user, discord.abc.Messageable):
+            SQLFunctions.insert_or_update_config("CountChannelID", user.id, self.conn)
+            self.count_channel_id = user.id
+            await ctx.send(f"Counting in <#{self.count_channel_id}>")
+            return
+
+        following = SQLFunctions.get_config("FollowID", self.conn)
+        if len(following) == 0:
+            await ctx.send("Not following anyone yet.")
+        else:
+            await ctx.send(f"Following <@{following[0]}>")
 
     @commands.is_owner()
     @commands.command()
