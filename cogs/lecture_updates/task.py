@@ -14,7 +14,7 @@ weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", 
 
 def create_lecture_embed(course_name, course_link, stream_link, secondary_link, on_site_location, course_id):
     embed = discord.Embed(
-        title=f"Lecture Starting: {course_name} [{course_id}]",
+        title=f"Lecture Starting: {course_name}",
         color=discord.colour.Color.light_gray(),
         timestamp=datetime.datetime.now(timezone("Europe/Zurich"))
     )
@@ -25,10 +25,10 @@ def create_lecture_embed(course_name, course_link, stream_link, secondary_link, 
     if secondary_link is not None:
         secondary_link = f"[Click Here]({secondary_link})"
 
-    embed.description = f"**Course Website URL:** {course_link}\n" \
-                        f"**Room:** {on_site_location}\n" \
+    embed.description = f"**Room:** {on_site_location}\n" \
                         f"**Stream URL:** {stream_link}\n" \
-                        f"**Secondary URL:** {secondary_link}"
+                        f"**Secondary URL:** {secondary_link}" \
+                        f"**Course Website URL:** {course_link}\n"
     return embed
 
 class Task(commands.Cog):
@@ -52,7 +52,7 @@ class Task(commands.Cog):
             embed = create_lecture_embed(name, link, stream_link, secondary_link, location, course_id)
             channel = self.bot.get_channel(channel_id)
             if channel and isinstance(channel, discord.abc.Messageable):
-                await channel.send(f"<@{role_id}>", embed=embed)
+                await channel.send(f"<@&{role_id}>", embed=embed)
             else:
                 log(f"Didn't find channel {channel_id} to send lecture updates to.", True, True)
     

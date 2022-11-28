@@ -1091,7 +1091,7 @@ class BattleView(discord.ui.View):
         self.initialized = True
         channel_id = SQLFunctions.get_config("QuoteBattleChannel")
         if len(channel_id) > 0:
-            self.battle_channel_id = channel_id[0]
+            self.battle_channel_id = int(channel_id[0])
         else:
             self.battle_channel_id = -1
     
