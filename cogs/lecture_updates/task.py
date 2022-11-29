@@ -27,8 +27,8 @@ def create_lecture_embed(course_name, course_link, stream_link, secondary_link, 
 
     embed.description = f"**Room:** {on_site_location}\n" \
                         f"**Stream URL:** {stream_link}\n" \
-                        f"**Secondary URL:** {secondary_link}" \
-                        f"**Course Website URL:** {course_link}\n"
+                        f"**Secondary URL:** {secondary_link}\n" \
+                        f"**Course Website URL:** {course_link}"
     return embed
 
 class Task(commands.Cog):
