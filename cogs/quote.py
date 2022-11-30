@@ -12,7 +12,8 @@ from helper.sql import SQLFunctions
 
 active_battles = []  # list of quote ids currently in a battle (not in use right now)
 
-BATTLE_CHANNEL_ID = 901231394141921351
+configs = SQLFunctions.get_config("QuoteBattleChannel")
+BATTLE_CHANNEL_ID = configs[0] if len(configs) > 0 else 0
 
 class Quote(commands.Cog):
     def __init__(self, bot):
@@ -577,10 +578,13 @@ class Quote(commands.Cog):
             await ctx.reply("The given count needs to be numeric.")
             raise commands.errors.BadArgument()
         count = int(count)
-        for _ in range(count):
-            view = BattleView(ctx.channel, 0, self.conn)
-            msg = await ctx.send(embed=view.embed, view=view)
-            view.add_message(msg)
+        try:
+            for _ in range(count):
+                view = BattleView(ctx.channel, 0, self.conn)
+                msg = await ctx.send(embed=view.embed, view=view)
+                view.add_message(msg)
+        except IndexError:
+            await ctx.send("There are no quotes on this guild")
 
     @commands.cooldown(4, 15, BucketType.channel)
     @commands.guild_only()
@@ -1089,11 +1093,6 @@ class BattleView(discord.ui.View):
         self.in_play = False
         self.init_battle()
         self.initialized = True
-        channel_id = SQLFunctions.get_config("QuoteBattleChannel")
-        if len(channel_id) > 0:
-            self.battle_channel_id = int(channel_id[0])
-        else:
-            self.battle_channel_id = -1
     
     def add_message(self, message):
         self.message = message
@@ -1278,7 +1277,7 @@ class BattleView(discord.ui.View):
             pass
 
         # automatically sends the battle again once it ends if its in the battle channel
-        if self.channel.id == self.battle_channel_id:
+        if self.channel.id == BATTLE_CHANNEL_ID:
             view = BattleView(self.channel, 0, self.conn)
             msg = await self.channel.send(embed=view.embed, view=view)
             view.add_message(msg)
@@ -1299,7 +1298,7 @@ class BattleView(discord.ui.View):
     @discord.ui.button(custom_id="battle_view:1", style=discord.ButtonStyle.blurple, emoji="1️⃣")
     async def select_one(self, interaction: discord.Interaction, _: discord.ui.Button):
         if not self.initialized:
-            if interaction.channel and interaction.channel.id == self.battle_channel_id:
+            if interaction.channel and interaction.channel.id == BATTLE_CHANNEL_ID:
                 await self.reroll_battle(interaction)
             else:
                 await interaction.response.send_message("This battle is not in cache anymore. Start a new one.", ephemeral=True)
@@ -1318,7 +1317,7 @@ class BattleView(discord.ui.View):
     @discord.ui.button(custom_id="battle_view:2", style=discord.ButtonStyle.blurple, emoji="2️⃣")
     async def select_two(self, interaction: discord.Interaction, _: discord.ui.Button):
         if not self.initialized:
-            if interaction.channel and interaction.channel.id == self.battle_channel_id:
+            if interaction.channel and interaction.channel.id == BATTLE_CHANNEL_ID:
                 await self.reroll_battle(interaction)
             else:
                 await interaction.response.send_message("This battle is not in cache anymore. Start a new one.", ephemeral=True)
@@ -1337,7 +1336,7 @@ class BattleView(discord.ui.View):
     @discord.ui.button(custom_id="battle_view:skip", style=discord.ButtonStyle.grey, emoji="🗑️")
     async def select_skip(self, interaction: discord.Interaction, _: discord.ui.Button):
         if not self.initialized:
-            if interaction.channel and interaction.channel.id == self.battle_channel_id:
+            if interaction.channel and interaction.channel.id == BATTLE_CHANNEL_ID:
                 await self.reroll_battle(interaction)
             else:
                 await interaction.response.send_message("This battle is not in cache anymore. Start a new one.", ephemeral=True)
