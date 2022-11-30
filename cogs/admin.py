@@ -315,9 +315,13 @@ class WelcomeViewDecline(discord.ui.View):
     async def skip_verify(self, interaction: discord.Interaction, _: discord.ui.Button):
         role = discord.Object(767315361443741717)
         member = interaction.user
-        if not interaction.guild or not isinstance(interaction.guild, discord.abc.Messageable) or not isinstance(member, discord.Member):
-            raise ValueError("Not a member")
-        await member.add_roles(role, reason="Not verified role")
+        if not interaction.guild or not isinstance(member, discord.Member):
+            raise ValueError("Not a guild member")
+        try:
+            await member.add_roles(role, reason="Not verified role")
+        except discord.errors.NotFound:
+            await interaction.response.send_message("External role not found. This is an internal mistake.", ephemeral=True)
+            return
         # for testing purposes
         embed = discord.Embed(description=f"Added **External** role to {member.mention}\n"
                                             f"ID: `{member.id}`", color=0xa52222)

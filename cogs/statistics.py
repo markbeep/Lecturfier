@@ -94,7 +94,7 @@ class Statistics(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         # only count stats in servers
-        if message.guild is None:
+        if not message.guild or not isinstance(message.author, discord.Member):
             return
         # deletes the message if its in #newcomers
         if message.channel.id == 815881148307210260 and not message.author.bot:
@@ -138,14 +138,14 @@ class Statistics(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
-        if message.guild is None:
+        if not message.guild or not isinstance(message.author, discord.Member):
             return
         SQLFunctions.update_statistics(message.author, messages_deleted=1)
 
     @commands.Cog.listener()
     async def on_message_edit(self, before, message):
         # Adds the edited message to the table
-        if message.guild is None:
+        if not message.guild or not isinstance(message.author, discord.Member):
             return
 
         # gets the char difference between the two messages
@@ -169,7 +169,7 @@ class Statistics(commands.Cog):
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, member):
-        if reaction.message.guild is None or member.bot:
+        if not isinstance(member, discord.Member) or member.bot:
             return
         if member.id == reaction.message.author.id:
             return
@@ -178,7 +178,7 @@ class Statistics(commands.Cog):
 
     @commands.Cog.listener()
     async def on_reaction_remove(self, reaction, member):
-        if reaction.message.guild is None or member.bot:
+        if not isinstance(member, discord.Member) or member.bot:
             return
         if member.id == reaction.message.author.id:
             return
