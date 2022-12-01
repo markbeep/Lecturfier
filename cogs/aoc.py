@@ -86,7 +86,6 @@ class AdventOfCode(commands.Cog):
                 if response.status == 200:
                     temp_data = await response.read()
                     self.data = json.loads(temp_data)
-                    log("Got new advent of code data", True)
                     self.last_updated = time.time()
                     # saves the file to the data folder
                     with open(self.aoc_path, "w") as f:
@@ -125,10 +124,7 @@ class AdventOfCode(commands.Cog):
             members = [d["members"][key] for key in d["members"]
                        if len(d["members"][key]["completion_day_level"])>0 
                        and f"{day}" in d["members"][key]["completion_day_level"]]
-            print("########################")
             sorted_points, points = self.sort_by_times(members, len(d["members"]), day)
-            print(points)
-            print(sorted_points)
             msg = []
             for i, key in enumerate(sorted_points):
                 msg.append(f"`[{i+1}]` **{d['members'][str(key)]['name']}** - {points[key]} points")
