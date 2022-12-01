@@ -81,7 +81,9 @@ class AdventOfCode(commands.Cog):
             return
         
         cookie = {"session": session_key}
-        async with aiohttp.ClientSession(cookies=cookie) as session:
+        email = os.getenv("EMAIL", "(no email given)")
+        headers = {"User-Agent": f"https://github.com/markbeep/Lecturfier by {email}"}
+        async with aiohttp.ClientSession(cookies=cookie, headers=headers) as session:
             async with session.get("https://adventofcode.com/2022/leaderboard/private/view/951576.json") as response:
                 if response.status == 200:
                     temp_data = await response.read()
