@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time as dt_time
 import time
 import aiohttp
 import discord
@@ -49,6 +49,7 @@ class AdventOfCode(commands.Cog):
         assert isinstance(temp_channel, discord.abc.Messageable)
         self.aoc_channel = temp_channel
         self.aoc_loop.start()  # pylint: disable=no-member
+        self.aoc_ping.start()  # pylint: disable=no-member
 
     def heartbeat(self):
         return self.aoc_loop.is_running()  # pylint: disable=no-member
@@ -56,13 +57,11 @@ class AdventOfCode(commands.Cog):
     def cog_unload(self) -> None:
         self.aoc_loop.cancel()  # pylint: disable=no-member
 
-    @tasks.loop(minutes=15)
-    async def aoc_loop(self):
+    @tasks.loop(time=[dt_time(6, 0, tzinfo=timezone("Europe/Zurich"))])
+    async def aoc_ping(self):
         await self.bot.wait_until_ready()
         dt = datetime.now(timezone("Europe/Zurich"))
-        if dt.minute > 5:
-            self.sent_advent = False
-        if dt.month == 12 and not self.sent_advent and 1 <= dt.day <= 25 and dt.hour == 6 and dt.minute <= 5:
+        if dt.month == 12 and 1 <= dt.day <= 25:
             msg = f"Good Morning! It's time for **Advent of Code** day #{dt.day}!\n\
                 [*Click here to get to the challenge*](https://adventofcode.com/2022/day/{dt.day})"
             embed = discord.Embed(
@@ -70,7 +69,10 @@ class AdventOfCode(commands.Cog):
                 color=discord.Color.red())
             await self.aoc_channel.send("<@&1046388087837704293>", embed=embed)
             self.sent_advent = True
-        
+
+    @tasks.loop(minutes=15)
+    async def aoc_loop(self):
+        await self.bot.wait_until_ready()
         # fetches the stats
         await self.bot.wait_until_ready()
         session_key = os.getenv("AOC_SESSION_KEY")
@@ -104,7 +106,8 @@ class AdventOfCode(commands.Cog):
         desc = f"Last Updated: `{get_formatted_time(int(time.time() - self.last_updated))}` ago"
         if day == -1 and star == -1:  # send the general lb
             pages = []
-            members = [d["members"][key] for key in d["members"]]
+            members = [d["members"][key] for key in d["members"]
+                       if len(d["members"][key]["completion_day_level"])>0]
 
             points_fn = lambda k: k["local_score"]
             members.sort(key=points_fn, reverse=True)
@@ -122,23 +125,25 @@ class AdventOfCode(commands.Cog):
             members = [d["members"][key] for key in d["members"]
                        if len(d["members"][key]["completion_day_level"])>0 
                        and f"{day}" in d["members"][key]["completion_day_level"]]
-
-            members, points = self.sort_by_times(members, len(d["members"]), day)
+            print("########################")
+            sorted_points, points = self.sort_by_times(members, len(d["members"]), day)
+            print(points)
+            print(sorted_points)
             msg = []
-            for i, m in enumerate(members):
-                msg.append(f"`[{i+1}]` **{d['members'][m]['name']}** - {points[d['members'][m]['id']]} points")
+            for i, key in enumerate(sorted_points):
+                msg.append(f"`[{i+1}]` **{d['members'][str(key)]['name']}** - {points[key]} points")
             pages = create_pages("\n".join(msg), 500)
 
             if len(pages) > 0:
                 view = PagesView(self.bot, ctx, pages, ctx.author.id, f"Day {day} AoC Leaderboard", description=desc)
-                await ctx.message.send(embed=view.embed, view=view)
+                await ctx.send(embed=view.embed, view=view)
             else:
                 await ctx.reply("There are no stats for that day yet.", delete_after=10)
-                await ctx.message.delete(delay=10)
+                await ctx.delete(delay=10)
         elif 1 <= day <= 25 and star in [1, 2]:  # sends the lb for that day and star
             pages = []
             members = [d["members"][key] for key in d["members"]
-                       if len(d["members"][key]["completion_day_level"])>0
+                       if len(d["members"][key]["completion_day_level"])>0 
                        and f"{day}" in d["members"][key]["completion_day_level"]
                        and f"{star}" in d["members"][key]["completion_day_level"][f"{day}"]]
 
@@ -162,13 +167,13 @@ class AdventOfCode(commands.Cog):
 
             if len(pages) > 0:
                 view = PagesView(self.bot, ctx, pages, ctx.author.id, f"Day {day} Star {star} AoC Leaderboard", description=desc)
-                await ctx.message.send(embed=view.embed, view=view)
+                await ctx.send(embed=view.embed, view=view)
             else:
                 await ctx.reply("There are no stats for that day or star yet.", delete_after=10)
-                await ctx.message.delete(delay=10)
+                await ctx.delete(delay=10)
         else:
             await ctx.reply("Unrecognized command parameters. Please check the help page.", delete_after=10)
-            await ctx.message.delete(delay=10)
+            await ctx.delete(delay=10)
 
     def sort_by_times(self, members: list[dict], total: int, day: int):
         points = {m["id"]:0 for m in members}
