@@ -117,7 +117,8 @@ class AdventOfCode(commands.Cog):
             pages = create_pages("\n".join(msg), 500)
 
             view = PagesView(self.bot, ctx, pages, ctx.author.id, "Total AoC Leaderboard", description=desc)
-            await ctx.send(embed=view.embed, view=view)
+            msg = await ctx.send(embed=view.embed, view=view)
+            view.add_message(msg)
         elif star == -1 and 1 <= day <= 25:  # send the lb for that day
 
             pages = []
@@ -132,10 +133,11 @@ class AdventOfCode(commands.Cog):
 
             if len(pages) > 0:
                 view = PagesView(self.bot, ctx, pages, ctx.author.id, f"Day {day} AoC Leaderboard", description=desc)
-                await ctx.send(embed=view.embed, view=view)
+                msg = await ctx.send(embed=view.embed, view=view)
+                view.add_message(msg)
             else:
                 await ctx.reply("There are no stats for that day yet.", delete_after=10)
-                await ctx.delete(delay=10)
+                await ctx.message.delete(delay=10)
         elif 1 <= day <= 25 and star in [1, 2]:  # sends the lb for that day and star
             pages = []
             members = [d["members"][key] for key in d["members"]
@@ -163,10 +165,11 @@ class AdventOfCode(commands.Cog):
 
             if len(pages) > 0:
                 view = PagesView(self.bot, ctx, pages, ctx.author.id, f"Day {day} Star {star} AoC Leaderboard", description=desc)
-                await ctx.send(embed=view.embed, view=view)
+                msg = await ctx.send(embed=view.embed, view=view)
+                view.add_message(msg)
             else:
                 await ctx.reply("There are no stats for that day or star yet.", delete_after=10)
-                await ctx.delete(delay=10)
+                await ctx.message.delete(delay=10)
         else:
             await ctx.reply("Unrecognized command parameters. Please check the help page.", delete_after=10)
             await ctx.delete(delay=10)

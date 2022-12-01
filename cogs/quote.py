@@ -348,7 +348,8 @@ class Quote(commands.Cog):
 
         view = PagesView(self.bot, ctx, pages, ctx.message.author.id, f"All quotes from {all_quotes[0].Name}", 180)
         if len(pages) > 1:
-            await ctx.send(embed=view.embed, view=view)
+            msg = await ctx.send(embed=view.embed, view=view)
+            view.add_message(msg)
         else:
             await ctx.message.delete(delay=180)
             await ctx.send(embed=view.embed, delete_after=180)
@@ -488,7 +489,9 @@ class Quote(commands.Cog):
             pages,
             ctx.message.author.id,
             f"Quotes containing string: {args}")
-        await ctx.send(embed=view.embed, view=view)
+        msg = await ctx.send(embed=view.embed, view=view)
+        view.add_message(msg)
+        
 
     @commands.is_owner()
     @quote.command(name="delete", aliases=["del"], usage="delete <Quote ID>")
@@ -563,7 +566,8 @@ class Quote(commands.Cog):
 
         view = PagesView(self.bot, ctx, pages, ctx.message.author.id, "All Quote Names")
         if len(pages) > 1:
-            await ctx.send(embed=view.embed, view=view)
+            msg = await ctx.send(embed=view.embed, view=view)
+            view.add_message(msg)
         else:
             await ctx.send(embed=view.embed, delete_after=180)
             await ctx.message.delete(delay=180)
@@ -615,7 +619,8 @@ class Quote(commands.Cog):
                 raise commands.errors.BadArgument()
             title = f"Quote Leaderboard from {quotes[0].Name}"
         view = PagesView(self.bot, ctx, create_pages(quotes), ctx.message.author.id, title)
-        await ctx.send(embed=view.embed, view=view)
+        msg = await ctx.send(embed=view.embed, view=view)
+        view.add_message(msg)
 
     @commands.guild_only()
     @quote.group(aliases=["f", "favorite", "favourite", "favourites", "fav"], usage="favorites", invoke_without_command=True)
@@ -638,7 +643,8 @@ class Quote(commands.Cog):
 
         pages = create_pages(quotes)
         view = PagesView(self.bot, ctx, pages, ctx.author.id, "Favorite Quotes")
-        await ctx.send(embed=view.embed, view=view)
+        msg = await ctx.send(embed=view.embed, view=view)
+        view.add_message(msg)
 
     @commands.guild_only()
     @favorites.command(name="add", aliases=["a"], usage="add <quote ID>")
@@ -888,7 +894,7 @@ class PagesView(discord.ui.View):
         self.user_id = user_id  # the user ID that can change the pages
         self.embed_title = embed_title  # the title of each page
         self.seconds = seconds  # time in seconds to wait until we delete the message
-        self.message = None  # the quotes message sent by the bot
+        self.message: discord.Message | None = None  # the quotes message sent by the bot
         self.description = description  # description of the embed
 
         # initial buttons
@@ -932,12 +938,20 @@ class PagesView(discord.ui.View):
     
     async def on_timeout(self) -> None:
         if self.message:
-            await self.message.edit(view=None)
+            await self.message.delete()
+        try:
+            await self.ctx.message.delete()
+        except discord.errors.NotFound:
+            pass
     
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item) -> None:
         if self.message:
-            await self.message.edit(view=None)
+            await self.message.delete()
             self.stop()
+        try:
+            await self.ctx.message.delete()
+        except discord.errors.NotFound:
+            pass
     
     def create_embed(self) -> discord.Embed:
         """
@@ -979,6 +993,9 @@ class PagesView(discord.ui.View):
         Heads to the first page
         """
         self.page_count = 0
+        
+    def add_message(self, message: discord.Message):
+        self.message = message
 
 
 def isascii(s):
