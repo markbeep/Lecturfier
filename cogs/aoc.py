@@ -57,22 +57,20 @@ class AdventOfCode(commands.Cog):
     def cog_unload(self) -> None:
         self.aoc_loop.cancel()  # pylint: disable=no-member
 
-    @tasks.loop(time=[dt_time(6, 0, tzinfo=timezone("Europe/Zurich"))])
+    @tasks.loop(time=[dt_time(hour=h, minute=0) for h in range(24)])
     async def aoc_ping(self):
         await self.bot.wait_until_ready()
         dt = datetime.now(timezone("Europe/Zurich"))
-        if dt.month == 12 and 1 <= dt.day <= 25:
+        if dt.month == 12 and 1 <= dt.day <= 25 and dt.hour == 6 and dt.minute == 0:
             msg = f"Good Morning! It's time for **Advent of Code** day #{dt.day}!\n\
                 [*Click here to get to the challenge*](https://adventofcode.com/2022/day/{dt.day})"
             embed = discord.Embed(
                 description=msg,
                 color=discord.Color.red())
             await self.aoc_channel.send("<@&1046388087837704293>", embed=embed)
-            self.sent_advent = True
 
     @tasks.loop(minutes=15)
     async def aoc_loop(self):
-        await self.bot.wait_until_ready()
         # fetches the stats
         await self.bot.wait_until_ready()
         session_key = os.getenv("AOC_SESSION_KEY")
