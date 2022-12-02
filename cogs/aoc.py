@@ -12,8 +12,6 @@ from helper.log import log
 from helper.sql import SQLFunctions
 from .information import get_formatted_time
 
-times_to_check = [dt_time(h, m) for h in range(24) for m in range(0, 60, 5)]
-
 def create_pages(msg: str, CHAR_LIMIT: int) -> list[str]:
     pages = []
     while len(msg) > 0:
@@ -59,12 +57,11 @@ class AdventOfCode(commands.Cog):
     def cog_unload(self) -> None:
         self.aoc_loop.cancel()  # pylint: disable=no-member
 
-    @tasks.loop(time=times_to_check)
+    @tasks.loop(time=[dt_time(hour=h, minute=0) for h in range(24)])
     async def aoc_ping(self):
         await self.bot.wait_until_ready()
         dt = datetime.now(timezone("Europe/Zurich"))
-        print(dt)
-        if dt.month == 12 and 1 <= dt.day <= 25 and dt.hour == 12 and dt.minute == 0:
+        if dt.month == 12 and 1 <= dt.day <= 25 and dt.hour == 13 and dt.minute == 0:
             msg = f"Good Morning! It's time for **Advent of Code** day #{dt.day}!\n\
                 [*Click here to get to the challenge*](https://adventofcode.com/2022/day/{dt.day})"
             embed = discord.Embed(
