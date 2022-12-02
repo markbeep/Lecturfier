@@ -61,7 +61,7 @@ class AdventOfCode(commands.Cog):
     async def aoc_ping(self):
         await self.bot.wait_until_ready()
         dt = datetime.now(timezone("Europe/Zurich"))
-        if dt.month == 12 and 1 <= dt.day <= 25 and dt.hour == 13 and dt.minute == 0:
+        if dt.month == 12 and 1 <= dt.day <= 25 and dt.hour == 6 and dt.minute == 0:
             msg = f"Good Morning! It's time for **Advent of Code** day #{dt.day}!\n\
                 [*Click here to get to the challenge*](https://adventofcode.com/2022/day/{dt.day})"
             embed = discord.Embed(
