@@ -1,15 +1,12 @@
 import asyncio
-import os
 import random
 import sqlite3
 import time
-from datetime import datetime
 from enum import Enum
 from sqlite3 import Error
 
 import discord
 from discord.ext import commands
-from pytz import timezone
 from tabulate import tabulate
 
 from helper.sql import SQLFunctions
@@ -49,62 +46,10 @@ class Owner(commands.Cog):
         self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
 
-        # gets the button value to watch
-        temp_button_value = SQLFunctions.get_config("ButtonValue", self.conn)
-        if len(temp_button_value) == 0:
-            self.watch_button_value: int = int(1e6)
-        else:
-            self.watch_button_value: int = temp_button_value[0]
-        self.sent_message = False
-        self.old_value = 1e6  # to ignore fake buttons we store the last value
-        
         temp_count_channel_id = SQLFunctions.get_config("CountChannelID", self.conn)
         self.count_channel_id = temp_count_channel_id[0] if len(temp_count_channel_id) > 0 else 996746797236105236
         temp_follow = SQLFunctions.get_config("FollowID", self.conn)
         self.follow_id = temp_follow[0] if len(temp_follow) > 0 else None
-
-    @commands.Cog.listener()
-    async def on_message_edit(self, before, message):
-        if message.author.id == 778731540359675904:
-            if len(message.components) > 0:
-                message = await message.channel.fetch_message(message.id)
-                action_row = message.components[0]
-                if len(action_row.components) == 0:
-                    return
-                button = action_row.components[0]
-                button_value = button.label
-                if button_value.isnumeric():
-                    button_value = int(button_value)
-                    if not self.sent_message and button_value >= self.watch_button_value:
-                        user = self.bot.get_user(205704051856244736)
-                        embed = discord.Embed(
-                            title="BUTTON ABOVE SCORE",
-                            description=f"Watching Score: `{self.watch_button_value}`\n"
-                                        f"Button Value: `{button_value}`\n"
-                                        f"Channel: <#{message.channel.id}>\n"
-                                        f"Message Link: [Click Here](https://discord.com/channels/{message.guild.id}/{message.channel.id}/{message.id})",
-                            color=discord.Color.gold()
-                        )
-                        for i in range(3):
-                            await user.send(embed=embed)
-                        self.sent_message = True
-                    elif button_value < self.old_value:
-                        # the button was clicked and the score went down
-                        dt = datetime.fromtimestamp(time.time() + 60 * (self.watch_button_value - button_value), tz=timezone("Europe/Zurich"))
-                        self.sent_message = False
-                        user = self.bot.get_user(205704051856244736)
-                        embed = discord.Embed(
-                            title="Button was clicked.",
-                            description=f"Watching Score: `{self.watch_button_value}`\n"
-                                        f"Button Value: `{button_value}`\n"
-                                        f"Channel: <#{message.channel.id}>\n"
-                                        f"Message Link: [Click Here](https://discord.com/channels/{message.guild.id}/{message.channel.id}/{message.id})\n"
-                                        f"Button is at desired value at `{dt.strftime('%H:%M on %a. %d.%m.%Y')}`",
-                            color=discord.Color.red()
-                        )
-                        await user.send(embed=embed)
-
-                    self.old_value = button_value
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -136,27 +81,6 @@ class Owner(commands.Cog):
             await ctx.send("Not following anyone yet.")
         else:
             await ctx.send(f"Following <@{following[0]}>")
-
-    @commands.is_owner()
-    @commands.command()
-    async def watch(self, ctx, val=None):
-        await ctx.message.delete()
-        if val is None:
-            # yes if we're tracking, no if we're at default value
-            if self.watch_button_value < 1e6:
-                await ctx.send(f"{self.watch_button_value} | {self.sent_message}", delete_after=5)
-            else:
-                await ctx.send("no", delete_after=5)
-        else:
-            if not val.isnumeric():
-                await ctx.send("not int", delete_after=5)
-                raise commands.errors.BadArgument()
-            # saves the value to watch into config
-            SQLFunctions.insert_or_update_config("ButtonValue", int(val), self.conn)
-            self.watch_button_value = int(val)
-            self.old_value = 1e6
-            self.sent_message = False
-            await ctx.send("ok", delete_after=5)
 
     @commands.is_owner()
     @commands.group(usage="perm <command>", invoke_without_command=True)
