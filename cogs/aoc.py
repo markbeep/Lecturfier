@@ -12,6 +12,8 @@ from helper.log import log
 from helper.sql import SQLFunctions
 from .information import get_formatted_time
 
+times_to_check = [dt_time(h, m) for h in range(24) for m in range(0, 60, 5)]
+
 def create_pages(msg: str, CHAR_LIMIT: int) -> list[str]:
     pages = []
     while len(msg) > 0:
@@ -57,22 +59,21 @@ class AdventOfCode(commands.Cog):
     def cog_unload(self) -> None:
         self.aoc_loop.cancel()  # pylint: disable=no-member
 
-    @tasks.loop(time=[dt_time(6, 0, tzinfo=timezone("Europe/Zurich"))])
+    @tasks.loop(time=times_to_check)
     async def aoc_ping(self):
         await self.bot.wait_until_ready()
         dt = datetime.now(timezone("Europe/Zurich"))
-        if dt.month == 12 and 1 <= dt.day <= 25:
+        print(dt)
+        if dt.month == 12 and 1 <= dt.day <= 25 and dt.hour == 12 and dt.minute == 0:
             msg = f"Good Morning! It's time for **Advent of Code** day #{dt.day}!\n\
                 [*Click here to get to the challenge*](https://adventofcode.com/2022/day/{dt.day})"
             embed = discord.Embed(
                 description=msg,
                 color=discord.Color.red())
             await self.aoc_channel.send("<@&1046388087837704293>", embed=embed)
-            self.sent_advent = True
 
     @tasks.loop(minutes=15)
     async def aoc_loop(self):
-        await self.bot.wait_until_ready()
         # fetches the stats
         await self.bot.wait_until_ready()
         session_key = os.getenv("AOC_SESSION_KEY")
