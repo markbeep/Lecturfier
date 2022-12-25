@@ -73,6 +73,9 @@ class AdventOfCode(commands.Cog):
     async def aoc_loop(self):
         # fetches the stats
         await self.bot.wait_until_ready()
+        dt = datetime.now(timezone("Europe/Zurich"))
+        if dt.month != 12: # only scrape in december
+            return
         session_key = os.getenv("AOC_SESSION_KEY")
         if not session_key:
             print("Session key not available. Skipping AoC request.")
