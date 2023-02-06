@@ -1,18 +1,27 @@
-FROM python:3.10-alpine3.16
+FROM python:3.11-alpine3.17 as base
 
-RUN apk --no-cache add gcc musl-dev libpq-dev linux-headers zlib-dev jpeg-dev g++ freetype-dev
-
-# makes numpy install quicker
-RUN apk add --no-cache --update py3-numpy
-ENV PYTHONPATH=/usr/lib/python3.10/site-packages
-
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1 \
+    PIP_DEFAULT_TIMEOUT=100 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_helloNO_CACHE_DIR=1 \
+    POETRY_VERSION=1.3
 
 WORKDIR /app
 
-RUN pip install --no-cache --upgrade pip
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN apk add --no-cache gcc musl-dev linux-headers g++ #zlib-dev jpeg-dev freetype-dev
+
+RUN pip install --no-cache "poetry==$POETRY_VERSION"
+RUN python -m venv /venv
+
+COPY pyproject.toml poetry.lock ./
+RUN poetry export -f requirements.txt | /venv/bin/pip install -r /dev/stdin
+
+
+# lecturfier specific copies
+FROM base as final
+
+WORKDIR /app
 
 COPY images images
 COPY config config
@@ -20,4 +29,4 @@ COPY helper helper
 COPY cogs cogs
 COPY bot.py .
 
-CMD ["python", "bot.py"]
+CMD ["/venv/bin/python", "bot.py"]

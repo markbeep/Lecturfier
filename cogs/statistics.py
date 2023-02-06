@@ -1,7 +1,7 @@
-import json
 import os
 import time
 from datetime import datetime
+from typing import Tuple
 
 import discord
 from discord.ext import commands, tasks
@@ -50,9 +50,9 @@ class Statistics(commands.Cog):
                 commit, push = gitpush("./data")
                 user = self.bot.get_user(self.bot.owner_id)
                 if push != 0:
-                    await user.send("Updated GIT\n"
-                                    f"Commit: `{commit}`\n"
-                                    f"Push: `{push}`")
+                    await user.send(
+                        "Updated GIT\n" f"Commit: `{commit}`\n" f"Push: `{push}`"
+                    )
         if datetime.now().hour % 2 != 0:
             self.sent_file = False
 
@@ -68,7 +68,10 @@ class Statistics(commands.Cog):
                 await ctx.reply(embed=embed, delete_after=3)
                 await ctx.message.delete(delay=3)
             if isinstance(error, CheckFailure):
-                embed = discord.Embed(description="This command is disabled for you, your role, this channel or this guild.", color=discord.Color.red())
+                embed = discord.Embed(
+                    description="This command is disabled for you, your role, this channel or this guild.",
+                    color=discord.Color.red(),
+                )
                 await ctx.reply(embed=embed, delete_after=5)
                 await ctx.message.delete(delay=5)
             try:
@@ -100,12 +103,16 @@ class Statistics(commands.Cog):
         if message.channel.id == 815881148307210260 and not message.author.bot:
             try:
                 await message.delete()
-                deleted_messages = SQLFunctions.get_config("deleted_messages", self.conn)
+                deleted_messages = SQLFunctions.get_config(
+                    "deleted_messages", self.conn
+                )
                 if len(deleted_messages) == 0:
                     deleted_messages = 0
                 else:
                     deleted_messages = deleted_messages[0]
-                SQLFunctions.insert_or_update_config("deleted_messages", deleted_messages+1, self.conn)
+                SQLFunctions.insert_or_update_config(
+                    "deleted_messages", deleted_messages + 1, self.conn
+                )
             except discord.NotFound:  # message was already deleted
                 pass
         # Makes it better to work with the message
@@ -125,16 +132,18 @@ class Statistics(commands.Cog):
             if f.height is not None and f.height > 0:
                 images_amt += 1
 
-        SQLFunctions.update_statistics(message.author,
-                                       conn=self.conn,
-                                       messages_sent=1,
-                                       characters_sent=char_count,
-                                       words_sent=word_count,
-                                       spoilers_sent=spoiler_count,
-                                       emojis_sent=emoji_count,
-                                       files_sent=files_amount,
-                                       file_size_sent=file_sizes,
-                                       images_sent=images_amt)
+        SQLFunctions.update_statistics(
+            message.author,
+            conn=self.conn,
+            messages_sent=1,
+            characters_sent=char_count,
+            words_sent=word_count,
+            spoilers_sent=spoiler_count,
+            emojis_sent=emoji_count,
+            files_sent=files_amount,
+            file_size_sent=file_sizes,
+            images_sent=images_amt,
+        )
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
@@ -160,12 +169,14 @@ class Statistics(commands.Cog):
         after_emoji_count = a_cont.count(":") // 2
         after_spoiler_count = a_cont.count("||") // 2
 
-        SQLFunctions.update_statistics(message.author,
-                                       messages_edited=1,
-                                       characters_sent=after_char_count - before_char_count,
-                                       words_sent=after_word_count - before_word_count,
-                                       emojis_sent=after_emoji_count - before_emoji_count,
-                                       spoilers_sent=after_spoiler_count - before_spoiler_count)
+        SQLFunctions.update_statistics(
+            message.author,
+            messages_edited=1,
+            characters_sent=after_char_count - before_char_count,
+            words_sent=after_word_count - before_word_count,
+            emojis_sent=after_emoji_count - before_emoji_count,
+            spoilers_sent=after_spoiler_count - before_spoiler_count,
+        )
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, member):
@@ -173,8 +184,12 @@ class Statistics(commands.Cog):
             return
         if member.id == reaction.message.author.id:
             return
-        SQLFunctions.update_statistics(member, reactions_added=1)  # reactions added by the user
-        SQLFunctions.update_statistics(reaction.message.author, reactions_received=1)  # reactions received by the user
+        SQLFunctions.update_statistics(
+            member, reactions_added=1
+        )  # reactions added by the user
+        SQLFunctions.update_statistics(
+            reaction.message.author, reactions_received=1
+        )  # reactions received by the user
 
     @commands.Cog.listener()
     async def on_reaction_remove(self, reaction, member):
@@ -185,31 +200,75 @@ class Statistics(commands.Cog):
         SQLFunctions.update_statistics(member, reactions_removed=1)
         SQLFunctions.update_statistics(reaction.message.author, reactions_taken_away=1)
 
-    async def create_embed(self, member: discord.Member, statistic_columns) -> discord.Embed:
+    async def create_embed(
+        self,
+        member: discord.Member,
+        stats: SQLFunctions.UserStatistics,
+        total: Tuple[int, int],
+    ) -> discord.Embed:
         """
         Creates an embed for a user's single statistics
+        `inverted` is for getting the points of a user
         """
         embed = discord.Embed(title=f"Statistics for {str(member)}")
-        for key in statistic_columns.keys():
-            column = statistic_columns[key]
-            size = len(column)
-            rank = 0
-            val = None
-            for row in column:
-                rank += 1
-                if row[0].DiscordUserID == member.id and row[0].DiscordGuildID == member.guild.id:
-                    val = row[1]
-                    break
-            if val is not None and key == "FileSizeSent":
-                val = round(val / 1000000.0, 2)
-                val = f"{val} MB"
-            if val is None:  # if the user's stats are out of the limit
-                embed.add_field(name=key, value=f"Can't show rank >{size}")
-            else:
-                embed.add_field(name=key, value=f"{val} *({rank}.)*\n")
+        embed.add_field(
+            name="Messages Sent",
+            value=f"{stats.MessagesSent} *({stats.MessagesSentRank}.)*\n",
+        )
+        embed.add_field(
+            name="Messages Deleted",
+            value=f"{stats.MessagesDeleted} *({stats.MessagesDeletedRank}.)*\n",
+        )
+        embed.add_field(
+            name="Messages Edited",
+            value=f"{stats.MessagesEdited} *({stats.MessagesEditedRank}.)*\n",
+        )
+        embed.add_field(
+            name="Characters Sent",
+            value=f"{stats.CharactersSent} *({stats.CharactersSentRank}.)*\n",
+        )
+        embed.add_field(
+            name="Words Sent", value=f"{stats.WordsSent} *({stats.WordsSentRank}.)*\n"
+        )
+        embed.add_field(
+            name="Spoilers Sent",
+            value=f"{stats.SpoilersSent} *({stats.SpoilersSentRank}.)*\n",
+        )
+        embed.add_field(
+            name="Files Sent", value=f"{stats.FilesSent} *({stats.FilesSentRank}.)*\n"
+        )
+        embed.add_field(
+            name="File Size Sent",
+            value=f"{round(stats.FileSizeSent / 1000000.0, 2)} MB *({stats.FileSizeSentRank}.)*\n",
+        )
+        embed.add_field(
+            name="Images Sent",
+            value=f"{stats.ImagesSent} *({stats.ImagesSentRank}.)*\n",
+        )
+        embed.add_field(
+            name="Reactions Added",
+            value=f"{stats.ReactionsAdded-stats.ReactionsRemoved} *({stats.ReactionsAddedRank}.)*\n",
+        )
+        embed.add_field(
+            name="Reactions Received",
+            value=f"{stats.ReactionsReceived-stats.ReactionsTakenAway} *({stats.ReactionsReceivedRank}.)*\n",
+        )
+        embed.add_field(
+            name="Quote Vote Count",
+            value=f"{stats.VoteCount} *({stats.VoteCountRank}.)*\n",
+        )
+
+        embed.add_field(name="Total Score", value=f"{total[0]} *({total[1]}.)*\n")
+
         return embed
 
-    async def get_top_users(self, statistic_columns=None, single_statistic=None, single_statistic_name=None, name="Top User Statistics"):
+    async def get_top_users(
+        self,
+        statistic_columns=None,
+        single_statistic=None,
+        single_statistic_name=None,
+        name="Top User Statistics",
+    ):
         """
         Gets the top results in either a given dictionary of multiple columns or a single column.
         In a single column the column name must be given, underwise an AssertionError is thrown.
@@ -237,7 +296,9 @@ class Statistics(commands.Cog):
 
     @commands.cooldown(4, 10, BucketType.user)
     @commands.guild_only()
-    @commands.group(aliases=["stats"], usage="statistics [user]", invoke_without_command=True)
+    @commands.group(
+        aliases=["stats"], usage="statistics [user]", invoke_without_command=True
+    )
     async def statistics(self, ctx, user=None):
         """
         Used to call the statistics page of a user or of the server.
@@ -245,28 +306,14 @@ class Statistics(commands.Cog):
         of each category.
         """
         if ctx.invoked_subcommand is None:
-            statistic_columns = {
-                "MessagesSent": [],
-                "MessagesDeleted": [],
-                "MessagesEdited": [],
-                "CharactersSent": [],
-                "WordsSent": [],
-                "SpoilersSent": [],
-                "EmojisSent": [],
-                "FilesSent": [],
-                "FileSizeSent": [],
-                "ImagesSent": [],
-                "ReactionsAdded": [],
-                "ReactionsRemoved": [],
-                "ReactionsReceived": [],
-                "ReactionsTakenAway": [],
-                "VoteCount": []
-            }
-
-            for key in statistic_columns.keys():
-                statistic_columns[key] = SQLFunctions.get_statistic_rows(key, 5000, self.conn)
             if user is None:
-                embed = await self.create_embed(ctx.message.author, statistic_columns)
+                stats = SQLFunctions.get_statistics_per_user(
+                    ctx.author.id, ctx.message.guild.id, True, conn=self.conn
+                )
+                total = SQLFunctions.get_total_statistics_score_user(
+                    ctx.author.id, ctx.message.guild.id, False, conn=self.conn
+                )
+                embed = await self.create_embed(ctx.message.author, stats, total)
                 await ctx.send(embed=embed)
             else:
                 try:
@@ -275,7 +322,13 @@ class Statistics(commands.Cog):
                 except commands.errors.BadArgument:
                     await ctx.send("Invalid user. Mention the user for this to work.")
                     raise commands.errors.BadArgument()
-                embed = await self.create_embed(member, statistic_columns)
+                stats = SQLFunctions.get_statistics_per_user(
+                    member.id, member.guild.id, True, conn=self.conn
+                )
+                total = SQLFunctions.get_total_statistics_score_user(
+                    member.id, ctx.message.guild.id, False, conn=self.conn
+                )
+                embed = await self.create_embed(member, stats, total)
                 await ctx.send(embed=embed)
 
     @commands.guild_only()
@@ -295,15 +348,27 @@ class Statistics(commands.Cog):
             "ReactionsAdded": [],
             "ReactionsRemoved": [],
             "ReactionsReceived": [],
-            "ReactionsTakenAway": []
+            "ReactionsTakenAway": [],
         }
         for key in statistic_columns.keys():
             statistic_columns[key] = SQLFunctions.get_statistic_rows(key, 3, self.conn)
         embed = await self.get_top_users(statistic_columns)
+
+        # additionally adds total score
+        result = SQLFunctions.get_total_statistics_score(
+            ctx.message.guild.id, 3, False, conn=self.conn
+        )
+        lb_msg = "\n".join(
+            [f"**{i + 1}.** <@{x[0]}> *({x[1]})*" for i, x in enumerate(result)]
+        )
+        embed.add_field(name="Total Score", value=lb_msg)
+
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["messages", "messagessent"], usage="MessagesSent [amount shown]")
+    @statistics.command(
+        aliases=["messages", "messagessent"], usage="MessagesSent [amount shown]"
+    )
     async def MessagesSent(self, ctx, mx=10):
         """
         See MessagesSent Stats. `amount shown` is the amount of users that \
@@ -314,11 +379,15 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("MessagesSent", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Messages Sent")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Messages Sent"
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["messagesdeleted"], usage="MessagesDeleted [amount shown]")
+    @statistics.command(
+        aliases=["messagesdeleted"], usage="MessagesDeleted [amount shown]"
+    )
     async def MessagesDeleted(self, ctx, mx=10):
         """
         See MessagesDeleted Stats. `amount shown` is the amount of users that \
@@ -329,11 +398,15 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("MessagesDeleted", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Messages Deleted")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Messages Deleted"
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["messagesedited"], usage="MessagesEdited [amount shown]")
+    @statistics.command(
+        aliases=["messagesedited"], usage="MessagesEdited [amount shown]"
+    )
     async def MessagesEdited(self, ctx, mx=10):
         """
         See MessagesEdited Stats. `amount shown` is the amount of users that \
@@ -344,11 +417,16 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("MessagesEdited", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Messages Edited")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Messages Edited"
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["characterssent", "characters", "chars"], usage="CharactersSent [amount shown]")
+    @statistics.command(
+        aliases=["characterssent", "characters", "chars"],
+        usage="CharactersSent [amount shown]",
+    )
     async def CharactersSent(self, ctx, mx=10):
         """
         See CharactersSent Stats. `amount shown` is the amount of users that \
@@ -359,11 +437,15 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("CharactersSent", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Characters Sent")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Characters Sent"
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["wordssent", "words"], usage="WordsSent [amount shown]")
+    @statistics.command(
+        aliases=["wordssent", "words"], usage="WordsSent [amount shown]"
+    )
     async def WordsSent(self, ctx, mx=10):
         """
         See WordsSent Stats. `amount shown` is the amount of users that \
@@ -374,11 +456,15 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("WordsSent", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Words Sent")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Words Sent"
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["spoilerssent", "spoilers"], usage="SpoilersSent [amount shown]")
+    @statistics.command(
+        aliases=["spoilerssent", "spoilers"], usage="SpoilersSent [amount shown]"
+    )
     async def SpoilersSent(self, ctx, mx=10):
         """
         See SpoilersSent Stats. `amount shown` is the amount of users that \
@@ -389,11 +475,15 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("SpoilersSent", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Spoilers Sent")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Spoilers Sent"
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["emojissent", "emoji", "emojis"], usage="EmojisSent [amount shown]")
+    @statistics.command(
+        aliases=["emojissent", "emoji", "emojis"], usage="EmojisSent [amount shown]"
+    )
     async def EmojisSent(self, ctx, mx=10):
         """
         See EmojisSent Stats. `amount shown` is the amount of users that \
@@ -404,11 +494,15 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("EmojisSent", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Emojis Sent")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Emojis Sent"
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["filessent", "files", "file"], usage="FilesSent [amount shown]")
+    @statistics.command(
+        aliases=["filessent", "files", "file"], usage="FilesSent [amount shown]"
+    )
     async def FilesSent(self, ctx, mx=10):
         """
         See FilesSent Stats. `amount shown` is the amount of users that \
@@ -419,11 +513,16 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("FilesSent", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Files Sent")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Files Sent"
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["filesizesent", "filesize", "size"], usage="FileSizeSent [amount shown]")
+    @statistics.command(
+        aliases=["filesizesent", "filesize", "size"],
+        usage="FileSizeSent [amount shown]",
+    )
     async def FileSizeSent(self, ctx, mx=10):
         """
         See FileSizeSent Stats. `amount shown` is the amount of users that \
@@ -434,11 +533,16 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("FileSizeSent", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Total File Size Sent")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Total File Size Sent"
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["imagessent", "img", "image", "images"], usage="ImagesSent [amount shown]")
+    @statistics.command(
+        aliases=["imagessent", "img", "image", "images"],
+        usage="ImagesSent [amount shown]",
+    )
     async def ImagesSent(self, ctx, mx=10):
         """
         See ImagesSent Stats. `amount shown` is the amount of users that \
@@ -449,11 +553,16 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("ImagesSent", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Images Sent")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Images Sent"
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["reactionsadded", "reactions", "reaction"], usage="ReactionsAdded [amount shown]")
+    @statistics.command(
+        aliases=["reactionsadded", "reactions", "reaction"],
+        usage="ReactionsAdded [amount shown]",
+    )
     async def ReactionsAdded(self, ctx, mx=10):
         """
         See ReactionsAdded Stats. `amount shown` is the amount of users that \
@@ -464,11 +573,15 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("ReactionsAdded", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Reactions Added")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Reactions Added"
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["reactionsremoved"], usage="ReactionsRemoved [amount shown]")
+    @statistics.command(
+        aliases=["reactionsremoved"], usage="ReactionsRemoved [amount shown]"
+    )
     async def ReactionsRemoved(self, ctx, mx=10):
         """
         See ReactionsRemoved Stats. `amount shown` is the amount of users that \
@@ -479,11 +592,15 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("ReactionsRemoved", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Reactions Removed")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Reactions Removed"
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["reactionsreceived"], usage="ReactionsReceived [amount shown]")
+    @statistics.command(
+        aliases=["reactionsreceived"], usage="ReactionsReceived [amount shown]"
+    )
     async def ReactionsReceived(self, ctx, mx=10):
         """
         See only ReactionsReceived Stats. `amount shown` is the amount of users that \
@@ -494,11 +611,15 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("ReactionsReceived", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Reactions Received")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Reactions Received"
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @statistics.command(aliases=["reactionstakenaway"], usage="ReactionsTakenAway [amount shown]")
+    @statistics.command(
+        aliases=["reactionstakenaway"], usage="ReactionsTakenAway [amount shown]"
+    )
     async def ReactionsTakenAway(self, ctx, mx=10):
         """
         See only ReactionsTakenAway Stats. `amount shown` is the amount of users that \
@@ -509,11 +630,15 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("ReactionsTakenAway", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Reactions Taken Away")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Reactions Taken Away"
+        )
         await ctx.send(embed=embed)
-    
+
     @commands.guild_only()
-    @statistics.command(aliases=["votecount", "voted", "vote"], usage="VoteCount [amount shown]")
+    @statistics.command(
+        aliases=["votecount", "voted", "vote"], usage="VoteCount [amount shown]"
+    )
     async def VoteCount(self, ctx, mx=10):
         """
         See only ReactionsTakenAway Stats. `amount shown` is the amount of users that \
@@ -524,7 +649,31 @@ class Statistics(commands.Cog):
         elif mx > 20:
             mx = 20
         column = SQLFunctions.get_statistic_rows("VoteCount", mx, self.conn)
-        embed = await self.get_top_users(single_statistic=column, single_statistic_name="Quote Battles voted on")
+        embed = await self.get_top_users(
+            single_statistic=column, single_statistic_name="Quote Battles voted on"
+        )
+        await ctx.send(embed=embed)
+
+    @commands.guild_only()
+    @statistics.command(
+        aliases=["total", "totalscore"], usage="TotalScore [amount shown]"
+    )
+    async def TotalScore(self, ctx, mx=10):
+        """
+        See TotalScore Stats. `amount shown` is the amount of users that \
+        should be displayed in the leaderboard. Min: 1, Max: 20.
+        """
+        if mx < 0:
+            mx = 1
+        elif mx > 20:
+            mx = 20
+        result = SQLFunctions.get_total_statistics_score(
+            ctx.message.guild.id, mx, False, conn=self.conn
+        )
+        lb_msg = "\n".join(
+            [f"**{i + 1}.** <@{x[0]}> *({x[1]})*" for i, x in enumerate(result)]
+        )
+        embed = discord.Embed(title="Total Score", description=lb_msg)
         await ctx.send(embed=embed)
 
 
