@@ -5,6 +5,7 @@ description = "Python Discord Bot with Lecture Updates and Quotes"
 authors = ["markbeep <mrkswrn@gmail.com>"]
 license = "MIT"
 readme = "README.md"
+packages = [{include = "../Lecturfier"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -34,3 +35,6 @@ pylint = "^2.16.1"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+start = "bot:run"
