@@ -1335,11 +1335,11 @@ class BattleView(discord.ui.View):
 
     @discord.ui.button(custom_id="battle_view:1", style=discord.ButtonStyle.blurple, emoji="1️⃣")
     async def select_one(self, interaction: discord.Interaction, _: discord.ui.Button):
-        self.vote(interaction, 0)
+        await self.vote(interaction, 0)
     
     @discord.ui.button(custom_id="battle_view:2", style=discord.ButtonStyle.blurple, emoji="2️⃣")
     async def select_two(self, interaction: discord.Interaction, _: discord.ui.Button):
-        self.vote(interaction, 1)
+        await self.vote(interaction, 1)
         
     @discord.ui.button(custom_id="battle_view:skip", style=discord.ButtonStyle.grey, emoji="🗑️")
     async def select_skip(self, interaction: discord.Interaction, _: discord.ui.Button):
