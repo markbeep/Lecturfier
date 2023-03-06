@@ -1331,6 +1331,8 @@ class BattleView(discord.ui.View):
             await interaction.response.send_message(f"Successfully voted on quote {self.quote1.QuoteID}", ephemeral=True)
         else:
             await interaction.response.send_message(f"Successfully voted on quote {self.quote2.QuoteID}", ephemeral=True)
+        # increment vote statistic
+        SQLFunctions.update_statistics(interaction.user, conn=self.conn, vote_count=1)
         await self.handle_battle()
 
     @discord.ui.button(custom_id="battle_view:1", style=discord.ButtonStyle.blurple, emoji="1️⃣")
