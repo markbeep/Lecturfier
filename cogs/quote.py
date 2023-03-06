@@ -1101,6 +1101,8 @@ class BattleView(discord.ui.View):
         if not channel:
             return
         self.conn = conn
+        if self.conn is None:
+            self.conn = SQLFunctions.connect()
         self.channel = channel
         self.paused = time_for_battle == 0
         self.time_for_battle = 30 if time_for_battle == 0 else time_for_battle
