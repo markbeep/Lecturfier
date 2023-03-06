@@ -1119,7 +1119,7 @@ class BattleView(discord.ui.View):
         random.seed()
 
         embed = discord.Embed(
-            description=f"Choose the better quote using the buttons. Battle countdown starts once somebody votes.\nVotes: 0",
+            description="Choose the better quote using the buttons. Battle countdown starts once somebody votes.\nVotes: 0",
             color=discord.Color.random()
         )
 
@@ -1312,8 +1312,7 @@ class BattleView(discord.ui.View):
         if interaction.message:
             await interaction.message.delete()
 
-    @discord.ui.button(custom_id="battle_view:1", style=discord.ButtonStyle.blurple, emoji="1️⃣")
-    async def select_one(self, interaction: discord.Interaction, _: discord.ui.Button):
+    async def vote(self, interaction: discord.Interaction, index: int):
         if not self.initialized:
             if interaction.channel and interaction.channel.id == BATTLE_CHANNEL_ID:
                 await self.reroll_battle(interaction)
@@ -1326,29 +1325,21 @@ class BattleView(discord.ui.View):
         if interaction.user.id in self.voted_users:
             await interaction.response.send_message("You already voted on this battle", ephemeral=True)
             return        
-        self.battle_scores[0] += 1
+        self.battle_scores[index] += 1
         self.voted_users.append(interaction.user.id)
-        await interaction.response.send_message(f"Successfully voted on quote {self.quote1.QuoteID}", ephemeral=True)
+        if index == 0:
+            await interaction.response.send_message(f"Successfully voted on quote {self.quote1.QuoteID}", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"Successfully voted on quote {self.quote2.QuoteID}", ephemeral=True)
         await self.handle_battle()
+
+    @discord.ui.button(custom_id="battle_view:1", style=discord.ButtonStyle.blurple, emoji="1️⃣")
+    async def select_one(self, interaction: discord.Interaction, _: discord.ui.Button):
+        self.vote(interaction, 0)
     
     @discord.ui.button(custom_id="battle_view:2", style=discord.ButtonStyle.blurple, emoji="2️⃣")
     async def select_two(self, interaction: discord.Interaction, _: discord.ui.Button):
-        if not self.initialized:
-            if interaction.channel and interaction.channel.id == BATTLE_CHANNEL_ID:
-                await self.reroll_battle(interaction)
-            else:
-                await interaction.response.send_message("This battle is not in cache anymore. Start a new one.", ephemeral=True)
-                if interaction.message:
-                    await interaction.message.delete()
-            return
-        
-        if interaction.user.id in self.voted_users:
-            await interaction.response.send_message("You already voted on this battle", ephemeral=True)
-            return
-        self.battle_scores[0] += 1
-        self.voted_users.append(interaction.user.id)
-        await interaction.response.send_message(f"Successfully voted on quote {self.quote2.QuoteID}", ephemeral=True)
-        await self.handle_battle()
+        self.vote(interaction, 1)
         
     @discord.ui.button(custom_id="battle_view:skip", style=discord.ButtonStyle.grey, emoji="🗑️")
     async def select_skip(self, interaction: discord.Interaction, _: discord.ui.Button):
