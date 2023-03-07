@@ -1,8 +1,8 @@
-name: Build Release Production
+name: Build API
 
 on:
   push:
-    branches: ["master"]
+    branches: ["staging", "master"]
 
 jobs:
   build:
@@ -28,8 +28,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
-          context: .
-          file: ./Dockerfile
+          context: ./api/
+          file: ./api/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/lecturfier:latest
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/lecturfier:api

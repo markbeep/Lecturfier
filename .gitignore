@@ -10,6 +10,7 @@ helper/__pycache__/*
 *.json
 *.db
 helper/lecture_scraper/__pycache__/*
-venv
 *.exe
 .env*
+shell.nix
+.venv
