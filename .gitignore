@@ -13,3 +13,4 @@ helper/lecture_scraper/__pycache__/*
 venv
 *.exe
 .env*
+*.nix
