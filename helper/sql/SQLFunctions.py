@@ -420,7 +420,8 @@ def get_statistics_per_user(
                         RANK() OVER (order by VoteCount {desc}) vc
                     FROM UserStatistics
                     INNER JOIN DiscordMembers USING (UniqueMemberID)
-                    WHERE DiscordGuildID=?
+                    INNER JOIN DiscordUsers USING (DiscordUserId)
+                    WHERE DiscordGuildID=? AND IsBot=0
                     ) rank ON ums.UniqueMemberID=rank.UniqueMemberID
                 WHERE dm.DiscordUserID=?"""
     result = conn.execute(sql, (guild_id, member_id)).fetchone()
