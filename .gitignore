@@ -14,3 +14,4 @@ helper/lecture_scraper/__pycache__/*
 shell.nix
 .venv
 .direnv
+place
