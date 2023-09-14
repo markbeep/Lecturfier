@@ -11,5 +11,6 @@ helper/__pycache__/*
 helper/lecture_scraper/__pycache__/*
 *.exe
 .env*
-*.nix
+shell.nix
 .venv
+.direnv
