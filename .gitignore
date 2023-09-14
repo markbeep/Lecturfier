@@ -7,7 +7,6 @@ data/*
 helper/lecture_scraper/scraper_test.py
 cogs/__pycache__/*
 helper/__pycache__/*
-*.json
 *.db
 helper/lecture_scraper/__pycache__/*
 *.exe
