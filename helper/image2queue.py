@@ -22,8 +22,8 @@ class PixPlace:
         self.queue = []
         self.top_left_corner = []
         self.bot_right_corner = []
-
         self.place_board = []
+
 
         if setpixels is not None:
             self.read_setpixel_string(setpixels)

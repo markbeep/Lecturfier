@@ -105,6 +105,10 @@ class Draw(commands.Cog):
         self.db_path = "./data/discord.db"
         self.place_path = "./place/"
         self.conn = SQLFunctions.connect()
+        
+        # ensures the /place dir exists
+        if not os.path.exists(self.place_path):
+            os.mkdir(self.place_path)
 
         self.LINE_HEIGHT = 62  # amount of lines which fit on the place canvas
         self.CHAR_WIDTH = 166  # amount of chars which fit in a line on the place canvas
