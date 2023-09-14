@@ -1,7 +1,6 @@
 import asyncio
 import random
 import time
-from datetime import datetime
 from enum import Enum
 import discord
 from discord.ext import commands, menus
@@ -1112,11 +1111,12 @@ class BattleView(discord.ui.View):
         self.in_play = False
         self.init_battle()
         self.initialized = True
+        self.last_edited = time.time()
     
     def add_message(self, message):
         self.message = message
     
-    def init_battle(self):
+    def init_battle(self, quote1: Quote | None = None, quote2: Quote | None = None):
         quotes = SQLFunctions.get_quotes(conn=self.conn, guild_id=self.channel.guild.id, rank_by_elo=True)
         random.seed()
 
@@ -1125,7 +1125,11 @@ class BattleView(discord.ui.View):
             color=discord.Color.random()
         )
 
-        if random.random() <= 0.03:  # there's a 3% chance for a top battle to show up
+        if quote1 is not None and quote2 is not None:
+            embed.title = "Epic Quote Battle"
+            self.paused = True
+            rank1, rank2 = 0, 0
+        elif random.random() <= 0.03:  # there's a 3% chance for a top battle to show up
             embed.title = "TOP QUOTE BATTLE"
             (rank1, quote1), (rank2, quote2) = self.pick_top_quotes(quotes)
             embed.set_thumbnail(url="https://media4.giphy.com/media/LO8oXHPum0xworIyk4/giphy.gif")
@@ -1223,7 +1227,7 @@ class BattleView(discord.ui.View):
             i += 1
         return -1
 
-    async def handle_battle(self):
+    async def start_battle(self):
         """
         Handles the whole quote battle including picking the quotes, sending the message,
         editing it and deleting the messages afterwards.
@@ -1234,25 +1238,32 @@ class BattleView(discord.ui.View):
         if self.message is None:
             raise Exception("Message or Channel is unassigned for battle")
 
+        await self.handle_battle() # starts counting down the time
+
+    async def handle_battle(self):
+        """
+        Starts the battle and handles the countdown.
+        """
         quote1 = self.quote1
         quote2 = self.quote2
         embed = self.embed
         rank1 = self.rank1
         rank2 = self.rank2
-        elo1 = quote1.Elo
-        elo2 = quote2.Elo
+        elo1 = self.quote1.Elo
+        elo2 = self.quote2.Elo
         msg = self.message
-
+        
         if self.paused:  # the battle was paused, so we have to get the new ranks of the quotes incase they changed
-            rank1 = self.get_rank_of_quote(quote1.QuoteID, self.channel.guild.id)
-            rank2 = self.get_rank_of_quote(quote2.QuoteID, self.channel.guild.id)
-
+            rank1 = self.get_rank_of_quote(self.quote1.QuoteID, self.channel.guild.id)
+            rank2 = self.get_rank_of_quote(self.quote2.QuoteID, self.channel.guild.id)
+        
         start_time = time.time()
         while start_time + self.time_for_battle > time.time():
             embed.description = f"Choose the better quote using the buttons. \
                 Battle ending in {int(start_time + self.time_for_battle - time.time())} seconds.\n\
                 Votes: {len(self.voted_users)}"
             await msg.edit(embed=embed)
+            self.last_edited = time.time()
             await asyncio.sleep(5)
 
         assert embed.title
@@ -1307,17 +1318,31 @@ class BattleView(discord.ui.View):
         """
         assert isinstance(interaction.channel, discord.TextChannel)
         channel = interaction.channel
-        await interaction.response.send_message("This battle was lost. Rerolling a new one.", ephemeral=True)
+        await interaction.response.send_message("Restarting battle...", ephemeral=True)
         view = BattleView(channel, 0, None)
+        
+        def get_quote_id(field_name: str) -> int:
+            quote_id = int(field_name[field_name.index("ID:")+4: field_name.index("| Name:")])
+            return quote_id
+        
+        embed: discord.Embed = interaction.message.embeds[0]
+        quote1 = SQLFunctions.get_quote(get_quote_id(embed.fields[0].name), interaction.guild_id, view.conn)
+        quote2 = SQLFunctions.get_quote(get_quote_id(embed.fields[1].name), interaction.guild_id, view.conn)
+        view.init_battle(quote1, quote2)
+        
         msg = await channel.send(embed=view.embed, view=view)
         view.add_message(msg)
         if interaction.message:
             await interaction.message.delete()
+        return view
 
     async def vote(self, interaction: discord.Interaction, index: int):
         if not self.initialized:
             if interaction.channel and interaction.channel.id == BATTLE_CHANNEL_ID:
-                await self.reroll_battle(interaction)
+                battle = await self.reroll_battle(interaction)
+                battle.battle_scores[index] += 1
+                battle.voted_users.append(interaction.user.id)
+                await battle.handle_battle()
             else:
                 await interaction.response.send_message("This battle is not in cache anymore. Start a new one.", ephemeral=True)
                 if interaction.message:
@@ -1325,8 +1350,14 @@ class BattleView(discord.ui.View):
             return
 
         if interaction.user.id in self.voted_users:
-            await interaction.response.send_message("You already voted on this battle", ephemeral=True)
-            return        
+            if time.time() - self.last_edited < self.time_for_battle:
+                await interaction.response.send_message("You already voted on this battle", ephemeral=True)
+                return        
+            else: # battle crashed, so restart it again
+                self.paused = True
+                self.battle_scores = [0,0] # resets the scores to be safe
+                self.voted_users = []
+                await self.handle_battle()
         self.battle_scores[index] += 1
         self.voted_users.append(interaction.user.id)
         if index == 0:
@@ -1335,7 +1366,7 @@ class BattleView(discord.ui.View):
             await interaction.response.send_message(f"Successfully voted on quote {self.quote2.QuoteID}", ephemeral=True)
         # increment vote statistic
         SQLFunctions.update_statistics(interaction.user, conn=self.conn, vote_count=1)
-        await self.handle_battle()
+        await self.start_battle()
 
     @discord.ui.button(custom_id="battle_view:1", style=discord.ButtonStyle.blurple, emoji="1️⃣")
     async def select_one(self, interaction: discord.Interaction, _: discord.ui.Button):
@@ -1357,7 +1388,7 @@ class BattleView(discord.ui.View):
             return
         
         await interaction.response.send_message(f"Skipping this battle...", ephemeral=True)
-        await self.handle_battle()
+        await self.start_battle()
         
         
 async def quote_setup_hook(bot: commands.Bot):
