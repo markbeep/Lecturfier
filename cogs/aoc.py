@@ -63,7 +63,7 @@ class AdventOfCode(commands.Cog):
         dt = datetime.now(timezone("Europe/Zurich"))
         if dt.month == 12 and 1 <= dt.day <= 25 and dt.hour == 6 and dt.minute == 0:
             msg = f"Good Morning! It's time for **Advent of Code** day #{dt.day}!\n\
-                [*Click here to get to the challenge*](https://adventofcode.com/2022/day/{dt.day})"
+                [*Click here to get to the challenge*](https://adventofcode.com/2023/day/{dt.day})"
             embed = discord.Embed(
                 description=msg,
                 color=discord.Color.red())
@@ -85,7 +85,7 @@ class AdventOfCode(commands.Cog):
         email = os.getenv("EMAIL", "(no email given)")
         headers = {"User-Agent": f"https://github.com/markbeep/Lecturfier by {email}"}
         async with aiohttp.ClientSession(cookies=cookie, headers=headers) as session:
-            async with session.get("https://adventofcode.com/2022/leaderboard/private/view/951576.json") as response:
+            async with session.get("https://adventofcode.com/2023/leaderboard/private/view/1514956.json") as response:
                 if response.status == 200:
                     temp_data = await response.read()
                     self.data = json.loads(temp_data)
