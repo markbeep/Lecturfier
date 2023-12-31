@@ -305,7 +305,7 @@ class Quote(commands.Cog):
 
             embed = discord.Embed(
                 title="All Quotes Stats",
-                description="You didn't specify what user to get quotes off. So here are some stats."
+                description="You didn't specify what user to get quotes of. So here are some stats."
             )
             embed.add_field(name="Total Quotes", value=total_quotes)
             embed.add_field(name="Total Names", value=total_names)
