@@ -352,7 +352,9 @@ class Draw(commands.Cog):
         # id to stop specific draw
         ID = str(random.randint(1000, 10000))
 
-        img = im2q.PixPlace(buffer, ID)
+        top_left = (x1, y1)
+        bot_right = (x2, y2)
+        img = im2q.PixPlace(buffer, ID, top_left=top_left, bot_right=bot_right)
         drawn = modifiers(img, mods)
 
         self.handle_image(img, drawn, ID)
@@ -411,7 +413,9 @@ class Draw(commands.Cog):
             await ctx.send("Not all coordinates given.")
             raise commands.errors.BadArgument()
 
-        img = im2q.PixPlace(buffer, "multi")
+        top_left = (x1, y1)
+        bot_right = (x2, y2)
+        img = im2q.PixPlace(buffer, "multi", top_left=top_left, bot_right=bot_right)
         modifiers(img, mods)
         pixels_queue = img.get_queue()
 

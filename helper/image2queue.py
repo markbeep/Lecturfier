@@ -15,7 +15,7 @@ def hex_to_rgb(value):
 
 
 class PixPlace:
-    def __init__(self, fp, name, setup=True, setpixels=None, pil_img: Image.Image | None = None):
+    def __init__(self, fp, name, setup=True, setpixels=None, pil_img: Image.Image | None = None, top_left=None, bot_right=None):
         self.fp = fp
         self.name = name
         self.pixel_array = None
@@ -39,6 +39,11 @@ class PixPlace:
             self._remove_transparent()
             self.size = len(self.pixel_array)
             self._set_corners()
+        
+        if top_left is not None:
+            self.top_left_corner = top_left
+        if bot_right is not None:
+            self.bot_right_corner = bot_right
 
     def _remove_transparent(self, pil_img=None, alpha_threshold=230):
         if pil_img is None:
