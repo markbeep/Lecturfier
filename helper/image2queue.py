@@ -41,9 +41,11 @@ class PixPlace:
             self._set_corners()
         
         if top_left is not None:
-            self.top_left_corner = top_left
+            x, y = top_left
+            self.top_left_corner = (int(x), int(y))
         if bot_right is not None:
-            self.bot_right_corner = bot_right
+            x, y = bot_right
+            self.bot_right_corner = (int(x), int(y))
 
     def _remove_transparent(self, pil_img=None, alpha_threshold=230):
         if pil_img is None:
