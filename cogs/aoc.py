@@ -66,7 +66,11 @@ class AoCMember:
     
     @staticmethod
     def parse_string(content: str) -> list["AoCMember"]:
-        parsed = json.loads(content)
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError as e:
+            print(e)
+            return []
         return [AoCMember(**parsed["members"][key]) for key in parsed["members"]]
 
 
@@ -149,6 +153,11 @@ class AdventOfCode(commands.Cog):
         if day == -1 and star == -1:  # send the general lb
             pages = []
             members = [mem for mem in d if len(mem.completion_day_level) > 0]
+            
+            if len(members) == 0:
+                await ctx.reply("There are no stats for this leaderboard yet.", delete_after=10)
+                await ctx.message.delete(delay=10)
+                return
 
             def sort_by_local_score(mem: AoCMember):
                 return mem.local_score
