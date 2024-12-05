@@ -1,5 +1,7 @@
+from dataclasses import dataclass
 from datetime import datetime, time as dt_time
 import time
+from typing import Optional
 import aiohttp
 import discord
 from discord.ext import commands, tasks
@@ -10,7 +12,7 @@ from pytz import timezone
 from cogs.quote import PagesView
 from helper.log import log
 from helper.sql import SQLFunctions
-from .information import get_formatted_time
+from .information import get_formatted_time, get_formatted_time_short
 
 def create_pages(msg: str, CHAR_LIMIT: int) -> list[str]:
     pages = []
@@ -30,16 +32,54 @@ def create_pages(msg: str, CHAR_LIMIT: int) -> list[str]:
         msg = msg[rind2:]
     return pages
 
+@dataclass
+class AoCStar:
+    get_star_ts:int
+    star_index:int
+
+@dataclass
+class AoCDay:
+    star1: Optional[AoCStar]
+    star2: Optional[AoCStar]
+    
+    def diff(self) -> Optional[int]:
+        if not self.star1 or not self.star2:
+            return None
+        return self.star2.get_star_ts-self.star1.get_star_ts
+
+@dataclass
+class AoCMember:
+    last_star_ts:int
+    local_score:int
+    id:int
+    global_score:int
+    name:str
+    stars:int
+    completion_day_level:dict[int, AoCDay]
+    def __post_init__(self):
+        n = {}
+        for k, args in self.completion_day_level.items():
+            star1=AoCStar(**args["1"]) if "1" in args else  None
+            star2=AoCStar(**args["2"]) if "2" in args else  None
+            n[int(k)]=AoCDay(star1,star2)
+        self.completion_day_level=n
+    
+    @staticmethod
+    def parse_string(content: str) -> list["AoCMember"]:
+        parsed = json.loads(content)
+        return [AoCMember(**parsed["members"][key]) for key in parsed["members"]]
+
+
 class AdventOfCode(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
         self.aoc_path = "./data/aoc_data.json"
-        self.data = {}
+        self.data: list[AoCMember] = []
         if os.path.isfile(self.aoc_path):
             with open(self.aoc_path, "r") as f:
-                self.data: dict = json.load(f)
+                self.data = AoCMember.parse_string(f.read())
         self.last_updated = 0
         
         # temp channel is so the linter stops complaining
@@ -87,12 +127,12 @@ class AdventOfCode(commands.Cog):
         async with aiohttp.ClientSession(cookies=cookie, headers=headers) as session:
             async with session.get("https://adventofcode.com/2024/leaderboard/private/view/1501119.json") as response:
                 if response.status == 200:
-                    temp_data = await response.read()
-                    self.data = json.loads(temp_data)
-                    self.last_updated = time.time()
+                    response_data = await response.read()
                     # saves the file to the data folder
                     with open(self.aoc_path, "w") as f:
-                        json.dump(self.data, f)
+                        f.write(response_data)
+                    self.data = AoCMember.parse_string(response_data)
+                    self.last_updated = time.time()
                     log("Successfully updated the AoC data.", True)
         
 
@@ -108,15 +148,15 @@ class AdventOfCode(commands.Cog):
         desc = f"Last Updated: `{get_formatted_time(int(time.time() - self.last_updated))}` ago"
         if day == -1 and star == -1:  # send the general lb
             pages = []
-            members = [d["members"][key] for key in d["members"]
-                       if len(d["members"][key]["completion_day_level"])>0]
+            members = [mem for mem in d if len(mem.completion_day_level) > 0]
 
-            points_fn = lambda k: k["local_score"]
-            members.sort(key=points_fn, reverse=True)
+            def sort_by_local_score(mem: AoCMember):
+                return mem.local_score
+            members.sort(key=sort_by_local_score, reverse=True)
 
             msg = []
             for i, m in enumerate(members):
-                msg.append(f"`[{i+1}]` **{m['name']}** - {m['local_score']} points | {m['stars']} stars")
+                msg.append(f"`[{i+1}]` **{m.name}** - {m.local_score} points | {m.stars} stars")
             pages = create_pages("\n".join(msg), 500)
 
             view = PagesView(self.bot, ctx, pages, ctx.author.id, "Total AoC Leaderboard", description=desc)
@@ -125,13 +165,16 @@ class AdventOfCode(commands.Cog):
         elif star == -1 and 1 <= day <= 25:  # send the lb for that day
 
             pages = []
-            members = [d["members"][key] for key in d["members"]
-                       if len(d["members"][key]["completion_day_level"])>0 
-                       and f"{day}" in d["members"][key]["completion_day_level"]]
-            sorted_points, points = self.sort_by_times(members, len(d["members"]), day)
+            members = [mem for mem in d if len(mem.completion_day_level) > 0 and day in mem.completion_day_level.keys()]
+            
+            ranking = self.sort_by_times(members, len(d), day)
             msg = []
-            for i, key in enumerate(sorted_points):
-                msg.append(f"`[{i+1}]` **{d['members'][str(key)]['name']}** - {points[key]} points")
+            for i, (mem, points) in enumerate(ranking):
+                star_diff = mem.completion_day_level[day].diff()
+                if star_diff:
+                    msg.append(f"`[{i+1}]` **{mem.name}** - {points} points [Star Diff: {get_formatted_time_short(star_diff)}]")
+                else:
+                    msg.append(f"`[{i+1}]` **{mem.name}** - {points} points [Star Diff: unfinished]")
             pages = create_pages("\n".join(msg), 500)
 
             if len(pages) > 0:
@@ -143,17 +186,19 @@ class AdventOfCode(commands.Cog):
                 await ctx.message.delete(delay=10)
         elif 1 <= day <= 25 and star in [1, 2]:  # sends the lb for that day and star
             pages = []
-            members = [d["members"][key] for key in d["members"]
-                       if len(d["members"][key]["completion_day_level"])>0 
-                       and f"{day}" in d["members"][key]["completion_day_level"]
-                       and f"{star}" in d["members"][key]["completion_day_level"][f"{day}"]]
+            if star == 1:
+                members = [mem for mem in d if len(mem.completion_day_level) > 0 and day in mem.completion_day_level.keys() and mem.completion_day_level[day].star1]
+            else:
+                members = [mem for mem in d if len(mem.completion_day_level) > 0 and day in mem.completion_day_level.keys() and mem.completion_day_level[day].star2]
 
-            points_fn = lambda m: m["completion_day_level"][f"{day}"][f"{star}"]["get_star_ts"]
-            members.sort(key=points_fn)
+            def star_ts(mem: AoCMember) -> int:
+                if star == 1:
+                    return mem.completion_day_level[day].star1
+                else:
+                    return mem.completion_day_level[day].star2
+            members.sort(key=star_ts)
 
-            min_time = 0
-            if len(members) > 0:
-                min_time = members[0]["completion_day_level"][f"{day}"][f"{star}"]["get_star_ts"]
+            min_time = min(mem.completion_day_level[day].star1.get_star_ts for mem in members if day in mem.completion_day_level)
             mytz = timezone("Europe/Zurich")
             dt = datetime.fromtimestamp(min_time).strftime(f"{day}/%m/%Y, 06:00:00")
             dt = datetime.strptime(dt, "%d/%m/%Y, %H:%M:%S")
@@ -161,9 +206,13 @@ class AdventOfCode(commands.Cog):
             min_hour = dt.timestamp()
 
             msg = []
-            for i, m in enumerate(members):
-                form = get_formatted_time(m['completion_day_level'][f'{day}'][f'{star}']['get_star_ts']-min_hour)
-                msg.append(f"`[{i+1}]` **{m['name']}** - {form}")
+            for i, mem in enumerate(members):
+                if day == 1:
+                    form = get_formatted_time_short(mem.completion_day_level[day].star1-min_hour)
+                else:
+                    form = get_formatted_time_short(mem.completion_day_level[day].star2-min_hour)
+                    
+                msg.append(f"`[{i+1}]` **{mem.name}** - {form}")
             pages = create_pages("\n".join(msg), 500)
 
             if len(pages) > 0:
@@ -177,24 +226,28 @@ class AdventOfCode(commands.Cog):
             await ctx.reply("Unrecognized command parameters. Please check the help page.", delete_after=10)
             await ctx.delete(delay=10)
 
-    def sort_by_times(self, members: list[dict], total: int, day: int):
-        points = {m["id"]:0 for m in members}
-        first_star = [m for m in members if "1" in m["completion_day_level"][f"{day}"]]
-        second_star = [m for m in members if "2" in m["completion_day_level"][f"{day}"]]
+    def sort_by_times(self, members: list[AoCMember], total: int, day: int) -> list[tuple[AoCMember, int]]:
+        points = {m.id:0 for m in members}
+        mem_dict = {m.id:m for m in members}
+        first_star = [m for m in members if m.completion_day_level[day].star1]
+        second_star = [m for m in members if m.completion_day_level[day].star2]
         
         # sort by the person's submission time (earliest times at the end)
-        sort_fn1 = lambda m: m["completion_day_level"][f"{day}"]["1"]["get_star_ts"]
-        sort_fn2 = lambda m: m["completion_day_level"][f"{day}"]["2"]["get_star_ts"]
-        first_star.sort(key=sort_fn1)
-        second_star.sort(key=sort_fn2)
+        def star1_ts(m: AoCMember) -> int:
+            return m.completion_day_level[day].star1.get_star_ts
+        def star2_ts(m: AoCMember) -> int:
+            return m.completion_day_level[day].star2.get_star_ts
+        first_star.sort(key=star1_ts)
+        second_star.sort(key=star2_ts)
         
         for i, m in enumerate(first_star):
-            points[m["id"]] = total - i
+            points[m.id] = total - i
         for i, m in enumerate(second_star):
-            points[m["id"]] += total - i
+            points[m.id] += total - i
         
         final = sorted(points, key= lambda x: points[x], reverse=True)  # sorted by final points
-        return final, points
+        
+        return [(mem_dict[id], points[id]) for id in final]
 
 
 async def setup(bot):
