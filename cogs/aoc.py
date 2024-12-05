@@ -172,9 +172,9 @@ class AdventOfCode(commands.Cog):
             for i, (mem, points) in enumerate(ranking):
                 star_diff = mem.completion_day_level[day].diff()
                 if star_diff:
-                    msg.append(f"`[{i+1}]` **{mem.name}** - {points} points [Star Diff: {get_formatted_time_short(star_diff)}]")
+                    msg.append(f"`[{i+1}]` **{mem.name}** - {points} points *[Star diff: {get_formatted_time_short(star_diff)}]*")
                 else:
-                    msg.append(f"`[{i+1}]` **{mem.name}** - {points} points [Star Diff: unfinished]")
+                    msg.append(f"`[{i+1}]` **{mem.name}** - {points} points *[Star diff: unfinished]*")
             pages = create_pages("\n".join(msg), 500)
 
             if len(pages) > 0:
@@ -208,9 +208,9 @@ class AdventOfCode(commands.Cog):
             msg = []
             for i, mem in enumerate(members):
                 if day == 1:
-                    form = get_formatted_time_short(mem.completion_day_level[day].star1-min_hour)
+                    form = get_formatted_time_short(mem.completion_day_level[day].star1.get_star_ts-min_hour)
                 else:
-                    form = get_formatted_time_short(mem.completion_day_level[day].star2-min_hour)
+                    form = get_formatted_time_short(mem.completion_day_level[day].star2.get_star_ts-min_hour)
                     
                 msg.append(f"`[{i+1}]` **{mem.name}** - {form}")
             pages = create_pages("\n".join(msg), 500)

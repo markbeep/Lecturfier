@@ -33,15 +33,15 @@ def get_formatted_time_short(rem):
     if rem < 0:
         return f"*Passed*"
     if rem < 60:
-        return f"{round(rem)}S"
+        return f"{round(rem)}s"
     if rem < 3600:
         minutes = rem // 60
-        return f"{int(minutes)}M {get_formatted_time(rem - minutes * 60)}"
+        return f"{int(minutes)}m {get_formatted_time_short(rem - minutes * 60)}"
     if rem < 86400:
         hours = rem // 3600
-        return f"{int(hours)}H {get_formatted_time(rem - hours * 3600)}"
+        return f"{int(hours)}h {get_formatted_time_short(rem - hours * 3600)}"
     days = rem // 86400
-    return f"{int(days)}D {get_formatted_time(rem - days * 86400)}"
+    return f"{int(days)}d {get_formatted_time_short(rem - days * 86400)}"
 
 
 def format_input_date(date, time_inp):
