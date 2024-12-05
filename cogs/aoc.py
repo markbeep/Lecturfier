@@ -134,8 +134,8 @@ class AdventOfCode(commands.Cog):
                     response_data = await response.read()
                     # saves the file to the data folder
                     with open(self.aoc_path, "w") as f:
-                        f.write(response_data)
-                    self.data = AoCMember.parse_string(response_data)
+                        f.write(response_data.decode())
+                    self.data = AoCMember.parse_string(response_data.decode())
                     self.last_updated = time.time()
                     log("Successfully updated the AoC data.", True)
         
