@@ -266,7 +266,7 @@ class AdventOfCode(commands.Cog):
 
             msg = []
             for i, mem in enumerate(members):
-                if day == 1 and mem.completion_day_level[day].star1:
+                if star == 1 and mem.completion_day_level[day].star1:
                     form = get_formatted_time_short(
                         mem.completion_day_level[day].star1.get_star_ts - min_hour
                     )
