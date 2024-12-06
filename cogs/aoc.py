@@ -244,10 +244,12 @@ class AdventOfCode(commands.Cog):
                 ]
 
             def star_ts(mem: AoCMember) -> int:
-                if star == 1:
+                if star == 1 and mem.completion_day_level[day].star1:
                     return mem.completion_day_level[day].star1.get_star_ts
-                else:
+                elif mem.completion_day_level[day].star2:
                     return mem.completion_day_level[day].star2.get_star_ts
+                else:
+                    return 999999999999999999999
 
             members.sort(key=star_ts)
 
@@ -264,14 +266,16 @@ class AdventOfCode(commands.Cog):
 
             msg = []
             for i, mem in enumerate(members):
-                if day == 1:
+                if day == 1 and mem.completion_day_level[day].star1:
                     form = get_formatted_time_short(
                         mem.completion_day_level[day].star1.get_star_ts - min_hour
                     )
-                else:
+                elif mem.completion_day_level[day].star2:
                     form = get_formatted_time_short(
                         mem.completion_day_level[day].star2.get_star_ts - min_hour
                     )
+                else:
+                    continue
 
                 msg.append(f"`[{i+1}]` **{mem.name}** - {form}")
             pages = create_pages("\n".join(msg), 500)
