@@ -1165,7 +1165,7 @@ class Information(commands.Cog):
                         continue
                     try:
                         emoji = await guild.create_custom_emoji(
-                            name=random_string(10), image=result
+                            name=emote_names[emote], image=result
                         )
                         success.append(f"{guild_id}: Success: {str(emoji)}")
                         added.append(result)
