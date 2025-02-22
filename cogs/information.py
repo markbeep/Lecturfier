@@ -1,10 +1,14 @@
+import asyncio
 import math
 import random
+import re
 import string
 import time
 from calendar import monthrange
 from datetime import datetime
+from typing import Optional
 
+import aiohttp
 import discord
 import psutil
 from discord.ext import commands, tasks
@@ -17,7 +21,7 @@ from helper.sql import SQLFunctions
 
 def get_formatted_time(rem):
     if rem < 0:
-        return f"*Passed*"
+        return "*Passed*"
     if rem < 60:
         return f"{round(rem)} seconds"
     if rem < 3600:
@@ -29,9 +33,10 @@ def get_formatted_time(rem):
     days = rem // 86400
     return f"{int(days)} days {get_formatted_time(rem - days * 86400)}"
 
+
 def get_formatted_time_short(rem):
     if rem < 0:
-        return f"*Passed*"
+        return "*Passed*"
     if rem < 60:
         return f"{round(rem)}s"
     if rem < 3600:
@@ -71,7 +76,7 @@ def is_valid_date(date, time_inp):
     if date["year"] < cur_year:
         # Year is passed
         if cur_year + 5 >= date["year"] + 2000 >= cur_year:
-            date["year"] = date["year"]+2000
+            date["year"] = date["year"] + 2000
         else:
             return False
     if date["year"] == cur_year:
@@ -157,19 +162,19 @@ def add_event_fields(embed, event, joined_users_msg):
 
 class Information(commands.Cog):
     def __init__(self, bot):
-        self.bot = bot
+        self.bot: discord.Client = bot
         self.script_start = time.time()
         self.db_path = "./data/discord.db"
         self.conn = SQLFunctions.connect()
-        self.background_events.start() # pylint: disable=no-member
+        self.background_events.start()  # pylint: disable=no-member
         # emote used for adding users to an event
         self.emote = "949669955413114960"
 
     def heartbeat(self):
-        return self.background_events.is_running() # pylint: disable=no-member
+        return self.background_events.is_running()  # pylint: disable=no-member
 
     def cog_unload(self) -> None:
-        self.background_events.cancel() # pylint: disable=no-member
+        self.background_events.cancel()  # pylint: disable=no-member
 
     @tasks.loop(seconds=20)
     async def background_events(self):
@@ -185,9 +190,12 @@ class Information(commands.Cog):
                 embed = discord.Embed(
                     title="Event Starting!",
                     description=f"`{event.EventName}` is starting! Here just a few details of the event:",
-                    color=0xFCF4A3)
+                    color=0xFCF4A3,
+                )
                 embed.add_field(name="Event ID", value=event.EventID)
-                embed.add_field(name="Host", value=f"<@{event.DiscordMember.DiscordUserID}>")
+                embed.add_field(
+                    name="Host", value=f"<@{event.DiscordMember.DiscordUserID}>"
+                )
                 embed.add_field(name="Description", value=event.EventDescription)
 
                 for member in joined_members:
@@ -212,10 +220,12 @@ class Information(commands.Cog):
         Simply checks if the bot's background task is still running,
         and if not it starts it back up
         """
-        if not self.background_events.is_running(): # pylint: disable=no-member
-            self.background_events.start() # pylint: disable=no-member
+        if not self.background_events.is_running():  # pylint: disable=no-member
+            self.background_events.start()  # pylint: disable=no-member
 
-    async def join_leave_event(self, member, guild_id, command, message_id=None, event_id:int=-1) -> SQLFunctions.Event | None:
+    async def join_leave_event(
+        self, member, guild_id, command, message_id=None, event_id: int = -1
+    ) -> SQLFunctions.Event | None:
         event_results = SQLFunctions.get_events(self.conn, guild_id=guild_id)
         for e in event_results:
             if message_id is not None and e.UpdatedMessageID == message_id:
@@ -227,7 +237,9 @@ class Information(commands.Cog):
         else:  # no matching event was found otherwise
             return None
         # check if the user already joined the event
-        joined_members = SQLFunctions.get_event_joined_users(event=event, conn=self.conn)
+        joined_members = SQLFunctions.get_event_joined_users(
+            event=event, conn=self.conn
+        )
         joined = False
         discord_member = None
         for m in joined_members:
@@ -254,36 +266,55 @@ class Information(commands.Cog):
 
         try:  # updates the event message with the newly joined/leaving user
             channel = self.bot.get_channel(event.UpdatedChannelID)
-            if channel is None or channel.guild is None:  # channel is not visible to the bot or it's a private channel
+            if (
+                channel is None or channel.guild is None
+            ):  # channel is not visible to the bot or it's a private channel
                 return event
             msg = await channel.fetch_message(event.UpdatedMessageID)
             embed = create_event_embed(event, joined_members)
             await msg.edit(embed=embed)
         except (discord.NotFound, discord.errors.Forbidden):
-            print(f"Have no access to the events update message for the event with ID {event.EventID}.")
+            print(
+                f"Have no access to the events update message for the event with ID {event.EventID}."
+            )
 
         return event
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
-        if payload.guild_id is None or payload.channel_id is None or payload.member is None or payload.message_id is None:
+        if (
+            payload.guild_id is None
+            or payload.channel_id is None
+            or payload.member is None
+            or payload.message_id is None
+        ):
             return
         # return if its the bot itself
         if payload.member.bot:
             return
         if self.emote in str(payload.emoji):
-            event = await self.join_leave_event(payload.member, payload.guild_id, "join", message_id=payload.message_id)
-            SQLFunctions.logger.debug(f"Member {str(payload.member)} joining Event: {event}")
+            event = await self.join_leave_event(
+                payload.member, payload.guild_id, "join", message_id=payload.message_id
+            )
+            SQLFunctions.logger.debug(
+                f"Member {str(payload.member)} joining Event: {event}"
+            )
             if not event:
                 return
             try:
-                await payload.member.send(f"Added you to the event **{event.EventName}**")
+                await payload.member.send(
+                    f"Added you to the event **{event.EventName}**"
+                )
             except discord.Forbidden:
                 pass
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
-        if payload.guild_id is None or payload.channel_id is None or payload.user_id is None:
+        if (
+            payload.guild_id is None
+            or payload.channel_id is None
+            or payload.user_id is None
+        ):
             return
         # return if its the bot itself
         if payload.user_id == self.bot.user.id:
@@ -295,7 +326,9 @@ class Information(commands.Cog):
             member = guild.get_member(payload.user_id)
             if member is None:
                 return
-            event = await self.join_leave_event(member, payload.guild_id, "leave", message_id=payload.message_id)
+            event = await self.join_leave_event(
+                member, payload.guild_id, "leave", message_id=payload.message_id
+            )
             SQLFunctions.logger.debug(f"Member {str(member)} leaving Event: {event}")
             if not event:
                 return
@@ -304,7 +337,7 @@ class Information(commands.Cog):
                 await user.send(f"Removed you from the event **{event.EventName}**")
             except discord.Forbidden:
                 pass
-    
+
     @commands.cooldown(4, 10, BucketType.user)
     @commands.command(usage="guild")
     async def guild(self, ctx):
@@ -312,25 +345,33 @@ class Information(commands.Cog):
         Used to display information about the server.
         """
         guild = ctx.message.guild
-        embed = discord.Embed(title=f"Guild Statistics", color=discord.colour.Color.dark_blue())
-        embed.add_field(name="Categories", value=f"Server Name:\n"
-                                                 f"Server ID:\n"
-                                                 f"Member Count:\n"
-                                                 f"Categories:\n"
-                                                 f"Text Channels:\n"
-                                                 f"Voice Channels:\n"
-                                                 f"Emoji Count / Max emojis:\n"
-                                                 f"Owner:\n"
-                                                 f"Roles:")
-        embed.add_field(name="Values", value=f"{guild.name}\n"
-                                             f"{guild.id}\n"
-                                             f"{guild.member_count}\n"
-                                             f"{len(guild.categories)}\n"
-                                             f"{len(guild.text_channels)}\n"
-                                             f"{len(guild.voice_channels)}\n"
-                                             f"{len(guild.emojis)} / {guild.emoji_limit}\n"
-                                             f"{guild.owner.mention}\n"
-                                             f"{len(guild.roles)}")
+        embed = discord.Embed(
+            title=f"Guild Statistics", color=discord.colour.Color.dark_blue()
+        )
+        embed.add_field(
+            name="Categories",
+            value=f"Server Name:\n"
+            f"Server ID:\n"
+            f"Member Count:\n"
+            f"Categories:\n"
+            f"Text Channels:\n"
+            f"Voice Channels:\n"
+            f"Emoji Count / Max emojis:\n"
+            f"Owner:\n"
+            f"Roles:",
+        )
+        embed.add_field(
+            name="Values",
+            value=f"{guild.name}\n"
+            f"{guild.id}\n"
+            f"{guild.member_count}\n"
+            f"{len(guild.categories)}\n"
+            f"{len(guild.text_channels)}\n"
+            f"{len(guild.voice_channels)}\n"
+            f"{len(guild.emojis)} / {guild.emoji_limit}\n"
+            f"{guild.owner.mention}\n"
+            f"{len(guild.roles)}",
+        )
         await ctx.send(embed=embed)
 
     @commands.cooldown(4, 10, BucketType.user)
@@ -345,16 +386,27 @@ class Information(commands.Cog):
             cpu = psutil.cpu_percent()
             ram = psutil.virtual_memory()
 
-            cont = f"**Instance uptime: **`{b_time}`\n" \
-                   f"**Computer uptime: **`{s_time}`\n" \
-                   f"**CPU: **`{round(cpu)}%` | **RAM: **`{round(ram.percent)}%`\n" \
-                   f"**Discord.py Version:** `{discord.__version__}`\n" \
-                   f"**Bot source code:** [Click here for source code](https://github.com/markbeep/Lecturfier)"
-            embed = discord.Embed(title="Bot Information:", description=cont, color=0xD7D7D7,
-                                  timestamp=datetime.now(timezone("Europe/Zurich")))
+            cont = (
+                f"**Instance uptime: **`{b_time}`\n"
+                f"**Computer uptime: **`{s_time}`\n"
+                f"**CPU: **`{round(cpu)}%` | **RAM: **`{round(ram.percent)}%`\n"
+                f"**Discord.py Version:** `{discord.__version__}`\n"
+                f"**Bot source code:** [Click here for source code](https://github.com/markbeep/Lecturfier)"
+            )
+            embed = discord.Embed(
+                title="Bot Information:",
+                description=cont,
+                color=0xD7D7D7,
+                timestamp=datetime.now(timezone("Europe/Zurich")),
+            )
             embed.set_footer(text=f"Called by {ctx.author.display_name}")
-            embed.set_thumbnail(url=self.bot.user.avatar.url if self.bot.user.avatar else None)
-            embed.set_author(name=self.bot.user.display_name, icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None)
+            embed.set_thumbnail(
+                url=self.bot.user.avatar.url if self.bot.user.avatar else None
+            )
+            embed.set_author(
+                name=self.bot.user.display_name,
+                icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None,
+            )
         await ctx.send(embed=embed)
 
     @commands.cooldown(4, 10, BucketType.user)
@@ -376,7 +428,10 @@ class Information(commands.Cog):
         title = "Pong!"
         if "pong" in ctx.message.content.lower():
             title = "Ping!"
-        if "pong" in ctx.message.content.lower() and "ping" in ctx.message.content.lower():
+        if (
+            "pong" in ctx.message.content.lower()
+            and "ping" in ctx.message.content.lower()
+        ):
             title = "Ding?"
         if "ding" in ctx.message.content.lower():
             title = "*slap!*"
@@ -386,13 +441,17 @@ class Information(commands.Cog):
         embed = discord.Embed(
             title=f"{title} 🏓",
             description=f"🌐 Ping: `{round((end - start) * 1000)}` ms\n"
-                        f"❤ HEARTBEAT: `{round(self.bot.latency * 1000)}` ms",
-            color=0xD7D7D7
-            )
+            f"❤ HEARTBEAT: `{round(self.bot.latency * 1000)}` ms",
+            color=0xD7D7D7,
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
-    @commands.group(aliases=["events"], usage="event [add/view/edit/delete/join/leave] [event name/event ID] [date] [time] [description]", invoke_without_command=True)
+    @commands.group(
+        aliases=["events"],
+        usage="event [add/view/edit/delete/join/leave] [event name/event ID] [date] [time] [description]",
+        invoke_without_command=True,
+    )
     async def event(self, ctx, command=None):
         """
         The event command is used to keep track of upcoming events. Each user can add a maximum of two events.
@@ -401,26 +460,47 @@ class Information(commands.Cog):
         """
         if command is None:
             # list all upcoming events sorted by upcoming order
-            event_results = SQLFunctions.get_events(self.conn, is_done=False, guild_id=ctx.message.guild.id, order=True, limit=10)
-            embed = discord.Embed(title=f"Upcoming Events On {ctx.message.guild.name}", color=0xFCF4A3)
+            event_results = SQLFunctions.get_events(
+                self.conn,
+                is_done=False,
+                guild_id=ctx.message.guild.id,
+                order=True,
+                limit=10,
+            )
+            embed = discord.Embed(
+                title=f"Upcoming Events On {ctx.message.guild.name}", color=0xFCF4A3
+            )
             embed.set_footer(text="$event view <ID> to get more details about an event")
             for event in event_results:
                 form_time = starting_in(event.EventStartingAt)
-                embed.add_field(name=f"**ID:** {event.EventID}"
-                                     f"\n**Name:** {event.EventName}",
-                                value=f"**At:** {event.EventStartingAt}\n**In:** {form_time}", inline=False)
+                embed.add_field(
+                    name=f"**ID:** {event.EventID}\n**Name:** {event.EventName}",
+                    value=f"**At:** {event.EventStartingAt}\n**In:** {form_time}",
+                    inline=False,
+                )
             if len(event_results) == 0:
                 embed.description = "-- There are no upcoming events --"
             await ctx.send(embed=embed)
         elif ctx.invoked_subcommand is None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, the command you used is not recognized. Check `$help event` to get more "
-                           f"info about the event command.", delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, the command you used is not recognized. Check `$help event` to get more "
+                f"info about the event command.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
     @commands.guild_only()
     @event.command(usage="add <event name> <date> <event time> [description]")
-    async def add(self, ctx, event_name=None, date=None, event_time=None, *, event_description="[No Description]"):
+    async def add(
+        self,
+        ctx,
+        event_name=None,
+        date=None,
+        event_time=None,
+        *,
+        event_description="[No Description]",
+    ):
         """
         This command is used to add custom events.
 
@@ -435,46 +515,71 @@ class Information(commands.Cog):
         - `{prefix}event add 420BlazeIt 20.4.21 4:20 Send me a dm if you wanna join this event!`
         """
         # check if the user already has created events
-        events = SQLFunctions.get_events(self.conn, is_done=False, by_user_id=ctx.message.author.id, guild_id=ctx.message.guild.id)
+        events = SQLFunctions.get_events(
+            self.conn,
+            is_done=False,
+            by_user_id=ctx.message.author.id,
+            guild_id=ctx.message.guild.id,
+        )
         if len(events) < 3:
             # add the event to the db
             # Make sure the inputs are correct
             if event_name is None or date is None or event_time is None:
-                await ctx.send("ERROR! Incorrect arguments given. Check `$help event` to get more "
-                               f"info about the event command.", delete_after=10)
+                await ctx.send(
+                    "ERROR! Incorrect arguments given. Check `$help event` to get more "
+                    f"info about the event command.",
+                    delete_after=10,
+                )
                 await ctx.message.delete(delay=10)
                 raise commands.errors.BadArgument()
             date = format_input_date(date, event_time)
             if not date:
                 await ctx.send(
                     "ERROR! Incorrect date format given or date is passed. Should be `DD.MM.YYYY` or `DD-MM-YYYY`. Check `$help event` to get more "
-                    f"info about the event command. Event has to start minimum the next minute.", delete_after=10)
+                    "info about the event command. Event has to start minimum the next minute.",
+                    delete_after=10,
+                )
                 await ctx.message.delete(delay=10)
                 raise commands.errors.BadArgument()
             event_time = format_input_time(event_time)
             if not event_time:
-                await ctx.send("ERROR! Incorrect time format given. Should be `HH:MM`. Check `$help event` to get more "
-                               f"info about the event command.", delete_after=10)
+                await ctx.send(
+                    "ERROR! Incorrect time format given. Should be `HH:MM`. Check `$help event` to get more "
+                    "info about the event command.",
+                    delete_after=10,
+                )
                 await ctx.message.delete(delay=10)
                 raise commands.errors.BadArgument()
             # Adds the entry to the sql db
             if len(event_description) > 700:
-                event_description = event_description[0: 700] + "..."
+                event_description = event_description[0:700] + "..."
             if len(event_name) > 50:
-                event_name = event_name[0: 50] + "..."
+                event_name = event_name[0:50] + "..."
 
             try:
-                dt = datetime(date["year"], date["month"], date["day"], event_time["hour"], event_time["minute"])
+                dt = datetime(
+                    date["year"],
+                    date["month"],
+                    date["day"],
+                    event_time["hour"],
+                    event_time["minute"],
+                )
             except ValueError:
                 await ctx.send(
                     "ERROR! Incorrect date format given or date is passed. Should be `DD.MM.YYYY` or `DD-MM-YYYY`. Check `$help event` to get more "
-                    f"info about the event command.", delete_after=10)
+                    "info about the event command.",
+                    delete_after=10,
+                )
                 await ctx.message.delete(delay=10)
                 raise commands.errors.BadArgument()
 
             # Inserts event into event database
-            member = SQLFunctions.get_or_create_discord_member(ctx.message.author, conn=self.conn)
-            event = SQLFunctions.create_event(event_name, dt, event_description, member, self.conn)
+            member = SQLFunctions.get_or_create_discord_member(
+                ctx.message.author, conn=self.conn
+            )
+            event = SQLFunctions.create_event(
+                event_name, dt, event_description, member, self.conn
+            )
             # Additionally joins the host as a joined user
             SQLFunctions.add_member_to_event(event, member, self.conn, host=True)
 
@@ -482,12 +587,21 @@ class Information(commands.Cog):
             embed = discord.Embed(title="Added New Event", color=0xFCF4A3)
             embed.add_field(name="Event ID", value=event.EventID)
             embed.add_field(name="Event Name", value=event_name, inline=False)
-            embed.add_field(name="Event Host", value=ctx.message.author.mention, inline=False)
-            embed.add_field(name="Event Date", value=format_date_string(dt), inline=False)
-            embed.add_field(name="Event Description", value=event.EventDescription, inline=False)
+            embed.add_field(
+                name="Event Host", value=ctx.message.author.mention, inline=False
+            )
+            embed.add_field(
+                name="Event Date", value=format_date_string(dt), inline=False
+            )
+            embed.add_field(
+                name="Event Description", value=event.EventDescription, inline=False
+            )
             await ctx.send(embed=embed)
         else:
-            await ctx.send("ERROR! Each member can only add **three** events as of now.", delete_after=10)
+            await ctx.send(
+                "ERROR! Each member can only add **three** events as of now.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
@@ -503,28 +617,40 @@ class Information(commands.Cog):
         """
 
         if event_name is None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to view. Check `$help event` to get more "
-                           f"info about the event command.", delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, you did not specify what event to view. Check `$help event` to get more "
+                f"info about the event command.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
         else:
-            events = SQLFunctions.get_events(self.conn, guild_id=ctx.message.guild.id, order=True)
+            events = SQLFunctions.get_events(
+                self.conn, guild_id=ctx.message.guild.id, order=True
+            )
             event_results = []
             for e in events:
-                if e.EventName.lower() == event_name.lower() or str(e.EventID) == event_name:
+                if (
+                    e.EventName.lower() == event_name.lower()
+                    or str(e.EventID) == event_name
+                ):
                     event_results.append(e)
             if len(event_results) == 0:
-                await ctx.send("ERROR! There is no event with a similar name. Simply type `$event` to get a list of upcoming events.",
-                               delete_after=10)
+                await ctx.send(
+                    "ERROR! There is no event with a similar name. Simply type `$event` to get a list of upcoming events.",
+                    delete_after=10,
+                )
                 await ctx.message.delete(delay=10)
                 raise commands.errors.BadArgument()
 
             embed = discord.Embed(title="Indepth Event View", color=0xFCF4A3)
             embed.set_footer(text="Join an event with $event join <ID>")
             if len(event_results) > 2:
-                embed.add_field(name="NOTICE",
-                                value="*There are more than 2 matches with that event name. Only showing the two closest timewise.*",
-                                inline=False)
+                embed.add_field(
+                    name="NOTICE",
+                    value="*There are more than 2 matches with that event name. Only showing the two closest timewise.*",
+                    inline=False,
+                )
                 embed.add_field(name="\u200b", value="``` ```", inline=False)
             i = 1
             MAX_EVENTS = 2  # max amount of events to send per view command
@@ -553,7 +679,7 @@ class Information(commands.Cog):
 
     @commands.guild_only()
     @event.command(usage="delete <event ID>")
-    async def delete(self, ctx, event_id:int=-1):
+    async def delete(self, ctx, event_id: int = -1):
         """
         Delete your own events using this command.
 
@@ -561,9 +687,13 @@ class Information(commands.Cog):
         other people's events.
         """
         if event_id is None:
-            await ctx.send("ERROR! No Event ID given. Don't know what event I should delete <:NotLikeThis:821369098629808168>")
+            await ctx.send(
+                "ERROR! No Event ID given. Don't know what event I should delete <:NotLikeThis:821369098629808168>"
+            )
             raise commands.errors.BadArgument()
-        event_results = SQLFunctions.get_events(self.conn, guild_id=ctx.message.guild.id)
+        event_results = SQLFunctions.get_events(
+            self.conn, guild_id=ctx.message.guild.id
+        )
         for e in event_results:
             if str(e.EventID) == event_id:
                 event: SQLFunctions.Event = e
@@ -571,19 +701,26 @@ class Information(commands.Cog):
         else:
             await ctx.send(f"ERROR! No event found with the given ID `{event_id}`.")
             raise commands.errors.BadArgument()
-        if not event.DiscordMember or event.DiscordMember.DiscordUserID != ctx.message.author.id:
-            await ctx.send(f"ERROR! You are not the host of the given event ID. You can't delete other people's events.")
+        if (
+            not event.DiscordMember
+            or event.DiscordMember.DiscordUserID != ctx.message.author.id
+        ):
+            await ctx.send(
+                f"ERROR! You are not the host of the given event ID. You can't delete other people's events."
+            )
             raise commands.errors.BadArgument()
         SQLFunctions.delete_event(event, self.conn)
-        embed = discord.Embed(title="Deleted Event",
-                              description=f"**Name of deleted event:** {event.EventName}\n"
-                                          f"**Event host:** {ctx.message.author.mention}",
-                              color=0xFCF4A3)
+        embed = discord.Embed(
+            title="Deleted Event",
+            description=f"**Name of deleted event:** {event.EventName}\n"
+            f"**Event host:** {ctx.message.author.mention}",
+            color=0xFCF4A3,
+        )
         await ctx.send(embed=embed)
 
     @commands.guild_only()
     @event.command(usage="join <event name / ID>")
-    async def join(self, ctx, event_id: int=-1):
+    async def join(self, ctx, event_id: int = -1):
         """
         Joins an event using the event name or ID.
         When joining with the event name the first matching event is chosen. \
@@ -597,57 +734,83 @@ class Information(commands.Cog):
 
     async def join_or_leave_message(self, ctx, event_id: int, command: str):
         if event_id == -1:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to {command}.", delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, you did not specify what event to {command}.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
         event = SQLFunctions.get_event_by_id(event_id, self.conn)
         if event is None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
-        
-        event = await self.join_leave_event(ctx.message.author, ctx.message.guild.id, command, event_id=event_id)
+
+        event = await self.join_leave_event(
+            ctx.message.author, ctx.message.guild.id, command, event_id=event_id
+        )
         if event and command == "join":
             embed = discord.Embed(
                 title="Joined Event",
                 description=f"Added {ctx.message.author.mention} to event `{event.EventName}`."
-                            f"You can leave the event with `$event leave {event.EventID}`",
-                color=0xFCF4A3)
+                f"You can leave the event with `$event leave {event.EventID}`",
+                color=0xFCF4A3,
+            )
             await ctx.send(embed=embed)
 
             if event.SpecificChannelID is not None:
                 try:
-                    await self.set_event_channel_perms(ctx.message.author, event.SpecificChannelID, "join")
+                    await self.set_event_channel_perms(
+                        ctx.message.author, event.SpecificChannelID, "join"
+                    )
                 except discord.Forbidden:
                     await ctx.send("Couldn't add you to the channel. Best to tag Mark.")
                 except AttributeError:
-                    await ctx.send("I can't see the event channel anymore. Can't add you :'(\nBest to tag Mark.")
+                    await ctx.send(
+                        "I can't see the event channel anymore. Can't add you :'(\nBest to tag Mark."
+                    )
         elif event and command == "leave":
             embed = discord.Embed(
                 title="Left Event",
                 description=f"Removed {ctx.message.author.mention} from the event `{event.EventName}`."
-                            f"You can join the event again with `$event join {event.EventID}`",
-                color=0xFCF4A3)
+                f"You can join the event again with `$event join {event.EventID}`",
+                color=0xFCF4A3,
+            )
             await ctx.send(embed=embed)
 
             if event.SpecificChannelID is not None:
                 try:
-                    await self.set_event_channel_perms(ctx.message.author, event.SpecificChannelID, "leave")
+                    await self.set_event_channel_perms(
+                        ctx.message.author, event.SpecificChannelID, "leave"
+                    )
                 except discord.Forbidden:
-                    await ctx.send("Couldn't remove you from the channel. Best to tag Mark.")
+                    await ctx.send(
+                        "Couldn't remove you from the channel. Best to tag Mark."
+                    )
                 except AttributeError:
-                    await ctx.send("I can't see the event channel anymore, so I can't remove you from it :'(\nBest to tag Mark.")
+                    await ctx.send(
+                        "I can't see the event channel anymore, so I can't remove you from it :'(\nBest to tag Mark."
+                    )
         elif command == "join":
-            await ctx.send("Whoops something went wrong. You probably already joined the event. Can't join twice.")
+            await ctx.send(
+                "Whoops something went wrong. You probably already joined the event. Can't join twice."
+            )
         elif command == "leave":
-            await ctx.send("Whoops something went wrong. You can't leave an event you haven't even joined <:bruh_mike:937352413810151424>")
+            await ctx.send(
+                "Whoops something went wrong. You can't leave an event you haven't even joined <:bruh_mike:937352413810151424>"
+            )
         else:
-            await ctx.send("Whoops... if you see this message, don't even bother pinging Mark, cause this error shouldn't ever show up and"
-                           "he doesn't have any logs to find the problem anyway.")
+            await ctx.send(
+                "Whoops... if you see this message, don't even bother pinging Mark, cause this error shouldn't ever show up and"
+                "he doesn't have any logs to find the problem anyway."
+            )
 
     @commands.guild_only()
     @event.command(usage="leave <event name / ID>")
-    async def leave(self, ctx, event_id: int=-1):
+    async def leave(self, ctx, event_id: int = -1):
         """
         Leaves an event using the event name or ID.
         When leaving with the event name the first matching event is chosen. \
@@ -662,7 +825,7 @@ class Information(commands.Cog):
     @commands.guild_only()
     @event.command(usage="update <event ID>")
     @has_permissions(kick_members=True)
-    async def update(self, ctx, event_id:int=-1):
+    async def update(self, ctx, event_id: int = -1):
         """
         Creates an updating event message, which constantly gets updated with \
         the joined members and the remaining time to start.
@@ -673,13 +836,19 @@ class Information(commands.Cog):
         Permissions: kick_members
         """
         if event_id == -1:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to create an updating message for.", delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, you did not specify what event to create an updating message for.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
         # Checks if the Event exists
         event = SQLFunctions.get_event_by_id(event_id, self.conn)
         if event is None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
@@ -698,7 +867,9 @@ class Information(commands.Cog):
         msg = await ctx.send(embed=embed)
         await msg.add_reaction(f"<a:{self.emote}>")
 
-        SQLFunctions.add_event_updated_message(msg.id, msg.channel.id, event.EventID, self.conn)
+        SQLFunctions.add_event_updated_message(
+            msg.id, msg.channel.id, event.EventID, self.conn
+        )
         await ctx.send("Successfully added updating event to DB.", delete_after=3)
         try:
             await ctx.message.delete()
@@ -708,7 +879,7 @@ class Information(commands.Cog):
     @commands.guild_only()
     @event.command(usage="channel <event ID> <channel ID>")
     @has_permissions(kick_members=True)
-    async def channel(self, ctx, event_id:int=-1, channel_id=None):
+    async def channel(self, ctx, event_id: int = -1, channel_id=None):
         """
         Link a channel to an event, so that when a user joins an event, they get access to the channel.
         Giving no channel ID as parameter clears the channel for that event. This should always be done \
@@ -718,22 +889,29 @@ class Information(commands.Cog):
         """
         # parsing user input
         if event_id is None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to create an updating message for.",
-                           delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, you did not specify what event to create an updating message for.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
         # Checks if the Event exists
         event = SQLFunctions.get_event_by_id(event_id, self.conn)
         if event is None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
         # if no channel is given, clears the channel
         if channel_id is None:
             SQLFunctions.set_specific_event_channel(event.EventID, conn=self.conn)
-            await ctx.send(f"Successfully cleared the linked channel for event {event_id}.")
+            await ctx.send(
+                f"Successfully cleared the linked channel for event {event_id}."
+            )
             return
 
         if not channel_id.isnumeric():
@@ -745,15 +923,20 @@ class Information(commands.Cog):
         channel_id = int(channel_id)
         channel = self.bot.get_channel(channel_id)
         if channel is None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, the channel ID you specified is invalid or I don't have access to the channel.",
-                           delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, the channel ID you specified is invalid or I don't have access to the channel.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
         # Checks own permissions in that channel
         permissions = channel.permissions_for(ctx.message.guild.me)
         if not permissions.manage_channels:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, I don't have the permissions to change permissions on that channel.", delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, I don't have the permissions to change permissions on that channel.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
@@ -770,30 +953,41 @@ class Information(commands.Cog):
                 continue
             await self.set_event_channel_perms(member, channel_id, "join")
 
-        await ctx.send(f"Successfully added the perms for all joined users for the event {event_id}.", delete_after=3)
+        await ctx.send(
+            f"Successfully added the perms for all joined users for the event {event_id}.",
+            delete_after=3,
+        )
 
     @commands.guild_only()
     @commands.cooldown(1, 120, BucketType.guild)
     @event.command(usage="ping <event ID>", name="ping")
-    async def mention(self, ctx, event_id: int=-1):
+    async def mention(self, ctx, event_id: int = -1):
         """
         Ping all users that joined the event. This can only be called if the user themselves joined the event.
         """
         if event_id is None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to ping users on.",
-                           delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, you did not specify what event to ping users on.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
         event = SQLFunctions.get_event_by_id(event_id, self.conn)
         if event is None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
         joined_members = SQLFunctions.get_event_joined_users(event, self.conn)
         if len(joined_members) == 0:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID or the event has no joined users.", delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, could not find an event with that ID or the event has no joined users.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
@@ -803,33 +997,47 @@ class Information(commands.Cog):
             ping_msg += f"<@{member.DiscordUserID}> "
 
         if str(ctx.message.author.id) not in ping_msg:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, you are not in the event. Can't ping it then.",
-                           delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, you are not in the event. Can't ping it then.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
-        await ctx.send(f"Mass event ping by {ctx.message.author.mention} for the event **{event_name}**\n||{ping_msg}||")
+        await ctx.send(
+            f"Mass event ping by {ctx.message.author.mention} for the event **{event_name}**\n||{ping_msg}||"
+        )
 
     @event.command(usage="list <event ID>")
-    async def list(self, ctx, event_id:int=-1):
+    async def list(self, ctx, event_id: int = -1):
         """
         Lists all joined people of an event.
         """
         if event_id is None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, you did not specify what event to ping users on.",
-                           delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, you did not specify what event to ping users on.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
         event = SQLFunctions.get_event_by_id(event_id, self.conn)
         if event is None:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.", delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, could not find an event with that ID.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
-        joined_members: list[SQLFunctions.DiscordMember] = SQLFunctions.get_event_joined_users(event, self.conn)
+        joined_members: list[SQLFunctions.DiscordMember] = (
+            SQLFunctions.get_event_joined_users(event, self.conn)
+        )
         if len(joined_members) == 0:
-            await ctx.send(f"ERROR! {ctx.message.author.mention}, the event has no joined users.", delete_after=10)
+            await ctx.send(
+                f"ERROR! {ctx.message.author.mention}, the event has no joined users.",
+                delete_after=10,
+            )
             await ctx.message.delete(delay=10)
             raise commands.errors.BadArgument()
 
@@ -856,11 +1064,11 @@ class Information(commands.Cog):
         embed = discord.Embed(
             title=f"List of Members in Event {event_id}",
             description=f"All members in {event_name}:",
-            color=0xFCF4A3
+            color=0xFCF4A3,
         )
         for field in all_columns:
-            joined_msg = '\n'.join(field)
-            embed.add_field(name="\u200B", value=f"```md\n{joined_msg}```")
+            joined_msg = "\n".join(field)
+            embed.add_field(name="\u200b", value=f"```md\n{joined_msg}```")
 
         embed.set_footer(text=f"Event ID: {event_id}")
 
@@ -875,9 +1083,163 @@ class Information(commands.Cog):
         channel = self.bot.get_channel(int(channel_id))
         # add user to channel perms
         if command == "join":
-            await channel.set_permissions(member, read_messages=True, reason="User joined event")
+            await channel.set_permissions(
+                member, read_messages=True, reason="User joined event"
+            )
         elif command == "leave":
-            await channel.set_permissions(member, overwrite=None, reason="User left event")
+            await channel.set_permissions(
+                member, overwrite=None, reason="User left event"
+            )
+
+    @commands.command(
+        usage="stealemote [emote_id | emote_name]", aliases=["stealemote"]
+    )
+    async def steal_emote(self, ctx: commands.Context, id: Optional[int | str] = None):
+        """
+        Steal emotes of another message by replying to it. An optional ID or name of the emote can be passed in to specify which emote to steal.
+        Without any options, all emotes will be stolen. If a name is passed in and there are multiple with the same name, all of them will be stolen.
+        """
+        if not ctx.message.reference:
+            await ctx.reply("Reply to a message to steal emotes from.")
+            raise commands.errors.BadArgument()
+        async with ctx.typing():
+            guilds = SQLFunctions.get_steal_emote_servers(ctx.author.id, self.conn)
+            if len(guilds) == 0:
+                await ctx.reply(
+                    "You have no servers to steal emotes to. Use `$set_server <server_id>` to set a server."
+                )
+                raise commands.errors.BadArgument()
+            message = await ctx.fetch_message(ctx.message.reference.message_id)
+            emote_ids: list[tuple[str, str]] = re.findall(
+                r"<a?:(\w+):(\d+)>", message.content
+            )
+            if len(emote_ids) == 0:
+                await ctx.reply("No emotes found in the message.")
+                raise commands.errors.BadArgument()
+            emotes: list[str] = []
+            emote_names: dict[str, str] = {}
+            for name, emote in emote_ids:
+                if isinstance(id, int):
+                    if emote.isnumeric() and int(emote) == id:
+                        emotes.append(emote)
+                        emote_names[emote] = name
+                        break
+                elif isinstance(id, str):
+                    if emote.isnumeric() and name == id:
+                        emotes.append(emote)
+                        emote_names[emote] = name
+                else:
+                    if emote.isnumeric():
+                        emotes.append(emote)
+                        emote_names[emote] = name
+
+            base_url = "https://cdn.discordapp.com/emojis/"
+
+            async def fetch(emote_id: str):
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(base_url + emote_id) as response:
+                        if response.status != 200:
+                            return None
+                        return await response.read()
+
+            results: list[bytes | None] = await asyncio.gather(
+                *[fetch(emote) for emote in emotes]
+            )
+            results: list[bytes] = [result for result in results if result]
+            if len(results) == 0:
+                await ctx.reply("No *valid* emotes found in the message.")
+                raise commands.errors.BadArgument()
+
+            success: list[str] = []
+            errors: list[str] = []
+            added = []
+            for guild_id in guilds:
+                try:
+                    guild = await self.bot.fetch_guild(guild_id, with_counts=False)
+                except Exception:
+                    errors.append(f"{guild_id}: Unable to fetch")
+                    continue
+
+                for result in results:
+                    if result in added:
+                        continue
+                    try:
+                        emoji = await guild.create_custom_emoji(
+                            name=random_string(10), image=result
+                        )
+                        success.append(f"{guild_id}: Success: {str(emoji)}")
+                        added.append(result)
+                    except discord.Forbidden:
+                        errors.append(
+                            f"{guild_id}: Missing permissions (`{emote_names[emote]}`)"
+                        )
+                        continue
+                    except discord.HTTPException:
+                        errors.append(
+                            f"{guild_id}: Failed to add emote (`{emote_names[emote]}`)"
+                        )
+                        continue
+
+            success = "\n".join([f"- {x}" for x in success])
+            errors = "\n".join([f"- {x}" for x in errors])
+            embed = discord.Embed(
+                description=f"**Success:**\n{success}\n\n**Errors:**\n{errors}"
+            )
+            await ctx.reply(embed=embed)
+
+    @commands.command(usage="set_server <server_id>", aliases=["setserver"])
+    async def set_server(self, ctx: commands.Context, id: int):
+        """
+        Set the server that $stealemote steals emotes to. You can add multiple servers which will each be tried
+        incase there's an error with any.
+        """
+        # 5th march
+        if ctx.author.id == 254709226738417665 and time.time() < 1741194911:
+            await ctx.reply("You wish. Told you I won't let you use it.")
+            return
+
+        try:
+            guild = await self.bot.fetch_guild(id)
+        except discord.Forbidden:
+            await ctx.reply(
+                "Blud, I can't see that server. Invite me to your server first."
+            )
+            raise commands.errors.BadArgument()
+        except discord.HTTPException:
+            await ctx.reply(
+                "Blud, I can't work with that server. Invite me to your server first."
+            )
+            raise commands.errors.BadArgument()
+
+        try:
+            user = await guild.fetch_member(ctx.author.id)
+        except discord.Forbidden:
+            await ctx.reply(
+                "Blud, I can't see that server. Invite me to your server first."
+            )
+            raise commands.errors.BadArgument()
+        except discord.NotFound:
+            await ctx.reply("Ayoo, you're not even on that server.")
+            raise commands.errors.BadArgument()
+        except discord.HTTPException:
+            await ctx.reply("Invalid server ID")
+            raise commands.errors.BadArgument()
+
+        if not user.guild_permissions.manage_emojis:
+            await ctx.reply(
+                "You don't have the permissions to manage emojis on that server."
+            )
+            raise commands.errors.BadArgument()
+
+        myself = await guild.fetch_member(self.bot.user.id)
+        if not myself.guild_permissions.create_expressions:
+            await ctx.reply(
+                "I don't have the permissions to create emojis on that server."
+            )
+            raise commands.errors.BadArgument()
+
+        SQLFunctions.add_steal_emote_server(ctx.author.id, id, self.conn)
+        await ctx.reply("Successfully set server for stealing emotes.")
 
 
 async def setup(bot):
@@ -893,14 +1255,20 @@ def time_up(t):
         return f"{int(minutes)} minutes and {int(seconds)} seconds"
     elif t >= 3600:
         hours = t // 3600  # Seconds divided by 3600 gives amount of hours
-        minutes = (t % 3600) // 60  # The remaining seconds are looked at to see how many minutes they make up
-        seconds = (t % 3600) - minutes * 60  # Amount of minutes remaining minus the seconds the minutes "take up"
+        minutes = (
+            (t % 3600) // 60
+        )  # The remaining seconds are looked at to see how many minutes they make up
+        seconds = (
+            (t % 3600) - minutes * 60
+        )  # Amount of minutes remaining minus the seconds the minutes "take up"
         if hours >= 24:
             days = hours // 24
             hours = hours % 24
             return f"{int(days)} days, {int(hours)} hours, {int(minutes)} minutes and {int(seconds)} seconds"
         else:
-            return f"{int(hours)} hours, {int(minutes)} minutes and {int(seconds)} seconds"
+            return (
+                f"{int(hours)} hours, {int(minutes)} minutes and {int(seconds)} seconds"
+            )
 
 
 def seconds_elapsed():
@@ -910,4 +1278,4 @@ def seconds_elapsed():
 
 
 def random_string(n):
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
+    return "".join(random.choices(string.ascii_letters + string.digits, k=n))

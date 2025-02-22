@@ -18,7 +18,7 @@ DiscordGuilds = """ CREATE TABLE IF NOT EXISTS DiscordGuilds (
                         GuildMemberCount integer default 1,
                         GuildRoleCount integer default 0
                         );"""
-DiscordChannels ="""CREATE TABLE IF NOT EXISTS DiscordChannels (
+DiscordChannels = """CREATE TABLE IF NOT EXISTS DiscordChannels (
                         DiscordChannelID integer NOT NULL PRIMARY KEY,
                         DiscordGuildID integer NOT NULL,
                         ChannelName text NOT NULL,
@@ -164,23 +164,46 @@ CommandPermissions = """    CREATE TABLE IF NOT EXISTS "CommandPermissions" (
                                 "PermissionLevel" INTEGER DEFAULT 0,
                                 "Tag" TEXT -- tag is for finding out what object ID was added
                                 );"""
-covid_cases = """   CREATE TABLE IF NOT EXISTS "CovidCases" (
+CovidCases = """   CREATE TABLE IF NOT EXISTS "CovidCases" (
                         "CovidCaseID" INTEGER PRIMARY KEY,
                         "Cases" INTEGER NOT NULL,
                         "Date" TEXT NOT NULL,
                         "Weekday" INTEGER NOT NULL
                     );"""
-favorite_quotes = """   CREATE TABLE IF NOT EXISTS "FavoriteQuotes" (
+FavoriteQuotes = """   CREATE TABLE IF NOT EXISTS "FavoriteQuotes" (
                             "FavoriteID" INTEGER PRIMARY KEY,
                             "QuoteID" INTEGER NOT NULL,
                             "UniqueMemberID" INTEGER NOT NULL,
                             FOREIGN KEY("UniqueMemberID") REFERENCES "DiscordMembers"("UniqueMemberID") ON DELETE CASCADE 
                         );"""
+StealEmote = """   CREATE TABLE IF NOT EXISTS "StealEmote" (
+                            "ID" INTEGER PRIMARY KEY AUTOINCREMENT,
+                            "UserID" INTEGER NOT NULL,
+                            "GuildID" INTEGER NOT NULL
+                        );"""
 
-all_tables = [DiscordUsers, DiscordGuilds, DiscordChannels, DiscordMembers, Courses, Lectures,
-              UserStatistics, VoiceLevels, CovidGuessing, Reputations, Events, EventJoinedUsers,
-              Quotes, QuoteAliases, QuotesToRemove, Config, CommandPermissions, covid_cases,
-              favorite_quotes]
+all_tables = [
+    DiscordUsers,
+    DiscordGuilds,
+    DiscordChannels,
+    DiscordMembers,
+    Courses,
+    Lectures,
+    UserStatistics,
+    VoiceLevels,
+    CovidGuessing,
+    Reputations,
+    Events,
+    EventJoinedUsers,
+    Quotes,
+    QuoteAliases,
+    QuotesToRemove,
+    Config,
+    CommandPermissions,
+    CovidCases,
+    FavoriteQuotes,
+    StealEmote,
+]
 
 
 def create_tables(conn=connect()):
@@ -195,28 +218,36 @@ def create_tables(conn=connect()):
 
 
 def get_table_name(table: str) -> str:
-    spl = table.replace('"', '').split(" ")
+    spl = table.replace('"', "").split(" ")
     return spl[spl.index("(\n") - 1]  # gets the word right before the opening bracket
 
 
 def compare_headers(table: str, header: list[str]):
     name = get_table_name(table)
-    spl = table.replace('"', '').replace("\t", " ").split("\n")
+    spl = table.replace('"', "").replace("\t", " ").split("\n")
     ex_headers = []
     for line in spl[1:-1]:
         tmp = line.split(" ")
         tmp = [x for x in tmp if x != ""]  # takes out all the whitespace elements
-        if tmp[0].startswith("FOREIGN") or tmp[0].startswith("PRIMARY") or tmp[0].startswith("--"):
+        if (
+            tmp[0].startswith("FOREIGN")
+            or tmp[0].startswith("PRIMARY")
+            or tmp[0].startswith("--")
+        ):
             continue
         ex_headers.append(tmp[0])
     for col in header:  # check if headers are the same both way
         if col not in ex_headers:
-            print(f"WARNING! {name}: {col} exists in table, but is not defined in SQLTables.py!")
+            print(
+                f"WARNING! {name}: {col} exists in table, but is not defined in SQLTables.py!"
+            )
     for col in ex_headers:  # check if headers are the same both way
         if "UNIQUE" in col or "ON" in col:
             continue
         if col not in header:
-            print(f"WARNING! {name}: {col} is defined in SQLTables.py, but is not in the actual DB! (This can cause problems!)")
+            print(
+                f"WARNING! {name}: {col} is defined in SQLTables.py, but is not in the actual DB! (This can cause problems!)"
+            )
 
 
 def check_columns(conn=connect()):

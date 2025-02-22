@@ -1674,3 +1674,15 @@ def get_lectures_by_time(day: str, hour: int, minute: int):
         """
     users = conn.execute(sql, (hour, minute, weekday_to_id(day))).fetchall()
     return users
+
+
+def get_steal_emote_servers(user_id: int, conn=connect()) -> list[int]:
+    sql = """SELECT GuildID FROM StealEmote WHERE UserID = ?"""
+    user_ids = conn.execute(sql, (user_id,)).fetchall()
+    return [x[0] for x in user_ids]
+
+
+def add_steal_emote_server(user_id: int, guild_id: int, conn=connect()):
+    sql = """INSERT INTO StealEmote(UserID, GuildID) VALUES (?, ?)"""
+    conn.execute(sql, (user_id, guild_id))
+    conn.commit()
