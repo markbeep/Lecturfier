@@ -1225,7 +1225,7 @@ class Information(commands.Cog):
             await ctx.reply("Invalid server ID")
             raise commands.errors.BadArgument()
 
-        if not user.guild_permissions.manage_emojis:
+        if not user.guild_permissions.create_expressions:
             await ctx.reply(
                 "You don't have the permissions to manage emojis on that server."
             )
