@@ -1,14 +1,10 @@
-import asyncio
 import math
 import random
-import re
 import string
 import time
 from calendar import monthrange
 from datetime import datetime
-from typing import Optional
 
-import aiohttp
 import discord
 import psutil
 from discord.ext import commands, tasks
@@ -1090,156 +1086,6 @@ class Information(commands.Cog):
             await channel.set_permissions(
                 member, overwrite=None, reason="User left event"
             )
-
-    @commands.command(
-        usage="stealemote [emote_id | emote_name]", aliases=["stealemote"]
-    )
-    async def steal_emote(self, ctx: commands.Context, id: Optional[int | str] = None):
-        """
-        Steal emotes of another message by replying to it. An optional ID or name of the emote can be passed in to specify which emote to steal.
-        Without any options, all emotes will be stolen. If a name is passed in and there are multiple with the same name, all of them will be stolen.
-        """
-        if not ctx.message.reference:
-            await ctx.reply("Reply to a message to steal emotes from.")
-            raise commands.errors.BadArgument()
-        async with ctx.typing():
-            guilds = SQLFunctions.get_steal_emote_servers(ctx.author.id, self.conn)
-            if len(guilds) == 0:
-                await ctx.reply(
-                    "You have no servers to steal emotes to. Use `$set_server <server_id>` to set a server."
-                )
-                raise commands.errors.BadArgument()
-            message = await ctx.fetch_message(ctx.message.reference.message_id)
-            emote_ids: list[tuple[str, str]] = re.findall(
-                r"<a?:(\w+):(\d+)>", message.content
-            )
-            if len(emote_ids) == 0:
-                await ctx.reply("No emotes found in the message.")
-                raise commands.errors.BadArgument()
-            emotes: list[str] = []
-            emote_names: dict[str, str] = {}
-            for name, emote in emote_ids:
-                if isinstance(id, int):
-                    if emote.isnumeric() and int(emote) == id:
-                        emotes.append(emote)
-                        emote_names[emote] = name
-                        break
-                elif isinstance(id, str):
-                    if emote.isnumeric() and name == id:
-                        emotes.append(emote)
-                        emote_names[emote] = name
-                else:
-                    if emote.isnumeric():
-                        emotes.append(emote)
-                        emote_names[emote] = name
-
-            base_url = "https://cdn.discordapp.com/emojis/"
-
-            async def fetch(emote_id: str):
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(base_url + emote_id) as response:
-                        if response.status != 200:
-                            return None
-                        return await response.read()
-
-            results: list[bytes | None] = await asyncio.gather(
-                *[fetch(emote) for emote in emotes]
-            )
-            results: list[bytes] = [result for result in results if result]
-            if len(results) == 0:
-                await ctx.reply("No *valid* emotes found in the message.")
-                raise commands.errors.BadArgument()
-
-            success: list[str] = []
-            errors: list[str] = []
-            added = []
-            for guild_id in guilds:
-                try:
-                    guild = await self.bot.fetch_guild(guild_id, with_counts=False)
-                except Exception:
-                    errors.append(f"{guild_id}: Unable to fetch")
-                    continue
-
-                for result in results:
-                    if result in added:
-                        continue
-                    try:
-                        emoji = await guild.create_custom_emoji(
-                            name=emote_names[emote], image=result
-                        )
-                        success.append(f"{guild_id}: Success: {str(emoji)}")
-                        added.append(result)
-                    except discord.Forbidden:
-                        errors.append(
-                            f"{guild_id}: Missing permissions (`{emote_names[emote]}`)"
-                        )
-                        continue
-                    except discord.HTTPException:
-                        errors.append(
-                            f"{guild_id}: Failed to add emote (`{emote_names[emote]}`)"
-                        )
-                        continue
-
-            success = "\n".join([f"- {x}" for x in success])
-            errors = "\n".join([f"- {x}" for x in errors])
-            embed = discord.Embed(
-                description=f"**Success:**\n{success}\n\n**Errors:**\n{errors}"
-            )
-            await ctx.reply(embed=embed)
-
-    @commands.command(usage="set_server <server_id>", aliases=["setserver"])
-    async def set_server(self, ctx: commands.Context, id: int):
-        """
-        Set the server that $stealemote steals emotes to. You can add multiple servers which will each be tried
-        incase there's an error with any.
-        """
-        # 5th march
-        if ctx.author.id == 254709226738417665 and time.time() < 1741194911:
-            await ctx.reply("You wish. Told you I won't let you use it.")
-            return
-
-        try:
-            guild = await self.bot.fetch_guild(id)
-        except discord.Forbidden:
-            await ctx.reply(
-                "Blud, I can't see that server. Invite me to your server first."
-            )
-            raise commands.errors.BadArgument()
-        except discord.HTTPException:
-            await ctx.reply(
-                "Blud, I can't work with that server. Invite me to your server first."
-            )
-            raise commands.errors.BadArgument()
-
-        try:
-            user = await guild.fetch_member(ctx.author.id)
-        except discord.Forbidden:
-            await ctx.reply(
-                "Blud, I can't see that server. Invite me to your server first."
-            )
-            raise commands.errors.BadArgument()
-        except discord.NotFound:
-            await ctx.reply("Ayoo, you're not even on that server.")
-            raise commands.errors.BadArgument()
-        except discord.HTTPException:
-            await ctx.reply("Invalid server ID")
-            raise commands.errors.BadArgument()
-
-        if not user.guild_permissions.create_expressions:
-            await ctx.reply(
-                "You don't have the permissions to manage emojis on that server."
-            )
-            raise commands.errors.BadArgument()
-
-        myself = await guild.fetch_member(self.bot.user.id)
-        if not myself.guild_permissions.create_expressions:
-            await ctx.reply(
-                "I don't have the permissions to create emojis on that server."
-            )
-            raise commands.errors.BadArgument()
-
-        SQLFunctions.add_steal_emote_server(ctx.author.id, id, self.conn)
-        await ctx.reply("Successfully set server for stealing emotes.")
 
 
 async def setup(bot):

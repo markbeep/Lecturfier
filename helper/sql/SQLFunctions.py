@@ -1686,3 +1686,9 @@ def add_steal_emote_server(user_id: int, guild_id: int, conn=connect()):
     sql = """INSERT INTO StealEmote(UserID, GuildID) VALUES (?, ?)"""
     conn.execute(sql, (user_id, guild_id))
     conn.commit()
+
+
+def remove_steal_emote_server(user_id: int, guild_id: int, conn=connect()):
+    sql = """DELETE FROM StealEmote WHERE UserID = ? AND GuildID = ?"""
+    conn.execute(sql, (user_id, guild_id))
+    conn.commit()
