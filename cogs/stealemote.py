@@ -100,6 +100,12 @@ class StealEmote(commands.Cog):
                 except Exception:
                     errors.append(f"{guild_id}: Unable to fetch")
                     continue
+                user = await guild.fetch_member(ctx.author.id)
+                if not user.guild_permissions.create_expressions:
+                    errors.append(
+                        f"{guild_id}: Missing permissions (`{emote_names[emote_id]}`)"
+                    )
+                    continue
 
                 for result in results:
                     if result in added:
