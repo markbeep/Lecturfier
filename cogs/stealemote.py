@@ -36,14 +36,23 @@ class StealEmote(commands.Cog):
                 )
                 raise commands.errors.BadArgument()
             message = await ctx.fetch_message(ctx.message.reference.message_id)
+            content = message.content
+            reactions = message.reactions
+
+            if (
+                message.reference
+                and message.reference.type == discord.MessageReferenceType.forward
+            ):
+                for snapshot in message.message_snapshots:
+                    content += f"\n{snapshot.content}"
 
             # get all emotes from message
             emote_name_ids: list[tuple[str, str]] = re.findall(
-                r"<a?:(\w+):(\d+)>", message.content
+                r"<a?:(\w+):(\d+)>", content
             )
 
             # get all emotes in reactions
-            for reaction in message.reactions:
+            for reaction in reactions:
                 if isinstance(reaction.emoji, discord.PartialEmoji) or isinstance(
                     reaction.emoji, discord.Emoji
                 ):
