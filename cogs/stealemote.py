@@ -81,12 +81,12 @@ class StealEmote(commands.Cog):
                     async with session.get(base_url + emote_id) as response:
                         if response.status != 200:
                             return None
-                        return await response.read()
+                        return await response.read(), emote_id
 
-            results: list[bytes | None] = await asyncio.gather(
+            results: list[tuple[bytes, str] | None] = await asyncio.gather(
                 *[fetch(emote) for emote in emote_ids]
             )
-            results: list[bytes] = [result for result in results if result]
+            results: list[tuple[bytes, str]] = [result for result in results if result]
             if len(results) == 0:
                 await ctx.reply("No *valid* emotes found in the message.")
                 raise commands.errors.BadArgument()
@@ -107,15 +107,15 @@ class StealEmote(commands.Cog):
                     )
                     continue
 
-                for result in results:
-                    if result in added:
+                for image, emote_id in results:
+                    if image in added:
                         continue
                     try:
                         emoji = await guild.create_custom_emoji(
-                            name=emote_names[emote_id], image=result
+                            name=emote_names[emote_id], image=image
                         )
                         success.append(f"{guild_id}: Success: {str(emoji)}")
-                        added.append(result)
+                        added.append(image)
                     except discord.Forbidden:
                         errors.append(
                             f"{guild_id}: Missing permissions (`{emote_names[emote_id]}`)"
