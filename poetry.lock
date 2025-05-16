@@ -110,6 +110,17 @@ files = [
 frozenlist = ">=1.1.0"
 
 [[package]]
+name = "apng"
+version = "0.3.4"
+description = "A Python module to deal with APNG file."
+optional = false
+python-versions = "*"
+files = [
+    {file = "apng-0.3.4-py2.py3-none-any.whl", hash = "sha256:6cb5d09d2c5cfd12226a13e64e731dcf94a399ba252d122309134a86ce14c942"},
+    {file = "apng-0.3.4.tar.gz", hash = "sha256:a3e4007fbadab2188ef80490bff4e75acc847158d22ec97176f6040ff76465ae"},
+]
+
+[[package]]
 name = "astroid"
 version = "3.0.2"
 description = "An abstract syntax tree for Python with inference support."
@@ -1188,4 +1199,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "92e5b5febd55612ffc1f2136916b662bfaad15712016aee2de4edf4eaca46ea3"
+content-hash = "7d5b8527ba32e319dcbc9c6965b6e1b7196b2cd2476bf4ddaa09a8b8a4e6c0c1"

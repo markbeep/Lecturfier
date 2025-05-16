@@ -1,11 +1,14 @@
 import asyncio
 from dataclasses import dataclass
+import io
 import re
 from typing import Iterable, NewType, Optional
 
 import aiohttp
 import discord
 from discord.ext import commands
+from PIL import Image
+from apng import APNG
 
 from helper.sql import SQLFunctions
 
@@ -20,6 +23,12 @@ class LocalEmote:
 class LocalImage:
     url: str
     name: str
+
+
+@dataclass
+class LocalSticker:
+    name: str
+    sticker: discord.StickerItem
 
 
 @dataclass
@@ -103,10 +112,11 @@ def _get_emotes_from_embeds(
 
 def _get_emotes_from_message(
     message: discord.Message,
-) -> tuple[list[LocalEmote], list[LocalImage]]:
+) -> tuple[list[LocalEmote], list[LocalImage], list[LocalSticker]]:
     content = message.content
     reactions = message.reactions
     images = message.attachments
+    stickers = [LocalSticker(sticker.name, sticker) for sticker in message.stickers]
 
     # if message forwards another message, copy over the content (and hence emote ids) from the forwarded message
     if (
@@ -116,6 +126,9 @@ def _get_emotes_from_message(
         for snapshot in message.message_snapshots:
             content += f"\n{snapshot.content}"
             images += snapshot.attachments
+            stickers += [
+                LocalSticker(sticker.name, sticker) for sticker in snapshot.stickers
+            ]
 
     emotes = _get_emotes_from_content(content)
     for reaction in reactions:
@@ -127,26 +140,60 @@ def _get_emotes_from_message(
 
     local_images = [LocalImage(img.url, img.filename) for img in images]
     embed_emotes, embed_images = _get_emotes_from_embeds(message.embeds)
-    return emotes + embed_emotes, local_images + embed_images
+
+    return emotes + embed_emotes, local_images + embed_images, stickers
 
 
 def _filter_emotes(
-    emotes: list[LocalEmote], images: list[LocalImage], name_ids: Iterable[int | str]
-) -> tuple[list[LocalEmote], list[LocalImage]]:
+    emotes: list[LocalEmote],
+    images: list[LocalImage],
+    stickers: list[LocalSticker],
+    name_ids: Iterable[int | str],
+) -> tuple[list[LocalEmote], list[LocalImage], list[LocalSticker]]:
     lower_name_ids = [str(x).lower() for x in name_ids]
     valid_emotes: list[LocalEmote] = []
     valid_images: list[LocalImage] = []
+    valid_stickers: list[LocalSticker] = []
     for emote in emotes:
         if str(emote.id) in lower_name_ids or emote.name.lower() in lower_name_ids:
             valid_emotes.append(emote)
     for image in images:
         if str(image.name).lower() in lower_name_ids:
             valid_images.append(image)
-    return valid_emotes, valid_images
+    for sticker in stickers:
+        if str(sticker.name).lower() in lower_name_ids:
+            valid_stickers.append(sticker)
+    return valid_emotes, valid_images, valid_stickers
+
+
+def _convert_apng_to_gif(orig: bytes) -> bytes:
+    frames = []
+    durations = []
+    with io.BytesIO(orig) as file:
+        apng = APNG.open(file)
+        for frame, control in apng.frames:
+            with io.BytesIO() as buffer:
+                frame.save(buffer)
+                img = Image.open(buffer).convert("RGBA")
+                frames.append(img)
+                durations.append(control.delay * 10)
+
+    with io.BytesIO() as output:
+        frames[0].save(
+            output,
+            format="GIF",
+            save_all=True,
+            append_images=frames[1:],
+            duration=durations,
+            loop=0,
+        )
+        return output.getvalue()
 
 
 async def _download_emotes(
-    emotes: list[LocalEmote], images: list[LocalImage]
+    emotes: list[LocalEmote],
+    images: list[LocalImage],
+    stickers: list[LocalSticker],
 ) -> list[BytesEmote]:
     async def fetch_emote(
         emote: LocalEmote, session: aiohttp.ClientSession
@@ -166,10 +213,23 @@ async def _download_emotes(
                 return None
             return BytesEmote(image.name, await response.read())
 
+    async def fetch_sticker(sticker: discord.StickerItem) -> Optional[BytesEmote]:
+        if sticker.format == discord.StickerFormatType.lottie:
+            # the discord inbuilt ones can't be downloaded
+            return None
+        sticker_file = await sticker.read()
+        if sticker.format == discord.StickerFormatType.apng:
+            sticker_file = _convert_apng_to_gif(sticker_file)
+        return BytesEmote(
+            sticker.name,
+            sticker_file,
+        )
+
     async with aiohttp.ClientSession() as session:
         emote_tasks = [fetch_emote(emote, session) for emote in emotes]
         image_tasks = [fetch_image(image, session) for image in images]
-        results = await asyncio.gather(*(emote_tasks + image_tasks))
+        sticker_tasks = [fetch_sticker(sticker.sticker) for sticker in stickers]
+        results = await asyncio.gather(*(emote_tasks + image_tasks + sticker_tasks))
         return [result for result in results if result is not None]
 
 
@@ -270,6 +330,8 @@ class StealEmote(commands.Cog):
         """
         Steal emotes of another message by replying to it. Optional IDs or names of emotes can be passed in to specify which emote to steal.
         Without any options, all emotes will be stolen. If names are passed in and there are multiple with the same name, all of them will be stolen.
+
+        What will be stolen and turned into emotes: emotes (in normal and embed messages), reactions, images, embed thumbnails, embed images, and stickers (animated ones are buggy).
         """
         if not ctx.message.reference or not ctx.message.reference.message_id:
             await ctx.reply("Reply to a message to steal emotes from.")
@@ -296,10 +358,12 @@ class StealEmote(commands.Cog):
 
             message = await ctx.fetch_message(ctx.message.reference.message_id)
 
-            emotes, images = _get_emotes_from_message(message)
+            emotes, images, stickers = _get_emotes_from_message(message)
             if len(name_ids) > 0:
-                emotes, images = _filter_emotes(emotes, images, name_ids)
-            bytes_emotes = await _download_emotes(emotes, images)
+                emotes, images, stickers = _filter_emotes(
+                    emotes, images, stickers, name_ids
+                )
+            bytes_emotes = await _download_emotes(emotes, images, stickers)
             if len(bytes_emotes) == 0:
                 await ctx.reply("No *valid* emotes/images found in the message.")
                 raise commands.errors.BadArgument()
