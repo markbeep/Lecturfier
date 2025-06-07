@@ -255,7 +255,7 @@ async def _assert_guild_permissions(
 
     if (
         not member.guild_permissions.create_expressions
-        and not member.guild_permissions.manage_emojis
+        or not member.guild_permissions.manage_emojis
     ):
         return GuildState(
             guild,
@@ -266,7 +266,7 @@ async def _assert_guild_permissions(
     me = await guild.fetch_member(bot.user.id)
     if (
         not me.guild_permissions.create_expressions
-        and not me.guild_permissions.manage_emojis
+        or not me.guild_permissions.manage_emojis
     ):
         return GuildState(
             guild, BotMissingPermissions(f"Bot missing permissions in guild {guild.id}")
