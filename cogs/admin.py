@@ -114,7 +114,7 @@ class Admin(commands.Cog):
             if ref.message_id and ref.type == discord.MessageReferenceType.reply:
                 ref_message = await message.channel.fetch_message(ref.message_id)
                 if (
-                    ref_message.author.id == self.bot.owner_id
+                    ref_message.author.id in [self.bot.owner_id, 920949986160701462]
                     and "si=" in ref_message.content
                     and ref_message.created_at
                     < message.created_at + timedelta(seconds=5)
