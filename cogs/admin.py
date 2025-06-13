@@ -1,7 +1,7 @@
 import asyncio
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import discord
 from discord.ext import commands
@@ -69,7 +69,7 @@ class Admin(commands.Cog):
 
         attach_txt = ""
         for i in range(len(message.attachments)):
-            attach_txt += f"File {i + 1}\n" f"Name: {message.attachments[i].filename}\n"
+            attach_txt += f"File {i + 1}\nName: {message.attachments[i].filename}\n"
             if message.attachments[i].height is not None:
                 # Then the file is an image
                 embed.set_image(url=message.attachments[i].proxy_url)
@@ -105,12 +105,23 @@ class Admin(commands.Cog):
             print("Can't send deleted message")
 
     @commands.Cog.listener()
-    async def on_message(self, message):
-        if (
-            message.author.id == 755781649643470868
-            or message.author.id == 776713845238136843
-        ):
+    async def on_message(self, message: discord.Message):
+        if message.author.id == (self.bot.user.id if self.bot.user else 0):
             return
+
+        # remove annoying si link messages if replying to owner
+        if message.author.bot and (ref := message.reference):
+            if ref.message_id and ref.type == discord.MessageReferenceType.reply:
+                ref_message = await message.channel.fetch_message(ref.message_id)
+                if (
+                    ref_message.author.id == self.bot.owner_id
+                    and "si=" in ref_message.content
+                    and ref_message.created_at
+                    < message.created_at + timedelta(seconds=5)
+                ):
+                    await message.delete()
+                    return
+
         if message.channel.id in [
             747776646551175217,
             768600365602963496,
