@@ -537,12 +537,12 @@ files = [
 
 [[package]]
 name = "honeybadger"
-version = "0.17.0"
+version = "1.0.3"
 description = "Send Python and Django errors to Honeybadger"
 optional = false
 python-versions = "*"
 files = [
-    {file = "honeybadger-0.17.0-py3-none-any.whl", hash = "sha256:ab7a65a2bc12988c993b1d181eea5c1840b2986089da24f3737e4da9fd8dc7fc"},
+    {file = "honeybadger-1.0.3-py3-none-any.whl", hash = "sha256:dd351a1144d236bbba0b5fee88826431b62f4e7dd41f71ef935a9ddda7be7da8"},
 ]
 
 [package.dependencies]
@@ -1199,4 +1199,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "7d5b8527ba32e319dcbc9c6965b6e1b7196b2cd2476bf4ddaa09a8b8a4e6c0c1"
+content-hash = "e4c9036b5ee2ec64f5dd43fadade03feff998dabadb964ae2cbb2920849c2469"
