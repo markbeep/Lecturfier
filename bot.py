@@ -10,9 +10,11 @@ from cogs.quote import quote_setup_hook
 # makes sure the correct files exist
 from helper import file_creator
 from helper.sql import SQLFunctions
+from dotenv import load_dotenv
 
 file_creator.createFiles()
 
+load_dotenv()
 prefix = os.getenv("BOT_PREFIX")
 guild_id = os.getenv("TEST_GUILD_ID")
 TEST_GUILD = None

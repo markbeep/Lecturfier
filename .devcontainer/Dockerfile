@@ -14,7 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libc6-dev \
     linux-libc-dev \
     g++ \
-    && rm -rf /var/lib/apt/lists/*
+    sqlite3 \
+    git
 
 RUN pip install --no-cache "poetry==$POETRY_VERSION"
 RUN python -m venv /venv

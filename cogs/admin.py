@@ -102,7 +102,7 @@ class Admin(commands.Cog):
         try:
             await channel.send(embed=embed)
         except AttributeError:
-            print("Can't send deleted message")
+            pass
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
