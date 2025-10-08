@@ -1,7 +1,9 @@
+from dataclasses import dataclass
 import logging
 import sqlite3
 from datetime import datetime
 import os
+import time
 from typing import Tuple
 import discord
 
@@ -760,7 +762,7 @@ def set_specific_event_channel(event_id: int, specific_channel=None, conn=connec
         conn.commit()
 
 
-def get_config(key, conn=connect()) -> list:
+def get_config(key, conn=connect()) -> list[str]:
     values = conn.execute(
         "SELECT ConfigValue FROM Config WHERE ConfigKey=?", (key,)
     ).fetchall()
@@ -783,6 +785,55 @@ def insert_or_update_config(key, value, conn=connect()):
             conn.execute(
                 "INSERT INTO Config(ConfigKey, ConfigValue) VALUES (?,?)", (key, value)
             )
+    finally:
+        conn.commit()
+
+
+def get_channel_limit(channel_id, conn=connect()) -> int | None:
+    result = conn.execute(
+        "SELECT MessageLimit FROM MessageLimitChannels WHERE ChannelID=?", (channel_id,)
+    ).fetchone()
+    if result is None:
+        return None
+    return result[0]
+
+
+@dataclass
+class MessageLimitChannel:
+    channel_id: int
+    message_limit: int
+
+
+def get_message_limit_channels(conn=connect()) -> dict[int, MessageLimitChannel]:
+    results = conn.execute(
+        "SELECT ChannelID, MessageLimit FROM MessageLimitChannels"
+    ).fetchall()
+    channels = {}
+    for row in results:
+        channels[row[0]] = MessageLimitChannel(channel_id=row[0], message_limit=row[1])
+    return channels
+
+
+def insert_or_update_message_limit_channel(channel_id, limit_amount, conn=connect()):
+    try:
+        rows_changed = conn.execute(
+            "UPDATE OR IGNORE MessageLimitChannels SET MessageLimit=? WHERE ChannelID=?",
+            (limit_amount, channel_id),
+        ).rowcount
+        if rows_changed == 0:
+            conn.execute(
+                "INSERT INTO MessageLimitChannels(ChannelID, MessageLimit) VALUES (?,?)",
+                (channel_id, limit_amount),
+            )
+    finally:
+        conn.commit()
+
+
+def delete_message_limit_channel(channel_id, conn=connect()):
+    try:
+        conn.execute(
+            "DELETE FROM MessageLimitChannels WHERE ChannelID=?", (channel_id,)
+        )
     finally:
         conn.commit()
 
@@ -1692,3 +1743,75 @@ def remove_steal_emote_server(user_id: int, guild_id: int, conn=connect()):
     sql = """DELETE FROM StealEmote WHERE UserID = ? AND GuildID = ?"""
     conn.execute(sql, (user_id, guild_id))
     conn.commit()
+
+
+@dataclass
+class MessageLimit:
+    user_id: int
+    channel_id: int
+    count: int
+    first_message_at: int
+
+    def resets_at(self) -> int:
+        return self.first_message_at + 86400  # 24 hours later
+
+
+def get_message_limit(
+    user_id: int, channel_id: int, conn=connect()
+) -> MessageLimit | None:
+    sql = """SELECT UserID, ChannelID, MessageCount, FirstMessageAt FROM LimitMessages WHERE UserID = ? AND ChannelID = ?"""
+    results = conn.execute(sql, (user_id, channel_id)).fetchone()
+    if results is None:
+        return None
+    return MessageLimit(
+        user_id=results[0],
+        channel_id=results[1],
+        count=results[2],
+        first_message_at=results[3],
+    )
+
+
+def get_all_message_limits(user_id: int, conn=connect()) -> list[MessageLimit]:
+    sql = """SELECT UserID, ChannelID, MessageCount, FirstMessageAt FROM LimitMessages WHERE UserID = ?"""
+    results = conn.execute(sql, (user_id,)).fetchall()
+    limits = []
+    for row in results:
+        limits.append(
+            MessageLimit(
+                user_id=row[0],
+                channel_id=row[1],
+                count=row[2],
+                first_message_at=row[3],
+            )
+        )
+    return limits
+
+
+def increment_message_limit(user_id: int, channel_id: int, amount=1, conn=connect()):
+    sql = """UPDATE OR IGNORE LimitMessages SET MessageCount = MessageCount + ? WHERE UserID = ? AND ChannelID = ?"""
+    try:
+        rows_changed = conn.execute(sql, (amount, user_id, channel_id)).rowcount
+        if rows_changed == 0:
+            conn.execute(
+                "INSERT INTO LimitMessages(UserID, ChannelID, MessageCount, FirstMessageAt) VALUES (?,?,?,?)",
+                (user_id, channel_id, amount, int(time.time())),
+            )
+    finally:
+        conn.commit()
+
+
+def reset_message_limit(
+    user_id: int, channel_id: int, first_message_at: int, reset_amount=0, conn=connect()
+):
+    sql = """UPDATE LimitMessages SET MessageCount = ?, FirstMessageAt = ? WHERE UserID = ? AND ChannelID = ?"""
+    try:
+        conn.execute(sql, (reset_amount, first_message_at, user_id, channel_id))
+    finally:
+        conn.commit()
+
+
+def reset_all_message_limits(channel_id: int, conn=connect()):
+    try:
+        conn.execute("DELETE FROM LimitMessages WHERE ChannelID=?", (channel_id,))
+    finally:
+        conn.commit()

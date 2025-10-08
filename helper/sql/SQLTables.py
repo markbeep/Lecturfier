@@ -181,6 +181,17 @@ StealEmote = """   CREATE TABLE IF NOT EXISTS "StealEmote" (
                             "UserID" INTEGER NOT NULL,
                             "GuildID" INTEGER NOT NULL
                         );"""
+MessageLimits = """   CREATE TABLE IF NOT EXISTS "LimitMessages" (
+                            "UserID" INTEGER NOT NULL,
+                            "ChannelID" INTEGER NOT NULL,
+                            "MessageCount" INTEGER DEFAULT 0,
+                            "FirstMessageAt" INTEGER,
+                            PRIMARY KEY ("UserID", "ChannelID")
+                        );"""
+MessageLimitChannels = """   CREATE TABLE IF NOT EXISTS "MessageLimitChannels" (
+                            "ChannelID" INTEGER PRIMARY KEY,
+                            "MessageLimit" INTEGER DEFAULT 0
+                        );"""
 
 all_tables = [
     DiscordUsers,
@@ -203,6 +214,8 @@ all_tables = [
     CovidCases,
     FavoriteQuotes,
     StealEmote,
+    MessageLimits,
+    MessageLimitChannels,
 ]
 
 
