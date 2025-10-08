@@ -115,7 +115,6 @@ class ModerateGroup(
                 await self.timeout_user(
                     message.author, 5, "Spamming messages while being channel limited"
                 )
-                return
 
             try:
                 log(

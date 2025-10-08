@@ -15,7 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-libc-dev \
     g++ \
     sqlite3 \
-    git
+    git \
+    openssh-client
 
 RUN pip install --no-cache "poetry==$POETRY_VERSION"
 RUN python -m venv /venv
