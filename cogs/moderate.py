@@ -135,10 +135,22 @@ class ModerateGroup(
         sql.increment_message_limit(message.author.id, message.channel.id)
 
     @app_commands.command(description="Check your current message limit status")
+    @app_commands.guild_only()
     async def check(self, inter: discord.Interaction):
         if len(self.channel_limits) == 0:
             await inter.response.send_message(
                 "No message limits are currently set.", ephemeral=True
+            )
+            return
+
+        if (
+            self.ignore_admins
+            and isinstance(inter.user, discord.Member)
+            and inter.user.guild_permissions.moderate_members
+        ):
+            await inter.response.send_message(
+                "Admins are being ignored. You are exempt from message limits.",
+                ephemeral=True,
             )
             return
 
@@ -174,6 +186,7 @@ class ModerateGroup(
         channel="The channel to set the limit for",
         limit="The number of messages allowed before muting",
     )
+    @app_commands.guild_only()
     async def set(
         self,
         inter: discord.Interaction,
@@ -202,6 +215,7 @@ class ModerateGroup(
     @app_commands.checks.has_permissions(moderate_members=True)
     @app_commands.command(description="Remove a message limit for a channel")
     @app_commands.describe(channel="The channel to remove the limit for")
+    @app_commands.guild_only()
     async def remove(
         self,
         inter: discord.Interaction,
@@ -222,6 +236,7 @@ class ModerateGroup(
 
     @app_commands.checks.has_permissions(moderate_members=True)
     @app_commands.command(description="List all current message limits")
+    @app_commands.guild_only()
     async def list(self, inter: discord.Interaction, ephemeral: bool = True):
         if not inter.guild or inter.guild.id not in (
             747752542741725244,
@@ -242,12 +257,16 @@ class ModerateGroup(
             limit_msgs.append(msg)
 
         combined_limits = "\n".join(limit_msgs)
-        await inter.response.send_message(
-            f"## Message Limits\n{combined_limits}", ephemeral=ephemeral
+        list_message = (
+            "## Message Limits"
+            + (" (ADMINS IGNORED)" if self.ignore_admins else "")
+            + f"\n{combined_limits}"
         )
+        await inter.response.send_message(list_message, ephemeral=ephemeral)
 
     @app_commands.checks.has_permissions(moderate_members=True)
     @app_commands.command(description="If admins should be exempt from channel limits")
+    @app_commands.guild_only()
     async def ignore(
         self,
         inter: discord.Interaction,
