@@ -10,7 +10,7 @@ packages = [{include = "../Lecturfier"}]
 [tool.poetry.dependencies]
 python = "^3.11"
 aiohttp = "^3.8.3"
-async-timeout = "^4.0.2"
+async-timeout = "^5.0.0"
 beautifulsoup4 = "^4.11.2"
 colorthief = "^0.2.1"
 discord-ext-menus = "^1.1"
