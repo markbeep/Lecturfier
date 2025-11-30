@@ -1,4 +1,4 @@
-FROM python:3.11-slim-trixie as base
+FROM python:3.14-slim-trixie as base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
