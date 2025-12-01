@@ -110,7 +110,7 @@ class AdventOfCode(commands.Cog):
     async def aoc_ping(self):
         await self.bot.wait_until_ready()
         dt = datetime.now(timezone("Europe/Zurich"))
-        if dt.month == 12 and 1 <= dt.day <= 25 and dt.hour == 6 and dt.minute == 0:
+        if dt.month == 12 and 1 <= dt.day <= 12 and dt.hour == 6 and dt.minute == 0:
             msg = f"Good Morning! It's time for **Advent of Code** day #{dt.day}!\n\
                 [*Click here to get to the challenge*](https://adventofcode.com/2025/day/{dt.day})"
             embed = discord.Embed(description=msg, color=discord.Color.red())
@@ -131,18 +131,23 @@ class AdventOfCode(commands.Cog):
         cookie = {"session": session_key}
         email = os.getenv("EMAIL", "(no email given)")
         headers = {"User-Agent": f"https://github.com/markbeep/Lecturfier by {email}"}
-        async with aiohttp.ClientSession(cookies=cookie, headers=headers) as session:
-            async with session.get(
-                "https://adventofcode.com/2025/leaderboard/private/view/1514956.json"
-            ) as response:
-                if response.status == 200:
-                    response_data = await response.read()
-                    # saves the file to the data folder
-                    with open(self.aoc_path, "w") as f:
-                        f.write(response_data.decode())
-                    self.data = AoCMember.parse_string(response_data.decode())
-                    self.last_updated = time.time()
-                    log("Successfully updated the AoC data.", True)
+        try:
+            async with aiohttp.ClientSession(
+                cookies=cookie, headers=headers
+            ) as session:
+                async with session.get(
+                    "https://adventofcode.com/2025/leaderboard/private/view/1514956.json"
+                ) as response:
+                    if response.status == 200:
+                        response_data = await response.read()
+                        # saves the file to the data folder
+                        with open(self.aoc_path, "w") as f:
+                            f.write(response_data.decode())
+                        self.data = AoCMember.parse_string(response_data.decode())
+                        self.last_updated = time.time()
+                        log("Successfully updated the AoC data.", True)
+        except aiohttp.ClientError as e:
+            log(f"Error while fetching AoC data: {e}", True, True)
 
     @commands.guild_only()
     @commands.group(aliases=["adventofcode", "AdventOfCode"])
