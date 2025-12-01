@@ -56,7 +56,6 @@ class AoCMember:
     last_star_ts: int
     local_score: int
     id: int
-    global_score: int
     name: str
     stars: int
     completion_day_level: dict[int, AoCDay]
@@ -154,8 +153,8 @@ class AdventOfCode(commands.Cog):
     async def aoc(self, ctx, day: int = -1, star: int = -1):
         """
         `{prefix}aoc` - Total Leaderboard
-        `{prefix}aoc 1-25` - Day Leaderboard
-        `{prefix}aoc 1-25 1-2` - Day Leaderboard with star
+        `{prefix}aoc 1-12` - Day Leaderboard
+        `{prefix}aoc 1-12 1-2` - Day Leaderboard with star
         """
         d = self.data
         desc = f"Last Updated: `{get_formatted_time(int(time.time() - self.last_updated))}` ago"
@@ -192,7 +191,7 @@ class AdventOfCode(commands.Cog):
             )
             msg = await ctx.send(embed=view.embed, view=view)
             view.add_message(msg)
-        elif star == -1 and 1 <= day <= 25:  # send the lb for that day
+        elif star == -1 and 1 <= day <= 12:  # send the lb for that day
             pages = []
             members = [
                 mem
@@ -229,7 +228,7 @@ class AdventOfCode(commands.Cog):
             else:
                 await ctx.reply("There are no stats for that day yet.", delete_after=10)
                 await ctx.message.delete(delay=10)
-        elif 1 <= day <= 25 and star in [1, 2]:  # sends the lb for that day and star
+        elif 1 <= day <= 12 and star in [1, 2]:  # sends the lb for that day and star
             pages = []
             if star == 1:
                 members = [
