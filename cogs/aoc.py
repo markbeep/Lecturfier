@@ -135,7 +135,7 @@ class AdventOfCode(commands.Cog):
                 cookies=cookie, headers=headers
             ) as session:
                 async with session.get(
-                    "https://adventofcode.com/2025/leaderboard/private/view/1514956.json"
+                    "https://adventofcode.com/2025/leaderboard/private/view/1501119.json"
                 ) as response:
                     if response.status == 200:
                         response_data = await response.read()
