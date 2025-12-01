@@ -133,7 +133,7 @@ class AdventOfCode(commands.Cog):
         headers = {"User-Agent": f"https://github.com/markbeep/Lecturfier by {email}"}
         async with aiohttp.ClientSession(cookies=cookie, headers=headers) as session:
             async with session.get(
-                "https://adventofcode.com/2025/leaderboard/private/view/1501119.json"
+                "https://adventofcode.com/2025/leaderboard/private/view/1514956.json"
             ) as response:
                 if response.status == 200:
                     response_data = await response.read()
@@ -173,7 +173,7 @@ class AdventOfCode(commands.Cog):
             msg = []
             for i, m in enumerate(members):
                 msg.append(
-                    f"`[{i+1}]` **{m.name}** - {m.local_score} points | {m.stars} stars"
+                    f"`[{i + 1}]` **{m.name}** - {m.local_score} points | {m.stars} stars"
                 )
             pages = create_pages("\n".join(msg), 500)
 
@@ -202,11 +202,11 @@ class AdventOfCode(commands.Cog):
                 star_diff = mem.completion_day_level[day].diff()
                 if star_diff:
                     msg.append(
-                        f"`[{i+1}]` **{mem.name}** - {points} points *[Star diff: {get_formatted_time_short(star_diff)}]*"
+                        f"`[{i + 1}]` **{mem.name}** - {points} points *[Star diff: {get_formatted_time_short(star_diff)}]*"
                     )
                 else:
                     msg.append(
-                        f"`[{i+1}]` **{mem.name}** - {points} points *[Star diff: unfinished]*"
+                        f"`[{i + 1}]` **{mem.name}** - {points} points *[Star diff: unfinished]*"
                     )
             pages = create_pages("\n".join(msg), 500)
 
@@ -277,7 +277,7 @@ class AdventOfCode(commands.Cog):
                 else:
                     continue
 
-                msg.append(f"`[{i+1}]` **{mem.name}** - {form}")
+                msg.append(f"`[{i + 1}]` **{mem.name}** - {form}")
             pages = create_pages("\n".join(msg), 500)
 
             if len(pages) > 0:
