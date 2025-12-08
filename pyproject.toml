@@ -31,7 +31,7 @@ apng = "^0.3.4"
 dotenv = "^0.9.9"
 
 [tool.poetry.group.dev.dependencies]
-black = "^24.0.0"
+black = "^25.0.0"
 pylint = "^3.0.0"
 
 [build-system]
