@@ -32,7 +32,7 @@ dotenv = "^0.9.9"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.0.0"
-pylint = "^3.0.0"
+pylint = "^4.0.0"
 
 [build-system]
 requires = ["poetry-core"]
