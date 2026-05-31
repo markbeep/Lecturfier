@@ -44,9 +44,6 @@ class Voice(commands.Cog):
     async def on_message(self, message):
         if message.author.bot or message.guild is None:
             return
-
-        if "penis" in message.content.lower():
-            await message.channel.send("lol penis")
             
         # add xp to user
         await self.add_xp(message.author, 3, 5)
